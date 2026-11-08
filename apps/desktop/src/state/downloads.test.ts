@@ -69,22 +69,40 @@ describe("downloads store", () => {
       onProgress: () => Promise.reject(new Error("the event bus is closed")),
     });
     const stop = await store.getState().init();
-    expect(store.getState()).toMatchObject({ status: "ready", error: "the event bus is closed" });
+    expect(store.getState()).toMatchObject({ status: "ready", loadError: null, notice: "the event bus is closed" });
     expect(store.getState().items).toHaveLength(5);
     expect(() => {
       stop();
     }).not.toThrow();
   });
 
-  it("shows an error that arrives with a progress batch", async () => {
+  it("keeps both reasons when the subscription and the list fail", async () => {
+    const store = createDownloadsStore({
+      ...createMockBackend(),
+      onProgress: () => Promise.reject(new Error("the event bus is closed")),
+      list: () => Promise.reject(new Error("the library is locked")),
+    });
+    await store.getState().init();
+    expect(store.getState()).toMatchObject({
+      status: "error",
+      loadError: "the library is locked",
+      notice: "the event bus is closed",
+    });
+  });
+
+  it("keeps a batch's warning through the reload that a settled download starts", async () => {
     const { store } = await ready();
-    store.getState().applyBatch({ seq: 9, updates: [], settled: [], error: "couldn't save progress" });
-    expect(store.getState().error).toBe("couldn't save progress");
+    const done = store.getState().items.find((d) => d.state === "done");
+    store.getState().applyBatch({ seq: 9, updates: [], settled: [done?.id ?? -1], error: "couldn't save progress" });
+    await store.getState().reload();
+    expect(store.getState().notice).toBe("couldn't save progress");
+    store.getState().dismissNotice();
+    expect(store.getState().notice).toBeNull();
   });
 
   it("records an error instead of throwing when the backend refuses", async () => {
     const { store } = await ready();
     await store.getState().retry(999);
-    expect(store.getState().error).toMatch(/no download 999/);
+    expect(store.getState().notice).toMatch(/no download 999/);
   });
 });

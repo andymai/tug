@@ -17,13 +17,15 @@ export interface DownloadsState {
   view: View;
   selected: number | null;
   status: "loading" | "ready" | "error";
-  error: string | null;
+  loadError: string | null;
+  notice: string | null;
   init: () => Promise<() => void>;
   reload: () => Promise<void>;
   applyBatch: (batch: ProgressBatch) => void;
   setView: (view: View) => void;
   select: (id: number | null) => void;
   retry: (id: number) => Promise<void>;
+  dismissNotice: () => void;
 }
 
 export type DownloadsStore = ReturnType<typeof createDownloadsStore>;
@@ -35,35 +37,34 @@ export function createDownloadsStore(backend: Backend) {
     view: "all",
     selected: null,
     status: "loading",
-    error: null,
+    loadError: null,
+    notice: null,
 
     init: async () => {
       let stop: () => void = () => undefined;
-      let failure: string | null = null;
       try {
         stop = await backend.onProgress((batch) => {
           get().applyBatch(batch);
         });
       } catch (error) {
-        failure = BackendError.from(error).message;
+        set({ notice: BackendError.from(error).message });
       }
       await get().reload();
-      if (failure !== null) set({ error: failure });
       return stop;
     },
 
     reload: async () => {
       try {
         const items = await backend.list();
-        set({ items, status: "ready", error: null });
+        set({ items, status: "ready", loadError: null });
       } catch (error) {
-        set({ status: "error", error: BackendError.from(error).message });
+        set({ status: "error", loadError: BackendError.from(error).message });
       }
     },
 
     applyBatch: (batch) => {
       const live = Object.fromEntries(batch.updates.map((update) => [update.id, update]));
-      set(batch.error === null ? { live } : { live, error: batch.error });
+      set(batch.error === null ? { live } : { live, notice: batch.error });
       const known = new Set(get().items.map((item) => item.id));
       if (batch.settled.length > 0 || batch.updates.some((update) => !known.has(update.id))) {
         void get().reload();
@@ -83,8 +84,12 @@ export function createDownloadsStore(backend: Backend) {
         await backend.resume(id);
         await get().reload();
       } catch (error) {
-        set({ error: BackendError.from(error).message });
+        set({ notice: BackendError.from(error).message });
       }
+    },
+
+    dismissNotice: () => {
+      set({ notice: null });
     },
   }));
 }
