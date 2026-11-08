@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { DownloadEvent } from "../backend/backend";
+import type { DownloadEvent, Settings } from "../backend/backend";
 import { createMockBackend } from "../backend/mock";
 import { countFor, createDownloadsStore, visibleItems } from "./downloads";
 
@@ -112,6 +112,42 @@ describe("downloads store", () => {
 
     await store.getState().saveSettings({ ...settings, connections: 0 });
     expect(store.getState().settings?.connections).toBe(16);
+    expect(store.getState().settingsError).toMatch(/between 1 and 32/);
+  });
+
+  it("keeps two quick changes, saved in order, and rolls back one the backend refuses", async () => {
+    const backend = createMockBackend();
+    const writes: Settings[] = [];
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const store = createDownloadsStore({
+      ...backend,
+      updateSettings: async (next) => {
+        await gate;
+        writes.push(next);
+        return backend.updateSettings(next);
+      },
+    });
+    await store.getState().init();
+    const start = store.getState().settings;
+    if (start === null) return;
+
+    const first = store.getState().saveSettings({ ...start, connections: 12 });
+    const latest = store.getState().settings;
+    if (latest === null) return;
+    const second = store.getState().saveSettings({ ...latest, speedLimit: 1 << 20 });
+    release();
+    await Promise.all([first, second]);
+    expect(writes.map((w) => [w.connections, w.speedLimit])).toEqual([
+      [12, null],
+      [12, 1 << 20],
+    ]);
+    expect(await backend.settings()).toMatchObject({ connections: 12, speedLimit: 1 << 20 });
+
+    await store.getState().saveSettings({ ...latest, connections: 0 });
+    expect(store.getState().settings).toMatchObject({ connections: 12, speedLimit: 1 << 20 });
     expect(store.getState().settingsError).toMatch(/between 1 and 32/);
   });
 

@@ -89,9 +89,17 @@ export function createDownloadsStore(backend: Backend) {
       }
     };
 
+    let confirmed: Settings | null = null;
+    let saving: Promise<void> = Promise.resolve();
+    const queue = (task: () => Promise<void>) => {
+      saving = saving.then(task);
+      return saving;
+    };
+
     const loadSettings = async () => {
       try {
-        set({ settings: await backend.settings() });
+        confirmed = await backend.settings();
+        set({ settings: confirmed });
       } catch (error) {
         set({ notice: BackendError.from(error).message });
       }
@@ -153,23 +161,29 @@ export function createDownloadsStore(backend: Backend) {
         set({ page, settingsError: null });
       },
 
-      saveSettings: async (next) => {
-        try {
-          await backend.updateSettings(next);
-          set({ settings: next, settingsError: null });
-        } catch (error) {
-          set({ settingsError: BackendError.from(error).message });
-        }
+      saveSettings: (next) => {
+        set({ settings: next, settingsError: null });
+        return queue(async () => {
+          try {
+            await backend.updateSettings(next);
+            confirmed = next;
+          } catch (error) {
+            set({ settings: confirmed, settingsError: BackendError.from(error).message });
+          }
+        });
       },
 
-      chooseFolder: async () => {
-        try {
-          const chosen = await backend.chooseDownloadFolder();
-          if (chosen !== null) set({ settings: chosen, settingsError: null });
-        } catch (error) {
-          set({ settingsError: BackendError.from(error).message });
-        }
-      },
+      chooseFolder: () =>
+        queue(async () => {
+          try {
+            const chosen = await backend.chooseDownloadFolder();
+            if (chosen === null) return;
+            confirmed = chosen;
+            set({ settings: chosen, settingsError: null });
+          } catch (error) {
+            set({ settingsError: BackendError.from(error).message });
+          }
+        }),
 
       select: (id) => {
         set({ selected: id });

@@ -447,6 +447,31 @@ describe("settings page", () => {
     expect(screen.queryByRole("textbox", { name: "Speed limit" })).not.toBeInTheDocument();
   });
 
+  it("goes to a download from the settings page", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(screen.getByRole("combobox"), "fedora");
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("heading", { level: 1, name: "All downloads" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" })).toBeInTheDocument();
+  });
+
+  it("leaves a precise speed limit alone when its field is only visited", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    await backend.updateSettings({ ...(await backend.settings()), speedLimit: Math.round(0.14 * MB) });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    const field = screen.getByRole("textbox", { name: "Speed limit" });
+    expect(field).toHaveValue("0.14");
+    await user.click(field);
+    await user.tab();
+    expect((await backend.settings()).speedLimit).toBe(Math.round(0.14 * MB));
+    expect(screen.queryByText("Enter a speed above zero.")).not.toBeInTheDocument();
+  });
+
   it("keeps list shortcuts quiet on the settings page", async () => {
     const { user, store } = open();
     await screen.findByText("fedora-kde-44-x86_64.iso");

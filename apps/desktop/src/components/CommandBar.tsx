@@ -39,6 +39,7 @@ function Palette({ choose, labelId }: { choose: (run: () => void) => void; label
             run: () => {
               const state = store.getState();
               if (!inView(state.view, item)) state.setView("all");
+              else state.setPage("downloads");
               state.select(item.id);
               state.requestFocus(item.id);
             },
