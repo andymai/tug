@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/andymai/tug/compare/v0.2.0...v0.3.0) (2026-11-08)
+
+
+### Features
+
+* **core:** add settings for the download folder, connections and a speed limit ([#6](https://github.com/andymai/tug/issues/6)) ([9bbb82a](https://github.com/andymai/tug/commit/9bbb82a55141f020a3d71338d603ec24f2df3d7d))
+
 ## [0.2.0](https://github.com/andymai/tug/compare/v0.1.0...v0.2.0) (2026-11-08)
 
 
