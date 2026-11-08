@@ -53,6 +53,12 @@ impl DownloadId {
     }
 }
 
+impl From<i64> for DownloadId {
+    fn from(id: i64) -> Self {
+        Self(id)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DownloadState {
     Queued,
