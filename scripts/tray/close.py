@@ -1,5 +1,3 @@
-"""Sends WM_DELETE_WINDOW to an X11 window, as a window manager does when its close button is pressed."""
-
 import ctypes, sys
 
 x = ctypes.cdll.LoadLibrary("libX11.so.6")
