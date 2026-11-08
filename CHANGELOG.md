@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/andymai/tug/compare/v0.7.1...v0.8.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** the event log in the detail panel ([#28](https://github.com/andymai/tug/issues/28)) ([2cda185](https://github.com/andymai/tug/commit/2cda1851311ec253cfcc419746d4942f3972dbf7))
+
 ## [0.7.1](https://github.com/andymai/tug/compare/v0.7.0...v0.7.1) (2026-11-08)
 
 
