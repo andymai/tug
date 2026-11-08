@@ -19,6 +19,9 @@ export interface DownloadsState {
   status: "loading" | "ready" | "error";
   loadError: string | null;
   notice: string | null;
+  downloadDir: string | null;
+  adding: Adding;
+  fresh: number[];
   init: () => Promise<() => void>;
   reload: () => Promise<void>;
   applyBatch: (batch: ProgressBatch) => void;
@@ -26,72 +29,153 @@ export interface DownloadsState {
   select: (id: number | null) => void;
   retry: (id: number) => Promise<void>;
   dismissNotice: () => void;
+  openAdd: (text?: string) => void;
+  setAddText: (text: string) => void;
+  closeAdd: () => void;
+  addLinks: (hrefs: readonly string[]) => Promise<void>;
+  settleFresh: (id: number) => void;
 }
+
+export interface Adding {
+  open: boolean;
+  text: string;
+  busy: boolean;
+  error: string | null;
+}
+
+const CLOSED: Adding = { open: false, text: "", busy: false, error: null };
 
 export type DownloadsStore = ReturnType<typeof createDownloadsStore>;
 
 export function createDownloadsStore(backend: Backend) {
-  return createStore<DownloadsState>()((set, get) => ({
-    items: [],
-    live: {},
-    view: "all",
-    selected: null,
-    status: "loading",
-    loadError: null,
-    notice: null,
-
-    init: async () => {
-      let stop: () => void = () => undefined;
+  return createStore<DownloadsState>()((set, get) => {
+    const loadFolder = async () => {
       try {
-        stop = await backend.onProgress((batch) => {
-          get().applyBatch(batch);
+        set({ downloadDir: (await backend.settings()).downloadDir });
+      } catch (error) {
+        set({ notice: BackendError.from(error).message });
+      }
+    };
+
+    return {
+      items: [],
+      live: {},
+      view: "all",
+      selected: null,
+      status: "loading",
+      loadError: null,
+      notice: null,
+      downloadDir: null,
+      adding: CLOSED,
+      fresh: [],
+
+      init: async () => {
+        let stop: () => void = () => undefined;
+        try {
+          stop = await backend.onProgress((batch) => {
+            get().applyBatch(batch);
+          });
+        } catch (error) {
+          set({ notice: BackendError.from(error).message });
+        }
+        await Promise.all([get().reload(), loadFolder()]);
+        return stop;
+      },
+
+      reload: async () => {
+        try {
+          const items = await backend.list();
+          set({ items, status: "ready", loadError: null });
+        } catch (error) {
+          set({ status: "error", loadError: BackendError.from(error).message });
+        }
+      },
+
+      applyBatch: (batch) => {
+        const live = Object.fromEntries(batch.updates.map((update) => [update.id, update]));
+        set(batch.error === null ? { live } : { live, notice: batch.error });
+        const known = new Set(get().items.map((item) => item.id));
+        if (batch.settled.length > 0 || batch.updates.some((update) => !known.has(update.id))) {
+          void get().reload();
+        }
+      },
+
+      setView: (view) => {
+        set({ view, selected: null });
+      },
+
+      select: (id) => {
+        set({ selected: id });
+      },
+
+      retry: async (id) => {
+        try {
+          await backend.resume(id);
+          await get().reload();
+        } catch (error) {
+          set({ notice: BackendError.from(error).message });
+        }
+      },
+
+      dismissNotice: () => {
+        set({ notice: null });
+      },
+
+      openAdd: (text = "") => {
+        const { adding } = get();
+        if (adding.open) {
+          const joined = [adding.text.trimEnd(), text].filter((part) => part !== "").join("\n");
+          set({ adding: { ...adding, text: joined } });
+        } else {
+          set({ adding: { ...CLOSED, open: true, text } });
+        }
+      },
+
+      setAddText: (text) => {
+        set({ adding: { ...get().adding, text, error: null } });
+      },
+
+      closeAdd: () => {
+        set({ adding: CLOSED });
+      },
+
+      addLinks: async (hrefs) => {
+        set({ adding: { ...get().adding, busy: true, error: null } });
+        const added: number[] = [];
+        const failed: { href: string; message: string }[] = [];
+        for (const href of hrefs) {
+          try {
+            added.push((await backend.add(href)).id);
+          } catch (error) {
+            failed.push({ href, message: BackendError.from(error).message });
+          }
+        }
+        const [first] = failed;
+        const reason =
+          first === undefined
+            ? null
+            : failed.length === 1
+              ? `couldn't add ${first.href}: ${first.message}`
+              : `couldn't add ${String(failed.length)} links: ${first.message}`;
+        if (added.length === 0) {
+          set({ adding: { ...get().adding, busy: false, error: reason } });
+          return;
+        }
+        const { view, fresh } = get();
+        set({
+          adding: CLOSED,
+          fresh: [...fresh, ...added],
+          view: view === "done" || view === "failed" ? "all" : view,
+          ...(reason === null ? {} : { notice: reason }),
         });
-      } catch (error) {
-        set({ notice: BackendError.from(error).message });
-      }
-      await get().reload();
-      return stop;
-    },
-
-    reload: async () => {
-      try {
-        const items = await backend.list();
-        set({ items, status: "ready", loadError: null });
-      } catch (error) {
-        set({ status: "error", loadError: BackendError.from(error).message });
-      }
-    },
-
-    applyBatch: (batch) => {
-      const live = Object.fromEntries(batch.updates.map((update) => [update.id, update]));
-      set(batch.error === null ? { live } : { live, notice: batch.error });
-      const known = new Set(get().items.map((item) => item.id));
-      if (batch.settled.length > 0 || batch.updates.some((update) => !known.has(update.id))) {
-        void get().reload();
-      }
-    },
-
-    setView: (view) => {
-      set({ view, selected: null });
-    },
-
-    select: (id) => {
-      set({ selected: id });
-    },
-
-    retry: async (id) => {
-      try {
-        await backend.resume(id);
         await get().reload();
-      } catch (error) {
-        set({ notice: BackendError.from(error).message });
-      }
-    },
+      },
 
-    dismissNotice: () => {
-      set({ notice: null });
-    },
-  }));
+      settleFresh: (id) => {
+        set({ fresh: get().fresh.filter((item) => item !== id) });
+      },
+    };
+  });
 }
 
 export function inView(view: View, item: Download): boolean {

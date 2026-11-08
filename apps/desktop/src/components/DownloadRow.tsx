@@ -4,6 +4,7 @@ import type { Download, ProgressUpdate } from "../backend/backend";
 import { formatBytes, formatLeft, formatPercent, formatSpeed, percentOf, sentence, shortDir } from "../lib/format";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads } from "../state/context";
+import { Button } from "./Button";
 
 interface Detail {
   text: string;
@@ -42,6 +43,8 @@ export const DownloadRow = memo(function DownloadRow({ download, selected }: Dow
   const live = useDownloads((s) => s.live[download.id]);
   const select = useDownloads((s) => s.select);
   const retry = useDownloads((s) => s.retry);
+  const fresh = useDownloads((s) => s.fresh.includes(download.id));
+  const settleFresh = useDownloads((s) => s.settleFresh);
   const look = STATES[download.state];
   const received = live?.received ?? download.received;
   const total = live?.total ?? download.size;
@@ -58,7 +61,17 @@ export const DownloadRow = memo(function DownloadRow({ download, selected }: Dow
         }}
         className="grid min-h-(--row-height) w-full grid-cols-[16px_minmax(0,1fr)_132px_76px] items-center gap-3 px-3 py-0.5 text-left transition-colors duration-(--duration-fast) ease-(--ease-out) outline-offset-[-2px] hover:bg-hover focus-visible:bg-selection aria-pressed:bg-selection @max-xl:grid-cols-[16px_minmax(0,1fr)_72px_76px]"
       >
-        <look.Icon {...ICON} className={look.tone} />
+        <look.Icon
+          {...ICON}
+          className={fresh ? `${look.tone} animate-tug` : look.tone}
+          onAnimationEnd={
+            fresh
+              ? () => {
+                  settleFresh(download.id);
+                }
+              : undefined
+          }
+        />
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-body-strong text-ink">{download.name}</span>
           <span className="flex min-w-0 items-center gap-1 text-small whitespace-nowrap text-ink-muted">
@@ -86,14 +99,14 @@ export const DownloadRow = memo(function DownloadRow({ download, selected }: Dow
         <span className="text-right text-mono-strong text-ink">{failed ? "" : formatBytes(total ?? received)}</span>
       </button>
       {failed && (
-        <button
-          type="button"
+        <Button
+          size="sm"
           aria-label={`Retry ${download.name}`}
           onClick={() => void retry(download.id)}
-          className="absolute top-1/2 right-3 h-6 -translate-y-1/2 rounded-sm border border-control-border bg-surface px-2 text-small font-medium text-ink transition-colors duration-(--duration-fast) ease-(--ease-out) hover:bg-hover"
+          className="absolute top-1/2 right-3 -translate-y-1/2"
         >
           Retry
-        </button>
+        </Button>
       )}
     </li>
   );

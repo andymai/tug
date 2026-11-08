@@ -1,4 +1,4 @@
-import { CircleAlert, X } from "lucide-react";
+import { CircleAlert, Plus, X } from "lucide-react";
 import { useShallow } from "zustand/shallow";
 
 import markDark from "../../../../brand/svg/mark-dark.svg";
@@ -7,6 +7,7 @@ import { formatSpeed, sentence } from "../lib/format";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { type View, visibleItems } from "../state/downloads";
+import { Button } from "./Button";
 import { DownloadRow } from "./DownloadRow";
 
 const TITLES: Record<View, string> = {
@@ -73,13 +74,7 @@ function LoadError({ message }: { message: string }) {
         Couldn't load your downloads
       </h2>
       <p className="max-w-sm text-body text-ink-muted">{message}</p>
-      <button
-        type="button"
-        onClick={() => void reload()}
-        className="h-[30px] rounded-sm border border-control-border bg-surface px-3 text-body-strong text-ink transition-colors duration-(--duration-fast) ease-(--ease-out) hover:bg-hover"
-      >
-        Retry
-      </button>
+      <Button onClick={() => void reload()}>Retry</Button>
     </section>
   );
 }
@@ -92,14 +87,7 @@ function Notice() {
     <div role="alert" className="flex items-center gap-2 border-b border-line py-1 pr-2 pl-4 text-small text-ink">
       <CircleAlert {...ICON} className="shrink-0 text-state-error" />
       <p className="min-w-0 flex-1">{sentence(notice)}</p>
-      <button
-        type="button"
-        aria-label="Dismiss"
-        onClick={dismiss}
-        className="grid size-6 shrink-0 place-items-center rounded-sm text-ink-muted transition-colors duration-(--duration-fast) ease-(--ease-out) hover:bg-hover hover:text-ink"
-      >
-        <X {...ICON} />
-      </button>
+      <Button variant="ghost" size="sm" icon={X} aria-label="Dismiss" onClick={dismiss} className="w-6 px-0 text-ink-muted hover:text-ink" />
     </div>
   );
 }
@@ -111,12 +99,24 @@ export function DownloadList() {
   const total = useDownloads((s) => s.items.length);
   const items = useDownloads(useShallow((s) => visibleItems(s)));
   const selected = useDownloads((s) => s.selected);
+  const openAdd = useDownloads((s) => s.openAdd);
 
   return (
     <main className="@container flex min-w-0 flex-1 flex-col bg-surface">
       <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line px-4">
         <h1 className="text-title text-ink">{TITLES[view]}</h1>
-        <Summary />
+        <div className="flex items-center gap-4">
+          <Summary />
+          <Button
+            variant="primary"
+            icon={Plus}
+            onClick={() => {
+              openAdd();
+            }}
+          >
+            Add
+          </Button>
+        </div>
       </header>
       <Notice />
       {status === "error" ? (

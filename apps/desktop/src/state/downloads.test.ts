@@ -100,6 +100,60 @@ describe("downloads store", () => {
     expect(store.getState().notice).toBeNull();
   });
 
+  it("loads the download folder for the add dialog", async () => {
+    const { store } = await ready();
+    expect(store.getState().downloadDir).toBe("/home/you/Downloads");
+  });
+
+  it("opens the add dialog, and adds to the text when it is already open", async () => {
+    const { store } = await ready();
+    store.getState().openAdd("https://example.org/a.iso");
+    store.getState().openAdd("https://example.org/b.iso");
+    expect(store.getState().adding).toMatchObject({ open: true, text: "https://example.org/a.iso\nhttps://example.org/b.iso" });
+    store.getState().closeAdd();
+    store.getState().openAdd();
+    expect(store.getState().adding.text).toBe("");
+  });
+
+  it("adds links, closes the dialog, marks them fresh and shows them", async () => {
+    const { store } = await ready();
+    store.getState().setView("done");
+    store.getState().openAdd();
+    await store.getState().addLinks(["https://example.org/a.iso", "https://example.org/b.iso"]);
+    const { adding, fresh, items, view } = store.getState();
+    expect(adding.open).toBe(false);
+    expect(view).toBe("all");
+    expect(fresh).toHaveLength(2);
+    expect(items.filter((d) => fresh.includes(d.id)).map((d) => d.name)).toEqual(["a.iso", "b.iso"]);
+    store.getState().settleFresh(fresh[0] ?? -1);
+    expect(store.getState().fresh).toHaveLength(1);
+  });
+
+  it("keeps the dialog open when nothing could be added, and says why", async () => {
+    const backend = createMockBackend();
+    const store = createDownloadsStore({ ...backend, add: () => Promise.reject(new Error("the disk is full")) });
+    store.getState().openAdd();
+    await store.getState().addLinks(["https://example.org/a.iso"]);
+    expect(store.getState().adding).toMatchObject({
+      open: true,
+      busy: false,
+      error: "couldn't add https://example.org/a.iso: the disk is full",
+    });
+  });
+
+  it("closes the dialog and leaves a notice when only some links fail", async () => {
+    const backend = createMockBackend();
+    const store = createDownloadsStore({
+      ...backend,
+      add: (url, dir) => (url.endsWith("bad.iso") ? Promise.reject(new Error("the server said no")) : backend.add(url, dir)),
+    });
+    store.getState().openAdd();
+    await store.getState().addLinks(["https://example.org/good.iso", "https://example.org/bad.iso"]);
+    expect(store.getState().adding.open).toBe(false);
+    expect(store.getState().notice).toBe("couldn't add https://example.org/bad.iso: the server said no");
+    expect(store.getState().items.map((d) => d.name)).toEqual(["good.iso"]);
+  });
+
   it("records an error instead of throwing when the backend refuses", async () => {
     const { store } = await ready();
     await store.getState().retry(999);
