@@ -1,0 +1,12 @@
+# Advisories that OSV reports for crates Tug cannot drop yet. Each entry
+# names the change that removes the crate; delete the entry with that change.
+
+# gtk-rs 0.18 (GTK3) is Tauri 2's Linux stack: tauri, tao, muda and
+# webkit2gtk 2.0 all depend on it. Both leave when Tauri moves to GTK4.
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+reason = "unmaintained proc-macro-error via glib-macros 0.18 in Tauri 2's GTK3 stack; removed when Tauri moves to GTK4"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+reason = "unsound glib 0.18 VariantStrIter, which Tug never calls, in Tauri 2's GTK3 stack; removed when Tauri moves to GTK4"

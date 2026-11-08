@@ -114,6 +114,27 @@ jobs:
           persist-credentials: false
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
 
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: python3 scripts/gen-tokens.py --check
+      - run: pnpm --filter @tug/desktop typecheck
+      - run: pnpm --filter @tug/desktop lint
+      - run: pnpm --filter @tug/desktop test
+      - run: pnpm --filter @tug/desktop build
+
   # A prebuilt cargo-audit: compiling it from source on the runner pulls the
   # newest releases of its dependencies, and one bad upstream publish then
   # fails every run.
@@ -168,7 +189,7 @@ jobs:
   ci-pass:
     name: CI Pass
     if: ${{ !cancelled() }}
-    needs: [fmt, clippy, test, msrv, docs, deps, deny, audit, machete, taplo]
+    needs: [fmt, clippy, test, msrv, docs, deps, frontend, deny, audit, machete, taplo]
     runs-on: ubuntu-24.04
     steps:
       - name: Check all jobs

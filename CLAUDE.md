@@ -9,8 +9,10 @@ Plan and decisions: Obsidian vault `Projects/tug`. Design system (tokens, brand 
 | Path | Role | May depend on |
 |---|---|---|
 | `crates/tug-core` | The app layer: transfers, the library, queues, settings, SQLite persistence | `mdm-*` crates, std, crates.io |
-| `apps/desktop` (planned) | Tauri shell and React UI | `tug-core`, never `mdm-*` |
+| `apps/desktop` | React 19 UI (Vite, Tailwind 4, TypeScript) | the design tokens |
+| `apps/desktop/src-tauri` | Tauri 2 shell, crate `tug-desktop`, binary `tug` | `tug-core`, never `mdm-*` |
 | `crates/tug-host` (planned) | Browser native messaging host | `tug-core` |
+| `design/tokens.json` | The design system's tokens; `scripts/gen-tokens.py` writes `apps/desktop/src/styles/tokens.css` (CSS variables, Tailwind `@theme`, `.text-*` type styles) | nothing |
 | `brand/` | Mark, icons, wordmark: `build.py` draws every SVG, `export.sh` renders PNGs | nothing |
 
 ## Rules
@@ -19,6 +21,7 @@ Plan and decisions: Obsidian vault `Projects/tug`. Design system (tokens, brand 
 - MDM's crates are declared once, in the root `[workspace.dependencies]`, at one git rev. Move the rev on purpose, in its own PR, after the engine tests pass; `check-deps.py` fails a split or stale pin.
 - `unsafe_code` is forbidden. `unwrap`, `expect`, `panic`, `todo`, `dbg!` and printing are denied outside tests.
 - No comments or docstrings unless the why is not obvious from the code.
+- Change tokens in `design/tokens.json` and regenerate; never edit `tokens.css`. Style with the token utilities (`bg-surface`, `text-ink-muted`, `rounded-md`) and the `.text-*` type styles, not raw colors or sizes.
 - UI work follows the design system: orange never colors text, every download state shows an icon and a word, and every screen is checked in screenshots, light and dark, before it is done.
 
 ## Commands
@@ -31,7 +34,10 @@ distrobox enter dev -- bash -lc 'cd ~/Git/tug && PKG_CONFIG=/usr/bin/pkg-config 
 
 - `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`
 - `python3 scripts/check-deps.py`, `taplo fmt --check`, `cargo machete`, `cargo deny check`, `cargo audit`
-- `brand/export.sh` after changing `brand/build.py`
+- `brand/export.sh` after changing `brand/build.py`; `python3 scripts/gen-tokens.py` after changing `design/tokens.json`
+- Frontend, on the host with pnpm: `pnpm install`, then `pnpm --filter @tug/desktop dev | typecheck | lint | test | build`
+
+Screenshots of the real app, off the screen: run `pnpm --filter @tug/desktop dev` on the host, then in the container run `target/debug/tug` under `dbus-run-session -- xvfb-run` with `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` unset, `GDK_BACKEND=x11` and `GSETTINGS_BACKEND=memory`, and capture with `import -window root`. Light needs an empty `XDG_CONFIG_HOME`; dark needs one whose `gtk-3.0/settings.ini` sets `gtk-application-prefer-dark-theme=1`. Without these the window opens on the real screen or inherits the desktop's theme.
 
 CI (`.github/workflows/ci.yml`) runs all of these behind the `CI Pass` gate. Commits and PR titles are conventional commits; release-please cuts releases from them.
 
