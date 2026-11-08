@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/andymai/tug/compare/v0.8.0...v0.8.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **core:** report settled downloads when their history fails to save ([#30](https://github.com/andymai/tug/issues/30)) ([dc18288](https://github.com/andymai/tug/commit/dc18288d9e0b410ef34ec5228ba71c7465d2be8e))
+
 ## [0.8.0](https://github.com/andymai/tug/compare/v0.7.1...v0.8.0) (2026-11-08)
 
 
