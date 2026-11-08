@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/andymai/tug/compare/v0.11.0...v0.11.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **desktop:** keep a newer color scheme over the first read, and clear mock listeners ([#45](https://github.com/andymai/tug/issues/45)) ([9681d30](https://github.com/andymai/tug/commit/9681d302febf0c4fa269eb7dadad88468def1d05))
+
 ## [0.11.0](https://github.com/andymai/tug/compare/v0.10.2...v0.11.0) (2026-11-08)
 
 
