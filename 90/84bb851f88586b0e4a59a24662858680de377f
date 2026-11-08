@@ -1,0 +1,28 @@
+apps/desktop/src/state/downloads.ts
+  s_b050dc8a593981::t_c91e4cdf2ae606 92-98,101-102,164-173,176-186
+apps/desktop/src/components/CommandBar.tsx
+  s_b050dc8a593981::t_c91e4cdf2ae606 42
+apps/desktop/src/App.test.tsx
+  s_b050dc8a593981::t_8f09a231672aad 450-474
+apps/desktop/src/state/downloads.test.ts
+  s_b050dc8a593981::t_8f09a231672aad 3,118-150
+  s_b050dc8a593981::t_bf9a68ea68079d 151-153
+apps/desktop/src/components/SettingsPage.tsx
+  s_b050dc8a593981::t_c91e4cdf2ae606 13-16,85,90-93,113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9084bb851f88586b0e4a59a24662858680de377f",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
