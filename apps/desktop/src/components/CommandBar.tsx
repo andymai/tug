@@ -116,6 +116,7 @@ function Palette({ choose, labelId }: { choose: (run: () => void) => void; label
                       if (at !== current) setActive(at);
                     }}
                     onMouseDown={(event) => {
+                      if (event.button !== 0) return;
                       event.preventDefault();
                       choose(entry.run);
                     }}

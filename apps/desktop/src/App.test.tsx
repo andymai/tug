@@ -330,6 +330,17 @@ describe("command bar and keyboard", () => {
     expect(screen.getByRole("button", { name: /^conference-talk-1080p\.mp4/ })).toHaveFocus();
   });
 
+  it("runs a command on a primary click only", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.keyboard("{Control>}k{/Control}");
+    const option = within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("option", { name: /Show failed downloads/ });
+    await user.pointer({ keys: "[MouseRight]", target: option });
+    expect(screen.getByRole("dialog", { name: "Command bar" })).toBeInTheDocument();
+    await user.click(option);
+    expect(screen.getByRole("heading", { level: 1, name: "Failed" })).toBeInTheDocument();
+  });
+
   it("moves the active option with the arrow keys and offers the selected download's actions", async () => {
     const { user } = open();
     await user.click(await screen.findByRole("button", { name: /^noto-fonts-2026\.11\.zip/ }));
