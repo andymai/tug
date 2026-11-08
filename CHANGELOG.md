@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/andymai/tug/compare/v0.11.1...v0.12.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** a tray item with the symbolic icon, a menu, and close to tray ([#47](https://github.com/andymai/tug/issues/47)) ([15425a4](https://github.com/andymai/tug/commit/15425a45422fbc9456dd43514095a9a97473f4e4))
+
 ## [0.11.1](https://github.com/andymai/tug/compare/v0.11.0...v0.11.1) (2026-11-08)
 
 
