@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/andymai/tug/compare/v0.6.0...v0.6.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **desktop:** keep typed links exact, name bad escapes, and scope adds to their dialog ([#21](https://github.com/andymai/tug/issues/21)) ([426a422](https://github.com/andymai/tug/commit/426a422cfc1306bed4147f2fb7ae40413213a42d))
+
 ## [0.6.0](https://github.com/andymai/tug/compare/v0.5.2...v0.6.0) (2026-11-08)
 
 
