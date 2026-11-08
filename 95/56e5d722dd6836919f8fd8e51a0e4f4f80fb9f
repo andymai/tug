@@ -1,0 +1,23 @@
+scripts/tray/check.sh
+  s_b050dc8a593981::t_a5297e68565e3d 53,56-65,67-71
+  s_b050dc8a593981::t_6f240cf47b0151 54-55
+  s_b050dc8a593981::t_dc0aaf266323da 66
+apps/desktop/src-tauri/src/tray.rs
+  s_b050dc8a593981::t_a5297e68565e3d 4,7,86-103,129,136,143,150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9556e5d722dd6836919f8fd8e51a0e4f4f80fb9f",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
