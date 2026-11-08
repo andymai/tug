@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Checks the tray end to end, off the screen: a stand-in StatusNotifierWatcher on a
-# private session bus, the real app under Xvfb, and the item and its menu over D-Bus.
 # Run it in the dev container while `pnpm --filter @tug/desktop dev` serves the UI.
 set -euo pipefail
 
@@ -52,5 +50,24 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     sleep 2
     kill -0 "$app" 2>/dev/null && fail "Quit Tug left Tug running"
     echo "ok: Quit Tug exits"
+
+    kill "$watcher"
+    wait "$watcher" 2>/dev/null || true
+    rm -f "$work/registered"
+    /usr/bin/python3 "$here/watcher.py" "$work/registered" & watcher=$!
+    ./target/debug/tug > "$work/app.log" 2>&1 & app=$!
+    trap "kill $app $watcher 2>/dev/null || true" EXIT
+    for _ in $(seq 1 30); do [ -s "$work/registered" ] && break; sleep 0.5; done
+    sleep 1
+    for window in $(xdotool search --onlyvisible --name "^Tug$"); do /usr/bin/python3 "$here/close.py" "$window"; done
+    sleep 2
+    expect "hidden in the tray" "$(visible)" 0
+    kill "$watcher"
+    for _ in $(seq 1 20); do [ "$(visible)" = 1 ] && break; sleep 0.5; done
+    expect "visible when the tray host leaves" "$(visible)" 1
+    for window in $(xdotool search --onlyvisible --name "^Tug$"); do /usr/bin/python3 "$here/close.py" "$window"; done
+    sleep 2
+    kill -0 "$app" 2>/dev/null && fail "closing without a tray host left Tug running"
+    echo "ok: closing without a tray host quits"
   '
 rm -rf "$work"

@@ -1,9 +1,10 @@
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use ksni::menu::StandardItem;
-use ksni::{Category, Handle, MenuItem, ToolTip, Tray, TrayMethods};
+use ksni::{Category, Handle, MenuItem, OfflineReason, ToolTip, Tray, TrayMethods};
 use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
 
 pub const ID: &str = "io.github.andymai.Tug";
@@ -82,6 +83,24 @@ impl<R: Runtime> Tray for TugTray<R> {
         }
     }
 
+    fn watcher_online(&self) {
+        self.app
+            .state::<TrayState<R>>()
+            .online
+            .store(true, Ordering::SeqCst);
+    }
+
+    fn watcher_offline(&self, _reason: OfflineReason) -> bool {
+        self.app
+            .state::<TrayState<R>>()
+            .online
+            .store(false, Ordering::SeqCst);
+        if let Some(window) = self.window() {
+            show(&window);
+        }
+        true
+    }
+
     fn menu(&self) -> Vec<MenuItem<Self>> {
         vec![
             StandardItem {
@@ -107,25 +126,28 @@ impl<R: Runtime> Tray for TugTray<R> {
 
 pub struct TrayState<R: Runtime> {
     handle: Mutex<Option<Handle<TugTray<R>>>>,
+    online: AtomicBool,
 }
 
 impl<R: Runtime> Default for TrayState<R> {
     fn default() -> Self {
         Self {
             handle: Mutex::new(None),
+            online: AtomicBool::new(false),
         }
     }
 }
 
 impl<R: Runtime> TrayState<R> {
     pub fn shown(&self) -> bool {
-        self.handle.lock().is_ok_and(|handle| handle.is_some())
+        self.online.load(Ordering::SeqCst)
     }
 
     fn set(&self, handle: Handle<TugTray<R>>) {
         if let Ok(mut slot) = self.handle.lock() {
             *slot = Some(handle);
         }
+        self.online.store(true, Ordering::SeqCst);
     }
 }
 

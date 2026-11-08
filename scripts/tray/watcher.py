@@ -1,5 +1,3 @@
-"""A stand-in StatusNotifierWatcher for scripts/tray/check.sh: it accepts items and logs them."""
-
 import sys
 from gi.repository import Gio, GLib
 
