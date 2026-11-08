@@ -26,6 +26,11 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    ignore:
+      # Each Playwright version pins one Chromium build, and a new build can
+      # move the reference screenshots. Bump it by hand with fresh references.
+      - dependency-name: "playwright"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
     open-pull-requests-limit: 3
 
   - package-ecosystem: github-actions
