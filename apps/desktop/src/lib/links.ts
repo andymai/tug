@@ -10,7 +10,12 @@ export type LinkCheck =
 
 export function nameOf(url: URL): string {
   const segment = url.pathname.split("/").filter(Boolean).at(-1);
-  return segment ? decodeURIComponent(segment) : url.hostname;
+  if (!segment) return url.hostname;
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
 function parse(input: string): URL | null {
@@ -22,8 +27,25 @@ function parse(input: string): URL | null {
 }
 
 export function splitLinks(text: string): string[] {
-  const tokens = text.split(/\s+/).map((token) => token.replace(/^[(<["']+/, "").replace(/[)>\]"',.;:!?]+$/, ""));
-  return [...new Set(tokens.filter((token) => token !== ""))];
+  return [...new Set(text.split(/\s+/).filter((token) => token !== ""))];
+}
+
+const count = (text: string, char: string) => text.split(char).length - 1;
+
+function trimProse(token: string): string {
+  let link = token.replace(/^[^A-Za-z]+/, "");
+  for (;;) {
+    const last = link.at(-1);
+    const unbalanced =
+      (last === ")" && count(link, ")") > count(link, "(")) || (last === "]" && count(link, "]") > count(link, "["));
+    if (last !== undefined && (unbalanced || `.,;:!?'">`.includes(last))) link = link.slice(0, -1);
+    else return link;
+  }
+}
+
+function downloadable(link: string): boolean {
+  const url = parse(link);
+  return url !== null && SCHEMES.has(url.protocol);
 }
 
 export function checkLinks(text: string, items: readonly Download[]): LinkCheck[] {
@@ -53,21 +75,15 @@ export function checkLinks(text: string, items: readonly Download[]): LinkCheck[
 }
 
 export function findLinks(text: string): string[] {
-  return splitLinks(text).filter((token) => {
-    const url = parse(token);
-    return url !== null && SCHEMES.has(url.protocol);
-  });
+  return [...new Set(splitLinks(text).map(trimProse))].filter(downloadable);
 }
 
 export function linksFromTransfer(data: DataTransfer): string[] {
   const list = data.getData("text/uri-list");
-  if (list !== "") {
-    return findLinks(
-      list
-        .split(/\r?\n/)
-        .filter((line) => !line.startsWith("#"))
-        .join("\n"),
-    );
-  }
-  return findLinks(data.getData("text/plain"));
+  if (list === "") return findLinks(data.getData("text/plain"));
+  const entries = list
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== "" && !line.startsWith("#"));
+  return [...new Set(entries)].filter(downloadable);
 }

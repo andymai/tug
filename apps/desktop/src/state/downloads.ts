@@ -41,9 +41,10 @@ export interface Adding {
   text: string;
   busy: boolean;
   error: string | null;
+  session: number;
 }
 
-const CLOSED: Adding = { open: false, text: "", busy: false, error: null };
+const CLOSED: Adding = { open: false, text: "", busy: false, error: null, session: 0 };
 
 export type DownloadsStore = ReturnType<typeof createDownloadsStore>;
 
@@ -127,7 +128,7 @@ export function createDownloadsStore(backend: Backend) {
           const joined = [adding.text.trimEnd(), text].filter((part) => part !== "").join("\n");
           set({ adding: { ...adding, text: joined } });
         } else {
-          set({ adding: { ...CLOSED, open: true, text } });
+          set({ adding: { ...CLOSED, open: true, text, session: adding.session + 1 } });
         }
       },
 
@@ -136,10 +137,12 @@ export function createDownloadsStore(backend: Backend) {
       },
 
       closeAdd: () => {
-        set({ adding: CLOSED });
+        set({ adding: { ...CLOSED, session: get().adding.session } });
       },
 
       addLinks: async (hrefs) => {
+        const { session } = get().adding;
+        const ours = () => get().adding.open && get().adding.session === session;
         set({ adding: { ...get().adding, busy: true, error: null } });
         const added: number[] = [];
         const failed: { href: string; message: string }[] = [];
@@ -158,12 +161,13 @@ export function createDownloadsStore(backend: Backend) {
               ? `couldn't add ${first.href}: ${first.message}`
               : `couldn't add ${String(failed.length)} links: ${first.message}`;
         if (added.length === 0) {
-          set({ adding: { ...get().adding, busy: false, error: reason } });
+          if (ours()) set({ adding: { ...get().adding, busy: false, error: reason } });
+          else if (reason !== null) set({ notice: reason });
           return;
         }
         const { view, fresh } = get();
         set({
-          adding: CLOSED,
+          ...(ours() ? { adding: { ...CLOSED, session } } : {}),
           fresh: [...fresh, ...added],
           view: view === "done" || view === "failed" ? "all" : view,
           ...(reason === null ? {} : { notice: reason }),

@@ -154,6 +154,28 @@ describe("downloads store", () => {
     expect(store.getState().items.map((d) => d.name)).toEqual(["good.iso"]);
   });
 
+  it("leaves a dialog opened during an earlier add alone", async () => {
+    const backend = createMockBackend();
+    let finish: () => void = () => undefined;
+    const store = createDownloadsStore({
+      ...backend,
+      add: async (url, dir) => {
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        return backend.add(url, dir);
+      },
+    });
+    store.getState().openAdd("https://example.org/slow.iso");
+    const pending = store.getState().addLinks(["https://example.org/slow.iso"]);
+    store.getState().closeAdd();
+    store.getState().openAdd("https://example.org/next.iso");
+    finish();
+    await pending;
+    expect(store.getState().adding).toMatchObject({ open: true, busy: false, text: "https://example.org/next.iso" });
+    expect(store.getState().items.map((d) => d.name)).toEqual(["slow.iso"]);
+  });
+
   it("records an error instead of throwing when the backend refuses", async () => {
     const { store } = await ready();
     await store.getState().retry(999);

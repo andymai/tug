@@ -69,6 +69,7 @@ function AddForm({ titleId }: { titleId: string }) {
           autoFocus
           rows={4}
           spellCheck={false}
+          readOnly={adding.busy}
           value={adding.text}
           placeholder="Paste one link per line"
           onChange={(event) => {

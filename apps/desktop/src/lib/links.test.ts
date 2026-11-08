@@ -25,9 +25,12 @@ describe("splitLinks", () => {
   it("takes one link per line or space, once each", () => {
     expect(splitLinks("  a\n\nb a\tc ")).toEqual(["a", "b", "c"]);
     expect(splitLinks("   ")).toEqual([]);
-    expect(splitLinks("(https://example.org/a.iso), <https://example.org/b.iso>.")).toEqual([
-      "https://example.org/a.iso",
-      "https://example.org/b.iso",
+  });
+
+  it("keeps a typed link exactly as it is", () => {
+    expect(splitLinks("https://example.org/tool_(linux) https://example.org/v1.0.")).toEqual([
+      "https://example.org/tool_(linux)",
+      "https://example.org/v1.0.",
     ]);
   });
 });
@@ -58,6 +61,10 @@ describe("checkLinks", () => {
     ]);
   });
 
+  it("names a link whose escapes don't decode by its raw segment", () => {
+    expect(checkLinks("https://example.org/%FF.iso", [])[0]).toMatchObject({ kind: "ready", name: "%FF.iso" });
+  });
+
   it("keeps one of two spellings of the same link", () => {
     const checks = checkLinks("https://EXAMPLE.org/a.bin https://example.org/a.bin", []);
     expect(checks).toHaveLength(1);
@@ -76,10 +83,21 @@ describe("findLinks", () => {
     ]);
   });
 
-  it("reads a URI list without its comments, else plain text", () => {
-    expect(linksFromTransfer(transfer({ "text/uri-list": "# from a page\r\nhttps://example.org/a.iso\r\n" }))).toEqual([
+  it("trims brackets around a link only when they don't belong to it", () => {
+    expect(findLinks("(https://example.org/a.iso), <https://example.org/b.iso>.")).toEqual([
       "https://example.org/a.iso",
+      "https://example.org/b.iso",
     ]);
+    expect(findLinks("See https://example.org/tool_(linux).")).toEqual(["https://example.org/tool_(linux)"]);
+    expect(findLinks("[https://example.org/x[1].bin]")).toEqual(["https://example.org/x[1].bin"]);
+  });
+
+  it("reads a URI list without its comments, else plain text", () => {
+    expect(
+      linksFromTransfer(
+        transfer({ "text/uri-list": "# from a page\r\nhttps://example.org/a.iso\r\nhttps://example.org/tool_(linux).\r\n" }),
+      ),
+    ).toEqual(["https://example.org/a.iso", "https://example.org/tool_(linux)."]);
     expect(linksFromTransfer(transfer({ "text/plain": "https://example.org/b.iso" }))).toEqual(["https://example.org/b.iso"]);
     expect(linksFromTransfer(transfer({ "text/plain": "just words" }))).toEqual([]);
   });
