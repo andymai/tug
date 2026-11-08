@@ -6,7 +6,7 @@ const listen = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 vi.mock("@tauri-apps/api/event", () => ({ listen }));
 
-const { PROGRESS_EVENT, tauriBackend } = await import("./tauri");
+const { NOTICE_EVENT, PROGRESS_EVENT, tauriBackend } = await import("./tauri");
 const { BackendError } = await import("./backend");
 
 describe("tauri backend", () => {
@@ -55,6 +55,15 @@ describe("tauri backend", () => {
     expect(event).toBe(PROGRESS_EVENT);
     handler({ payload: { seq: 1, updates: [], settled: [], error: null } });
     expect(seen).toEqual([{ seq: 1, updates: [], settled: [], error: null }]);
+  });
+
+  it("passes each notice's message to the listener", async () => {
+    const seen: string[] = [];
+    await tauriBackend.onNotice((message) => seen.push(message));
+    const [event, handler] = listen.mock.calls[0] as [string, (e: { payload: string }) => void];
+    expect(event).toBe(NOTICE_EVENT);
+    handler({ payload: "couldn't pause a download: disk full" });
+    expect(seen).toEqual(["couldn't pause a download: disk full"]);
   });
 
   it("turns a command's error into a BackendError with its kind", async () => {

@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use ksni::menu::StandardItem;
 use ksni::{Category, Handle, MenuItem, OfflineReason, Status, ToolTip, Tray, TrayMethods};
-use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
 use tokio::sync::watch;
 use tug_core::{Batch, DownloadState, Library};
 
@@ -17,6 +17,17 @@ pub const STEPS: u8 = 20;
 const SYMBOLIC: &str = include_str!("../../../../brand/svg/symbolic-22.svg");
 const RING_RADIUS: f64 = 9.5;
 const PUBLISH_EVERY: Duration = Duration::from_secs(1);
+pub const NOTICE_EVENT: &str = "notice";
+
+pub fn failure_notice(pause: bool, failed: &[String]) -> Option<String> {
+    let first = failed.first()?;
+    let verb = if pause { "pause" } else { "resume" };
+    Some(if failed.len() == 1 {
+        format!("couldn't {verb} a download: {first}")
+    } else {
+        format!("couldn't {verb} {} downloads: {first}", failed.len())
+    })
+}
 
 pub fn progress_icon(step: u8) -> String {
     format!("{ID}-progress-{step:02}")
@@ -171,16 +182,26 @@ impl<R: Runtime> TugTray<R> {
 
     fn each(&self, from: DownloadState, pause: bool) {
         let library = Arc::clone(&self.library);
+        let app = self.app.clone();
         tauri::async_runtime::spawn(async move {
-            let Ok(downloads) = library.list() else {
-                return;
-            };
-            for download in downloads.iter().filter(|d| d.state == from) {
-                let _changed = if pause {
-                    library.pause(download.id).await
-                } else {
-                    library.resume(download.id).await
-                };
+            let mut failed = Vec::new();
+            match library.list() {
+                Ok(downloads) => {
+                    for download in downloads.iter().filter(|d| d.state == from) {
+                        let result = if pause {
+                            library.pause(download.id).await
+                        } else {
+                            library.resume(download.id).await
+                        };
+                        if let Err(e) = result {
+                            failed.push(e.to_string());
+                        }
+                    }
+                }
+                Err(e) => failed.push(e.to_string()),
+            }
+            if let Some(message) = failure_notice(pause, &failed) {
+                let _sent = app.emit(NOTICE_EVENT, message);
             }
         });
     }
@@ -345,19 +366,19 @@ fn follow<R: Runtime>(
     mut batches: watch::Receiver<Arc<Batch>>,
 ) {
     tauri::async_runtime::spawn(async move {
-        let mut published: Option<(Summary, Instant)> = None;
+        let mut published: Option<Summary> = None;
+        let mut checked: Option<Instant> = None;
         while batches.changed().await.is_ok() {
             let batch = Arc::clone(&batches.borrow_and_update());
             let now = Instant::now();
             let due = !batch.settled.is_empty()
-                || published
-                    .as_ref()
-                    .is_none_or(|(_, at)| now.duration_since(*at) >= PUBLISH_EVERY);
+                || checked.is_none_or(|at| now.duration_since(at) >= PUBLISH_EVERY);
             if !due {
                 continue;
             }
+            checked = Some(now);
             let summary = Summary::from_batch(&batch, paused(&library));
-            if published.as_ref().is_some_and(|(last, _)| *last == summary) {
+            if published.as_ref() == Some(&summary) {
                 continue;
             }
             let Some(handle) = app.state::<TrayState<R>>().handle() else {
@@ -365,7 +386,7 @@ fn follow<R: Runtime>(
             };
             let next = summary.clone();
             handle.update(move |tray| tray.summary = next).await;
-            published = Some((summary, now));
+            published = Some(summary);
         }
     });
 }
@@ -456,6 +477,19 @@ mod tests {
         assert_eq!(format_bytes(412 * MB), "412 MB");
         assert_eq!(format_bytes(18 * MB + 400 * 1024), "18.4 MB");
         assert_eq!(format_bytes(4 * 1024 * MB + 205 * MB), "4.20 GB");
+    }
+
+    #[test]
+    fn failures_from_pause_all_and_resume_all_become_one_notice() {
+        assert_eq!(failure_notice(true, &[]), None);
+        assert_eq!(
+            failure_notice(false, &["the server refused".into()]).unwrap(),
+            "couldn't resume a download: the server refused"
+        );
+        assert_eq!(
+            failure_notice(true, &["disk full".into(), "disk full".into()]).unwrap(),
+            "couldn't pause 2 downloads: disk full"
+        );
     }
 
     #[test]

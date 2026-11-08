@@ -77,6 +77,7 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     kill -0 "$app" 2>/dev/null && fail "closing without a tray host left Tug running"
     echo "ok: closing without a tray host quits"
 
+    rm -f "$work/registered"
     /usr/bin/python3 "$here/watcher.py" "$work/registered" & watcher=$!
     /usr/bin/python3 "$here/slow_server.py" 8765 & server=$!
     trap "kill $app $watcher $server 2>/dev/null || true" EXIT
@@ -84,7 +85,6 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     q=$(printf "\047")
     sqlite3 "$work/data/io.github.andymai.Tug/tug.db" \
       "INSERT INTO downloads (url, dir, state, added_ms) VALUES (${q}http://127.0.0.1:8765/big.bin${q}, CAST(${q}$work/downloads${q} AS BLOB), ${q}queued${q}, 0)"
-    rm -f "$work/registered"
     ./target/debug/tug > "$work/app.log" 2>&1 & app=$!
     trap "kill $app $watcher $server 2>/dev/null || true" EXIT
     for _ in $(seq 1 30); do [ -s "$work/registered" ] && break; sleep 0.5; done

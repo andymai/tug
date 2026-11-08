@@ -141,6 +141,11 @@ export function createDownloadsStore(backend: Backend) {
         } catch (error) {
           set({ notice: BackendError.from(error).message });
         }
+        const unnotice = await backend
+          .onNotice((notice) => {
+            set({ notice });
+          })
+          .catch(() => () => undefined);
         let schemeEvent = false;
         const unwatch = await backend
           .onColorScheme((systemScheme) => {
@@ -161,6 +166,7 @@ export function createDownloadsStore(backend: Backend) {
         return () => {
           stop();
           unwatch();
+          unnotice();
         };
       },
 

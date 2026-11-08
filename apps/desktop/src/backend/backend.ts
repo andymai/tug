@@ -33,6 +33,7 @@ export interface Backend {
   chooseDownloadFolder(): Promise<Settings | null>;
   systemColorScheme(): Promise<ColorScheme | null>;
   onColorScheme(listener: (scheme: ColorScheme | null) => void): Promise<() => void>;
+  onNotice(listener: (message: string) => void): Promise<() => void>;
   onProgress(listener: (batch: ProgressBatch) => void): Promise<() => void>;
 }
 
