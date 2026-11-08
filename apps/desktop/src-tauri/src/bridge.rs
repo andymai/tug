@@ -7,12 +7,13 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
-    Batch, Download, DownloadId, DownloadState, Event, EventKind, Library, LibraryError, Phase,
-    ProgressStream, Settings, Store, StreamOptions, Update,
+    Appearance, Batch, Download, DownloadId, DownloadState, Event, EventKind, Library,
+    LibraryError, Phase, ProgressStream, Settings, Store, StreamOptions, Update,
 };
 use url::Url;
 
 pub const PROGRESS_EVENT: &str = "progress";
+pub const COLOR_SCHEME_EVENT: &str = "color-scheme";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
@@ -208,6 +209,52 @@ impl From<&Batch> for BatchDto {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, rename = "Appearance")]
+pub enum AppearanceDto {
+    System,
+    Light,
+    Dark,
+}
+
+impl From<Appearance> for AppearanceDto {
+    fn from(a: Appearance) -> Self {
+        match a {
+            Appearance::System => Self::System,
+            Appearance::Light => Self::Light,
+            Appearance::Dark => Self::Dark,
+        }
+    }
+}
+
+impl From<AppearanceDto> for Appearance {
+    fn from(a: AppearanceDto) -> Self {
+        match a {
+            AppearanceDto::System => Self::System,
+            AppearanceDto::Light => Self::Light,
+            AppearanceDto::Dark => Self::Dark,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, rename = "ColorScheme")]
+pub enum ColorSchemeDto {
+    Light,
+    Dark,
+}
+
+pub const fn scheme_of(scheme: ashpd::desktop::settings::ColorScheme) -> Option<ColorSchemeDto> {
+    use ashpd::desktop::settings::ColorScheme;
+    match scheme {
+        ColorScheme::PreferDark => Some(ColorSchemeDto::Dark),
+        ColorScheme::PreferLight => Some(ColorSchemeDto::Light),
+        ColorScheme::NoPreference => None,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, rename = "Settings")]
@@ -216,6 +263,7 @@ pub struct SettingsDto {
     pub connections: u32,
     #[ts(type = "number | null")]
     pub speed_limit: Option<u64>,
+    pub appearance: AppearanceDto,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -224,6 +272,7 @@ impl From<&Settings> for SettingsDto {
             download_dir: s.download_dir.to_string_lossy().into_owned(),
             connections: s.connections,
             speed_limit: s.speed_limit,
+            appearance: s.appearance.into(),
         }
     }
 }
@@ -245,6 +294,7 @@ impl From<SettingsDto> for Settings {
             download_dir: PathBuf::from(s.download_dir),
             connections: s.connections,
             speed_limit: s.speed_limit,
+            appearance: s.appearance.into(),
         }
     }
 }
@@ -307,6 +357,7 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         Ok::<_, LibraryError>((library, stream))
     })?;
     forward_progress(app.handle().clone(), &stream);
+    forward_color_scheme(app.handle().clone());
     app.manage(AppState {
         library,
         _stream: stream,
@@ -434,6 +485,30 @@ pub fn download_events(
         .iter()
         .map(EventDto::from)
         .collect())
+}
+
+fn forward_color_scheme(app: AppHandle) {
+    use futures_util::StreamExt;
+
+    tauri::async_runtime::spawn(async move {
+        let Ok(portal) = ashpd::desktop::settings::Settings::new().await else {
+            return;
+        };
+        let Ok(mut changes) = portal.receive_color_scheme_changed().await else {
+            return;
+        };
+        while let Some(scheme) = changes.next().await {
+            if app.emit(COLOR_SCHEME_EVENT, scheme_of(scheme)).is_err() {
+                break;
+            }
+        }
+    });
+}
+
+#[tauri::command]
+pub async fn system_color_scheme() -> Option<ColorSchemeDto> {
+    let portal = ashpd::desktop::settings::Settings::new().await.ok()?;
+    scheme_of(portal.color_scheme().await.ok()?)
 }
 
 pub fn folder_from_uri(uri: &str) -> Result<PathBuf, CommandError> {
@@ -608,6 +683,33 @@ mod tests {
     }
 
     #[test]
+    fn appearance_and_the_portal_scheme_cross_in_lowercase() {
+        use ashpd::desktop::settings::ColorScheme;
+
+        for appearance in [Appearance::System, Appearance::Light, Appearance::Dark] {
+            let dto = AppearanceDto::from(appearance);
+            assert_eq!(
+                serde_json::to_value(dto).unwrap(),
+                serde_json::json!(appearance.as_str())
+            );
+            assert_eq!(Appearance::from(dto), appearance);
+        }
+        assert_eq!(
+            scheme_of(ColorScheme::PreferDark),
+            Some(ColorSchemeDto::Dark)
+        );
+        assert_eq!(
+            scheme_of(ColorScheme::PreferLight),
+            Some(ColorSchemeDto::Light)
+        );
+        assert_eq!(scheme_of(ColorScheme::NoPreference), None);
+        assert_eq!(
+            serde_json::to_value(ColorSchemeDto::Dark).unwrap(),
+            serde_json::json!("dark")
+        );
+    }
+
+    #[test]
     fn a_portal_uri_becomes_the_folder_byte_for_byte() {
         use std::ffi::OsStr;
         use std::os::unix::ffi::OsStrExt;
@@ -632,6 +734,7 @@ mod tests {
             download_dir: PathBuf::from(OsStr::from_bytes(b"/home/u/caf\xe9")),
             connections: 8,
             speed_limit: None,
+            appearance: Appearance::System,
         };
         let dto = SettingsDto {
             connections: 4,
@@ -734,6 +837,7 @@ mod tests {
             download_dir: PathBuf::from("/home/u/Downloads"),
             connections: 12,
             speed_limit: Some(1 << 20),
+            appearance: Appearance::System,
         };
         assert_eq!(Settings::from(SettingsDto::from(&settings)), settings);
     }

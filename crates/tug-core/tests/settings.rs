@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer};
-use tug_core::{DownloadId, DownloadState, Library, LibraryError, Settings, SettingsError, Store};
+use tug_core::{
+    Appearance, DownloadId, DownloadState, Library, LibraryError, Settings, SettingsError, Store,
+};
 
 async fn finish(library: &Library, id: DownloadId) -> Duration {
     let started = Instant::now();
@@ -28,6 +30,7 @@ async fn settings_survive_a_reopen() {
         download_dir: dir.path().join("downloads"),
         connections: 12,
         speed_limit: Some(3 << 20),
+        appearance: Appearance::System,
     };
     Library::open(Store::open(&db).unwrap())
         .await
@@ -68,6 +71,7 @@ async fn the_global_speed_limit_holds_downloads_back() {
             download_dir: dir.path().to_owned(),
             connections: 4,
             speed_limit: Some(1 << 20),
+            appearance: Appearance::System,
         })
         .unwrap();
 
@@ -91,6 +95,7 @@ async fn lifting_the_limit_speeds_up_a_running_download() {
         download_dir: PathBuf::from(dir.path()),
         connections: 4,
         speed_limit: Some(256 << 10),
+        appearance: Appearance::System,
     };
     library.update_settings(limited.clone()).unwrap();
 

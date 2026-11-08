@@ -7,6 +7,7 @@ import { formatSpeed, sentence } from "../lib/format";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { type View, visibleItems } from "../state/downloads";
+import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
 import { DownloadRow } from "./DownloadRow";
@@ -51,13 +52,11 @@ function Summary() {
 
 function Empty({ view, first }: { view: View; first: boolean }) {
   const copy = EMPTY[view];
+  const theme = useTheme();
   return (
     <section aria-labelledby="empty-title" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
       {first && (
-        <picture>
-          <source srcSet={markDark} media="(prefers-color-scheme: dark)" />
-          <img src={mark} alt="" width={40} height={42} />
-        </picture>
+        <img src={theme === "dark" ? markDark : mark} alt="" width={40} height={42} />
       )}
       <h2 id="empty-title" className="text-heading text-ink">
         {copy.title}

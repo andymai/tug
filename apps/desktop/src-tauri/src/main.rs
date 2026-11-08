@@ -16,6 +16,7 @@ fn main() -> Result<(), tauri::Error> {
             bridge::show_in_folder,
             bridge::download_events,
             bridge::choose_download_folder,
+            bridge::system_color_scheme,
         ])
         .run(tauri::generate_context!())
 }

@@ -1,9 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-import { type Backend, BackendError, type Download, type DownloadEvent, type ProgressBatch, type Settings } from "./backend";
+import {
+  type Backend,
+  BackendError,
+  type ColorScheme,
+  type Download,
+  type DownloadEvent,
+  type ProgressBatch,
+  type Settings,
+} from "./backend";
 
 export const PROGRESS_EVENT = "progress";
+export const COLOR_SCHEME_EVENT = "color-scheme";
 
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   try {
@@ -25,6 +34,11 @@ export const tauriBackend: Backend = {
   settings: () => call<Settings>("get_settings"),
   updateSettings: (settings) => call("update_settings", { settings }),
   chooseDownloadFolder: () => call<Settings | null>("choose_download_folder"),
+  systemColorScheme: () => call<ColorScheme | null>("system_color_scheme"),
+  onColorScheme: (listener) =>
+    listen<ColorScheme | null>(COLOR_SCHEME_EVENT, (event) => {
+      listener(event.payload);
+    }),
   onProgress: (listener) =>
     listen<ProgressBatch>(PROGRESS_EVENT, (event) => {
       listener(event.payload);

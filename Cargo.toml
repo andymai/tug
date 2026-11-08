@@ -11,8 +11,13 @@ rust-version = "1.95"
 version = "0.10.2"
 
 [workspace.dependencies]
-ashpd = {version = "0.13", default-features = false, features = ["file_chooser", "tokio"]}
+ashpd = {version = "0.13", default-features = false, features = [
+  "file_chooser",
+  "settings",
+  "tokio",
+]}
 dirs = "6"
+futures-util = {version = "0.3", default-features = false}
 http = "1"
 mdm-engine = {git = "https://github.com/anefzaoui/misterdownloadmanager", rev = "8d2c73fcc33534c002631466b7e10db52796738b"}
 mdm-labserver = {git = "https://github.com/anefzaoui/misterdownloadmanager", rev = "8d2c73fcc33534c002631466b7e10db52796738b"}

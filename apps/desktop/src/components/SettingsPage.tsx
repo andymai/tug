@@ -1,7 +1,7 @@
 import { CircleAlert, FolderOpen, Minus, Plus } from "lucide-react";
-import { type ReactNode, useId, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from "react";
 
-import type { Settings } from "../backend/backend";
+import type { Appearance, Settings } from "../backend/backend";
 import { sentence, shortDir } from "../lib/format";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
@@ -76,6 +76,52 @@ function Stepper({ value, min, max, onChange, label }: { value: number; min: num
           onChange(value + 1);
         }}
       />
+    </div>
+  );
+}
+
+const APPEARANCES: readonly { value: Appearance; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
+function AppearanceChoice({ value, onChange }: { value: Appearance; onChange: (value: Appearance) => void }) {
+  const group = useRef<HTMLDivElement>(null);
+  const move = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (delta === 0) return;
+    event.preventDefault();
+    const at = APPEARANCES.findIndex((option) => option.value === value);
+    const next = APPEARANCES[(at + delta + APPEARANCES.length) % APPEARANCES.length];
+    if (!next) return;
+    onChange(next.value);
+    group.current?.querySelector<HTMLElement>(`[data-value="${next.value}"]`)?.focus();
+  };
+  return (
+    <div
+      ref={group}
+      role="radiogroup"
+      aria-label="Appearance"
+      className="flex gap-0.5 rounded-sm border border-control-border bg-surface p-0.5"
+    >
+      {APPEARANCES.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          data-value={option.value}
+          aria-checked={option.value === value}
+          tabIndex={option.value === value ? 0 : -1}
+          onKeyDown={move}
+          onClick={() => {
+            onChange(option.value);
+          }}
+          className="h-6 rounded-xs px-3 text-small font-medium text-ink-muted transition-colors duration-(--duration-fast) ease-(--ease-out) hover:text-ink aria-checked:bg-selection aria-checked:text-ink"
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -204,6 +250,23 @@ export function SettingsPage() {
                 Speed
               </h2>
               <SpeedLimit settings={settings} save={save} />
+            </section>
+            <section aria-labelledby="settings-appearance">
+              <h2 id="settings-appearance" className="pb-1 text-label text-ink-muted">
+                Appearance
+              </h2>
+              <Row
+                label="Theme"
+                description="System follows your desktop's light or dark setting."
+                control={
+                  <AppearanceChoice
+                    value={settings.appearance}
+                    onChange={(appearance) => {
+                      save({ appearance });
+                    }}
+                  />
+                }
+              />
             </section>
           </div>
         </div>

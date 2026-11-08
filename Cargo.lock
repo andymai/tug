@@ -5294,6 +5294,7 @@ name = "tug-desktop"
 version = "0.10.2"
 dependencies = [
  "ashpd",
+ "futures-util",
  "serde",
  "serde_json",
  "tauri",

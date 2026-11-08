@@ -1,3 +1,4 @@
+import type { ColorScheme } from "./bindings/ColorScheme";
 import type { CommandError } from "./bindings/CommandError";
 import type { ErrorKind } from "./bindings/ErrorKind";
 import type { Download } from "./bindings/Download";
@@ -5,6 +6,8 @@ import type { DownloadEvent } from "./bindings/DownloadEvent";
 import type { ProgressBatch } from "./bindings/ProgressBatch";
 import type { Settings } from "./bindings/Settings";
 
+export type { Appearance } from "./bindings/Appearance";
+export type { ColorScheme } from "./bindings/ColorScheme";
 export type { CommandError } from "./bindings/CommandError";
 export type { Download } from "./bindings/Download";
 export type { DownloadEvent } from "./bindings/DownloadEvent";
@@ -28,6 +31,8 @@ export interface Backend {
   settings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   chooseDownloadFolder(): Promise<Settings | null>;
+  systemColorScheme(): Promise<ColorScheme | null>;
+  onColorScheme(listener: (scheme: ColorScheme | null) => void): Promise<() => void>;
   onProgress(listener: (batch: ProgressBatch) => void): Promise<() => void>;
 }
 
