@@ -6,8 +6,9 @@ import { DownloadList } from "./components/DownloadList";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { LinkCapture } from "./components/LinkCapture";
 import { ShortcutsDialog } from "./components/ShortcutsDialog";
+import { SettingsPage } from "./components/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
-import { DownloadsContext } from "./state/context";
+import { DownloadsContext, useDownloads } from "./state/context";
 import type { DownloadsStore } from "./state/downloads";
 
 export function App({ store }: { store: DownloadsStore }) {
@@ -31,7 +32,7 @@ export function App({ store }: { store: DownloadsStore }) {
     <DownloadsContext value={store}>
       <div className="flex h-full bg-bg text-ink">
         <Sidebar />
-        <DownloadList />
+        <Page />
       </div>
       <AddDialog />
       <CommandBar />
@@ -40,4 +41,9 @@ export function App({ store }: { store: DownloadsStore }) {
       <KeyboardShortcuts />
     </DownloadsContext>
   );
+}
+
+function Page() {
+  const page = useDownloads((s) => s.page);
+  return page === "settings" ? <SettingsPage /> : <DownloadList />;
 }

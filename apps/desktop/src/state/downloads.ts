@@ -8,6 +8,7 @@ import {
   type DownloadState,
   type ProgressBatch,
   type ProgressUpdate,
+  type Settings,
 } from "../backend/backend";
 
 export type View = "all" | "active" | "done" | "failed";
@@ -27,7 +28,9 @@ export interface DownloadsState {
   status: "loading" | "ready" | "error";
   loadError: string | null;
   notice: string | null;
-  downloadDir: string | null;
+  settings: Settings | null;
+  settingsError: string | null;
+  page: Page;
   adding: Adding;
   fresh: number[];
   history: { id: number; events: DownloadEvent[] } | null;
@@ -37,6 +40,9 @@ export interface DownloadsState {
   reload: () => Promise<void>;
   applyBatch: (batch: ProgressBatch) => void;
   setView: (view: View) => void;
+  setPage: (page: Page) => void;
+  saveSettings: (next: Settings) => Promise<void>;
+  chooseFolder: () => Promise<void>;
   select: (id: number | null) => void;
   step: (delta: number) => number | null;
   setOverlay: (overlay: Overlay) => void;
@@ -56,6 +62,8 @@ export interface DownloadsState {
 }
 
 export type Overlay = "commands" | "shortcuts" | null;
+
+export type Page = "downloads" | "settings";
 
 export interface Adding {
   open: boolean;
@@ -81,9 +89,9 @@ export function createDownloadsStore(backend: Backend) {
       }
     };
 
-    const loadFolder = async () => {
+    const loadSettings = async () => {
       try {
-        set({ downloadDir: (await backend.settings()).downloadDir });
+        set({ settings: await backend.settings() });
       } catch (error) {
         set({ notice: BackendError.from(error).message });
       }
@@ -97,7 +105,9 @@ export function createDownloadsStore(backend: Backend) {
       status: "loading",
       loadError: null,
       notice: null,
-      downloadDir: null,
+      settings: null,
+      settingsError: null,
+      page: "downloads",
       adding: CLOSED,
       fresh: [],
       history: null,
@@ -113,7 +123,7 @@ export function createDownloadsStore(backend: Backend) {
         } catch (error) {
           set({ notice: BackendError.from(error).message });
         }
-        await Promise.all([get().reload(), loadFolder()]);
+        await Promise.all([get().reload(), loadSettings()]);
         return stop;
       },
 
@@ -136,7 +146,29 @@ export function createDownloadsStore(backend: Backend) {
       },
 
       setView: (view) => {
-        set({ view, selected: null });
+        set({ view, selected: null, page: "downloads" });
+      },
+
+      setPage: (page) => {
+        set({ page, settingsError: null });
+      },
+
+      saveSettings: async (next) => {
+        try {
+          await backend.updateSettings(next);
+          set({ settings: next, settingsError: null });
+        } catch (error) {
+          set({ settingsError: BackendError.from(error).message });
+        }
+      },
+
+      chooseFolder: async () => {
+        try {
+          const chosen = await backend.chooseDownloadFolder();
+          if (chosen !== null) set({ settings: chosen, settingsError: null });
+        } catch (error) {
+          set({ settingsError: BackendError.from(error).message });
+        }
       },
 
       select: (id) => {

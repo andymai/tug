@@ -28,7 +28,7 @@ function describe(check: LinkCheck): { Icon: LucideIcon; tone: string; title: st
 function AddForm({ titleId }: { titleId: string }) {
   const adding = useDownloads((s) => s.adding);
   const items = useDownloads((s) => s.items);
-  const downloadDir = useDownloads((s) => s.downloadDir);
+  const downloadDir = useDownloads((s) => s.settings?.downloadDir ?? null);
   const setAddText = useDownloads((s) => s.setAddText);
   const closeAdd = useDownloads((s) => s.closeAdd);
   const addLinks = useDownloads((s) => s.addLinks);

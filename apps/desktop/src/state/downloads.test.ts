@@ -101,9 +101,38 @@ describe("downloads store", () => {
     expect(store.getState().notice).toBeNull();
   });
 
-  it("loads the download folder for the add dialog", async () => {
+  it("loads the settings, saves them, and says why a save failed", async () => {
     const { store } = await ready();
-    expect(store.getState().downloadDir).toBe("/home/you/Downloads");
+    const settings = store.getState().settings;
+    expect(settings?.downloadDir).toBe("/home/you/Downloads");
+    if (settings === null) return;
+
+    await store.getState().saveSettings({ ...settings, connections: 16 });
+    expect(store.getState().settings?.connections).toBe(16);
+
+    await store.getState().saveSettings({ ...settings, connections: 0 });
+    expect(store.getState().settings?.connections).toBe(16);
+    expect(store.getState().settingsError).toMatch(/between 1 and 32/);
+  });
+
+  it("takes the folder the person chooses, and leaves settings alone on cancel", async () => {
+    const backend = createMockBackend({ folder: "/data/iso" });
+    const store = createDownloadsStore(backend);
+    await store.getState().init();
+    await store.getState().chooseFolder();
+    expect(store.getState().settings?.downloadDir).toBe("/data/iso");
+
+    const cancelled = createDownloadsStore({ ...backend, chooseDownloadFolder: () => Promise.resolve(null) });
+    await cancelled.getState().init();
+    await cancelled.getState().chooseFolder();
+    expect(cancelled.getState().settings?.downloadDir).toBe("/data/iso");
+  });
+
+  it("leaves the settings page when a view is chosen", async () => {
+    const { store } = await ready();
+    store.getState().setPage("settings");
+    store.getState().setView("done");
+    expect(store.getState().page).toBe("downloads");
   });
 
   it("opens the add dialog, and adds to the text when it is already open", async () => {

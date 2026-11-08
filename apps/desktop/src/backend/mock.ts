@@ -32,6 +32,7 @@ export interface MockOptions {
   autoTick?: boolean;
   seed?: readonly (string | SeedDownload)[];
   now?: () => number;
+  folder?: string;
 }
 
 function attempt<T>(action: () => T): Promise<T> {
@@ -198,6 +199,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         }
         if (next.speedLimit === 0) throw new BackendError("invalid", "a speed limit must be above zero");
         settings = { ...next };
+      }),
+    chooseDownloadFolder: () =>
+      attempt(() => {
+        settings = { ...settings, downloadDir: options.folder ?? "/home/you/Media/Downloads" };
+        return { ...settings };
       }),
     onProgress: (listener) => {
       listeners.add(listener);

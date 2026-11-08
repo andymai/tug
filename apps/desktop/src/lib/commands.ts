@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Keyboard,
   Layers,
+  Settings,
   type LucideIcon,
   Pause,
   Play,
@@ -122,6 +123,16 @@ export function commands(store: DownloadsStore): Command[] {
   }
 
   list.push({
+    id: "settings",
+    title: "Open settings",
+    group: "Help",
+    icon: Settings,
+    keys: { key: ",", ctrl: true, label: ["Ctrl", ","] },
+    run: () => {
+      state.setPage("settings");
+    },
+  });
+  list.push({
     id: "shortcuts",
     title: "Keyboard shortcuts",
     group: "Help",
@@ -164,6 +175,7 @@ export const KEYMAP: readonly { group: string; entries: readonly { title: string
     entries: [
       { title: "Command bar", label: PALETTE_KEYS.label },
       { title: "Add downloads", label: ["Ctrl", "N"] },
+      { title: "Settings", label: ["Ctrl", ","] },
       { title: "Keyboard shortcuts", label: ["?"] },
       { title: "Close details or a dialog", label: ["Esc"] },
     ],

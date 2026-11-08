@@ -15,6 +15,7 @@ fn main() -> Result<(), tauri::Error> {
             bridge::open_file,
             bridge::show_in_folder,
             bridge::download_events,
+            bridge::choose_download_folder,
         ])
         .run(tauri::generate_context!())
 }

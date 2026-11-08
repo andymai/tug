@@ -18,14 +18,17 @@ export function KeyboardShortcuts() {
         return;
       }
       if (editable(event.target)) return;
+      const onList = state.page === "downloads";
       const step = NAVIGATION.findIndex(({ keys }) => matches(keys, event));
-      if (step !== -1) {
+      if (step !== -1 && onList) {
         event.preventDefault();
         const id = state.step(step === 0 ? -1 : 1);
         if (id !== null) focusRow(id);
         return;
       }
-      const command = commands(store).find((c) => c.id !== "close" && c.keys !== undefined && matches(c.keys, event));
+      const command = commands(store).find(
+        (c) => c.id !== "close" && c.keys !== undefined && (onList || c.group !== "Selected download") && matches(c.keys, event),
+      );
       if (command) {
         event.preventDefault();
         command.run();
