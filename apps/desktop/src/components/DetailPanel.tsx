@@ -13,8 +13,10 @@ import {
   sentence,
   shortDir,
 } from "../lib/format";
+import { focusRow } from "../lib/dom";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
+import { modalOpen } from "../state/downloads";
 import { Button } from "./Button";
 
 interface Fact {
@@ -22,11 +24,6 @@ interface Fact {
   value: string;
   mono: boolean;
   title?: string;
-}
-
-function focusRow(id: number) {
-  const row = document.querySelector<HTMLElement>(`[data-download="${String(id)}"]`);
-  (row ?? document.getElementById("list-title"))?.focus();
 }
 
 function describeEvent(event: DownloadEvent): { text: string; bytes: string | null; detail: string | null } {
@@ -120,7 +117,7 @@ function Panel({ download }: { download: Download }) {
       if (inside) focusRow(download.id);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !store.getState().adding.open) close();
+      if (event.key === "Escape" && !modalOpen(store.getState())) close();
     };
     window.addEventListener("keydown", onKey);
     return () => {

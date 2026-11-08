@@ -1,8 +1,11 @@
 import { useEffect } from "react";
 
 import { AddDialog } from "./components/AddDialog";
+import { CommandBar } from "./components/CommandBar";
 import { DownloadList } from "./components/DownloadList";
+import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { LinkCapture } from "./components/LinkCapture";
+import { ShortcutsDialog } from "./components/ShortcutsDialog";
 import { Sidebar } from "./components/Sidebar";
 import { DownloadsContext } from "./state/context";
 import type { DownloadsStore } from "./state/downloads";
@@ -31,7 +34,10 @@ export function App({ store }: { store: DownloadsStore }) {
         <DownloadList />
       </div>
       <AddDialog />
+      <CommandBar />
+      <ShortcutsDialog />
       <LinkCapture />
+      <KeyboardShortcuts />
     </DownloadsContext>
   );
 }

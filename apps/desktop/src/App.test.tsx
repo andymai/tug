@@ -303,3 +303,77 @@ describe("detail panel", () => {
     expect(screen.queryByRole("complementary", { name: "fedora-kde-44-x86_64.iso" })).not.toBeInTheDocument();
   });
 });
+
+describe("command bar and keyboard", () => {
+  it("opens on Ctrl+K and runs the chosen command", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.keyboard("{Control>}k{/Control}");
+    const bar = within(screen.getByRole("dialog", { name: "Command bar" }));
+    await user.type(bar.getByRole("combobox"), "finished");
+    expect(bar.getByRole("option", { name: /Show finished downloads/ })).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{Enter}");
+    expect(screen.queryByRole("dialog", { name: "Command bar" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Done" })).toBeInTheDocument();
+  });
+
+  it("goes to a download by name, in a view that shows it", async () => {
+    const { user, store } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    store.getState().setView("failed");
+    await user.click(screen.getByRole("button", { name: /^Commands/ }));
+    const bar = within(screen.getByRole("dialog", { name: "Command bar" }));
+    await user.type(bar.getByRole("combobox"), "talk");
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("heading", { level: 1, name: "All downloads" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "conference-talk-1080p.mp4" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^conference-talk-1080p\.mp4/ })).toHaveFocus();
+  });
+
+  it("moves the active option with the arrow keys and offers the selected download's actions", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: /^noto-fonts-2026\.11\.zip/ }));
+    await user.keyboard("{Control>}k{/Control}");
+    const bar = within(screen.getByRole("dialog", { name: "Command bar" }));
+    const options = bar.getAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^Open/), expect.stringMatching(/^Open folder/), expect.stringMatching(/^Copy link/)]),
+    );
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{ArrowDown}");
+    expect(options[1]).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{ArrowUp}{ArrowUp}");
+    expect(options.at(-1)).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("switches views, adds, moves through rows and pauses from the keyboard", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.keyboard("{Control>}2{/Control}");
+    expect(screen.getByRole("heading", { level: 1, name: "Active" })).toBeInTheDocument();
+
+    await user.keyboard("{ArrowDown}");
+    const fedora = screen.getByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ });
+    expect(fedora).toHaveFocus();
+    expect(fedora).toHaveAttribute("aria-pressed", "true");
+    await user.keyboard("p");
+    expect(await within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" })).findByText("Paused")).toBeInTheDocument();
+
+    await user.keyboard("{Control>}n{/Control}");
+    const field = screen.getByRole("textbox", { name: "Links" });
+    await user.type(field, "p");
+    expect(field).toHaveValue("p");
+    expect(screen.queryByRole("dialog", { name: "Command bar" })).not.toBeInTheDocument();
+  });
+
+  it("lists the shortcuts on ?", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.keyboard("?");
+    const map = within(screen.getByRole("dialog", { name: "Keyboard shortcuts" }));
+    expect(map.getByText("Command bar")).toBeInTheDocument();
+    expect(map.getByText("Show failed downloads")).toBeInTheDocument();
+    await user.click(map.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument();
+  });
+});

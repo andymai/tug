@@ -213,6 +213,23 @@ describe("downloads store", () => {
     expect(store.getState().history?.events.map((e) => e.kind)).toEqual(["added", "paused"]);
   });
 
+  it("steps through the visible downloads and stops at the ends", async () => {
+    const { store } = await ready();
+    const names = () => store.getState().items.find((d) => d.id === store.getState().selected)?.name;
+    store.getState().setView("active");
+    store.getState().step(1);
+    expect(names()).toBe("fedora.iso");
+    store.getState().step(1);
+    store.getState().step(1);
+    store.getState().step(1);
+    expect(names()).toBe("talk.mp4");
+    store.getState().step(-1);
+    expect(names()).toBe("blender.tar.xz");
+    store.getState().select(null);
+    store.getState().step(-1);
+    expect(names()).toBe("talk.mp4");
+  });
+
   it("records an error instead of throwing when the backend refuses", async () => {
     const { store } = await ready();
     await store.getState().resume(999);
