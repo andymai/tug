@@ -23,7 +23,7 @@ Plan and decisions: Obsidian vault `Projects/tug`. Design system (tokens, brand 
 - No comments or docstrings unless the why is not obvious from the code.
 - The UI talks to Rust only through `apps/desktop/src/backend` (`Backend`: the Tauri commands and the `progress` event, or the in-memory mock in a plain browser and in tests). Its types are generated from `src-tauri/src/bridge.rs` by ts-rs into `src/backend/bindings` on every `cargo test`; never edit them by hand. Errors reach the UI as `BackendError` with a `kind`.
 - Change tokens in `design/tokens.json` and regenerate; never edit `tokens.css`. Style with the token utilities (`bg-surface`, `text-ink-muted`, `rounded-md`) and the `.text-*` type styles, not raw colors or sizes.
-- UI work follows the design system: orange never colors text, every download state shows an icon and a word, and every screen is checked in screenshots, light and dark, before it is done.
+- UI work follows the design system: orange never colors text, every download state shows an icon and a word, and every screen is checked in screenshots, light and dark, before it is done. Each screen gets a shot in a `*.visual.tsx` file, which CI compares with the committed references.
 
 ## Commands
 
@@ -36,7 +36,8 @@ distrobox enter dev -- bash -lc 'cd ~/Git/tug && PKG_CONFIG=/usr/bin/pkg-config 
 - `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`
 - `python3 scripts/check-deps.py`, `taplo fmt --check`, `cargo machete`, `cargo deny check`, `cargo audit`
 - `brand/export.sh` after changing `brand/build.py`; `python3 scripts/gen-tokens.py` after changing `design/tokens.json`
-- Frontend, on the host with pnpm: `pnpm install`, then `pnpm --filter @tug/desktop dev | typecheck | lint | test | build`
+- Frontend, on the host with pnpm: `pnpm install`, then `pnpm --filter @tug/desktop dev | typecheck | lint | test | test:visual | build`
+- Visual tests: Vitest browser mode drives Playwright's Chromium in a `light` and a `dark` instance, and compares each shot with `src/__screenshots__`. Make or update references in the container, which matches CI's Ubuntu 24.04, then look at every changed PNG before you commit it: `distrobox enter dev -- bash -lc 'cd ~/Git/tug/apps/desktop && ./node_modules/.bin/vitest run --project visual --update'`. A failed comparison leaves the actual image and a diff in `.vitest/attachments` (CI uploads them as `visual-diffs`). Bump `playwright` by hand, with fresh references: a new version brings a new Chromium.
 
 Screenshots of the real app, off the screen: run `pnpm --filter @tug/desktop dev` on the host, then in the container run `target/debug/tug` under `dbus-run-session -- xvfb-run` with `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` unset, `GDK_BACKEND=x11` and `GSETTINGS_BACKEND=memory`, and capture with `import -window root`. Light needs an empty `XDG_CONFIG_HOME`; dark needs one whose `gtk-3.0/settings.ini` sets `gtk-application-prefer-dark-theme=1`. Without these the window opens on the real screen or inherits the desktop's theme.
 

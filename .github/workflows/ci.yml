@@ -138,6 +138,14 @@ jobs:
       - run: pnpm --filter @tug/desktop typecheck
       - run: pnpm --filter @tug/desktop lint
       - run: pnpm --filter @tug/desktop test
+      - run: pnpm --filter @tug/desktop exec playwright install --with-deps --only-shell chromium
+      - run: pnpm --filter @tug/desktop test:visual
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: visual-diffs
+          path: apps/desktop/.vitest/attachments
+          retention-days: 7
       - run: pnpm --filter @tug/desktop build
 
   # A prebuilt cargo-audit: compiling it from source on the runner pulls the
