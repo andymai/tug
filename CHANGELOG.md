@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/andymai/tug/compare/v0.5.2...v0.6.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** add links by dialog, paste or drop, with checks and duplicates ([#19](https://github.com/andymai/tug/issues/19)) ([8cbe680](https://github.com/andymai/tug/commit/8cbe6805fe8e780f74ecfb14829a7ec0ece37ed3))
+
 ## [0.5.2](https://github.com/andymai/tug/compare/v0.5.1...v0.5.2) (2026-11-08)
 
 
