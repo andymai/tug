@@ -12,12 +12,12 @@ http.workspace = true
 mdm-engine.workspace = true
 rusqlite.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 url.workspace = true
 
 [dev-dependencies]
 mdm-labserver.workspace = true
 tempfile.workspace = true
-tokio.workspace = true
 
 [lints]
 workspace = true
