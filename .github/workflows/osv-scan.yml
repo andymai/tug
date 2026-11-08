@@ -31,7 +31,9 @@ jobs:
       scan-args: |-
         --lockfile=Cargo.lock
         --lockfile=pnpm-lock.yaml
-      upload-sarif: true
+      # Private repositories have no code scanning to upload to; the scan
+      # itself still runs and blocks.
+      upload-sarif: ${{ !github.event.repository.private }}
     # The called workflow declares security-events: write for its upload step,
     # and a caller must grant every permission the callee declares or the run
     # fails at startup, even with the upload switched off.
@@ -48,7 +50,7 @@ jobs:
       scan-args: |-
         --lockfile=Cargo.lock
         --lockfile=pnpm-lock.yaml
-      upload-sarif: true
+      upload-sarif: ${{ !github.event.repository.private }}
     permissions:
       actions: read
       contents: read
