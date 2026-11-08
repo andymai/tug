@@ -1,5 +1,5 @@
 import { Check, Copy, ExternalLink, FolderOpen, Pause, Play, RotateCw, X } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { Download } from "../backend/backend";
 import {
@@ -23,6 +23,10 @@ interface Fact {
   title?: string;
 }
 
+function focusRow(id: number) {
+  document.querySelector<HTMLElement>(`[data-download="${String(id)}"]`)?.focus();
+}
+
 function hostOf(link: string): string {
   try {
     return new URL(link).hostname;
@@ -42,6 +46,7 @@ function Panel({ download }: { download: Download }) {
   const store = useDownloadsStore();
   const [copied, setCopied] = useState(false);
   const titleId = useId();
+  const panel = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!copied) return;
@@ -54,14 +59,24 @@ function Panel({ download }: { download: Download }) {
   }, [copied]);
 
   useEffect(() => {
+    const close = () => {
+      const inside = panel.current?.contains(document.activeElement) ?? false;
+      select(null);
+      if (inside) focusRow(download.id);
+    };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !store.getState().adding.open) select(null);
+      if (event.key === "Escape" && !store.getState().adding.open) close();
     };
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [select, store]);
+  }, [download.id, select, store]);
+
+  const closeFromButton = () => {
+    select(null);
+    focusRow(download.id);
+  };
 
   const look = STATES[download.state];
   const received = live?.received ?? download.received;
@@ -98,6 +113,7 @@ function Panel({ download }: { download: Download }) {
 
   return (
     <aside
+      ref={panel}
       aria-labelledby={titleId}
       className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-line bg-surface @max-2xl/main:absolute @max-2xl/main:inset-y-0 @max-2xl/main:right-0 @max-2xl/main:w-[min(20rem,100%)] @max-2xl/main:bg-surface-raised @max-2xl/main:shadow-popover"
     >
@@ -110,9 +126,7 @@ function Panel({ download }: { download: Download }) {
           size="icon"
           icon={X}
           aria-label="Close details"
-          onClick={() => {
-            select(null);
-          }}
+          onClick={closeFromButton}
         />
       </div>
       <p className="flex items-center gap-1.5 px-4 pt-1 text-small text-ink-muted">

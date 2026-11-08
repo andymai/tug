@@ -55,6 +55,7 @@ export const DownloadRow = memo(function DownloadRow({ download, selected }: Dow
     <li className="relative border-t border-line first:border-t-0">
       <button
         type="button"
+        data-download={download.id}
         aria-pressed={selected}
         onClick={() => {
           select(selected ? null : download.id);
