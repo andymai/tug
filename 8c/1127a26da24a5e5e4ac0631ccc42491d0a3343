@@ -1,0 +1,65 @@
+apps/desktop/src/backend/showcase.ts
+  s_b050dc8a593981::t_38cb4544a133e4 1-18
+apps/desktop/src/components/Sidebar.tsx
+  s_b050dc8a593981::t_8d384c426f89f6 1-59
+apps/desktop/src/backend/index.ts
+  s_b050dc8a593981::t_8fe8b37d308182 5,10
+apps/desktop/src/App.test.tsx
+  s_b050dc8a593981::t_d0a08662df7954 1-2,6-9,11-27,29-63,66-101
+apps/desktop/src/lib/format.ts
+  s_b050dc8a593981::t_947bf04a870075 1-36
+  s_b050dc8a593981::t_59e1eeac040017 37-46
+apps/desktop/src/lib/states.ts
+  s_b050dc8a593981::t_3a40617cb2a628 1-20
+apps/desktop/src/components/DownloadRow.tsx
+  s_b050dc8a593981::t_fd029a8d9ca04d 3-5,7-40,45-55,59-91,93-99
+  s_b050dc8a593981::t_c75cacb7f1d17d 1-2,6,41-44,56-58,92,100
+apps/desktop/src/App.tsx
+  s_b050dc8a593981::t_b1512847a5be0e 1-23,26-31
+apps/desktop/src/state/downloads.test.ts
+  s_b050dc8a593981::t_9e9f3b54cba8a9 6-7,9
+  s_b050dc8a593981::t_3a8c3cb8c46b0b 1-5,8,10-30,32-35,37-38,46-51,53-70
+  s_b050dc8a593981::t_9bee8b9dd62338 31,36,39-45,52
+apps/desktop/src/state/downloads.ts
+  s_b050dc8a593981::t_4e7d93feaa61dd 21-26
+  s_b050dc8a593981::t_04eb77fa1a80b7 90
+  s_b050dc8a593981::t_92cec138fc41ec 1-20,27-89,91-95
+apps/desktop/src/lib/format.test.ts
+  s_b050dc8a593981::t_1924264b271af5 1-2,4-41,56-64
+  s_b050dc8a593981::t_5d883ae7212269 42-55
+  s_b050dc8a593981::t_537aac47b5d448 3
+apps/desktop/src/main.tsx
+  s_b050dc8a593981::t_913f960310802f 5-6,9,14
+apps/desktop/package.json
+  s_b050dc8a593981::t_f5a197db478eb8 19-20
+  s_b050dc8a593981::t_b9797a133fb776 28
+  s_b050dc8a593981::t_e409c89e7252c4 17
+apps/desktop/src/components/DownloadList.tsx
+  s_b050dc8a593981::t_310a9ae404d1ba 2-5,8-100,109-113,115-120
+  s_b050dc8a593981::t_c75cacb7f1d17d 1,6-7,101-108,114
+apps/desktop/src/state/context.ts
+  s_b050dc8a593981::t_df25cc574f54a1 1-16
+apps/desktop/src/backend/mock.ts
+  s_b050dc8a593981::t_b53ac07428646d 97
+  s_b050dc8a593981::t_74de0c5ac1bcd9 1-9,13,21-29,32
+  s_b050dc8a593981::t_8c3d40765e79a1 126-128,130-133,135-138
+  s_b050dc8a593981::t_537aac47b5d448 129,134
+pnpm-lock.yaml
+  s_b050dc8a593981::t_8d1aa583c68e86 32-34,41-43,60-62,731-736,1674-1682,2226-2243,2810-2813,3837-3842,4407-4411
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c1127a26da24a5e5e4ac0631ccc42491d0a3343",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
