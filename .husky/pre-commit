@@ -15,6 +15,11 @@ run() {
 run cargo fmt --all -- --check
 run cargo clippy --workspace --all-targets -- -D warnings
 run python3 scripts/check-deps.py
+run python3 scripts/gen-tokens.py --check
+if [ -x apps/desktop/node_modules/.bin/eslint ]; then
+  run bash -c 'cd apps/desktop && ./node_modules/.bin/tsc --noEmit'
+  run bash -c 'cd apps/desktop && ./node_modules/.bin/eslint .'
+fi
 command -v taplo >/dev/null && run taplo fmt --check
 command -v cargo-machete >/dev/null && run cargo machete
 
