@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/andymai/tug/compare/v0.10.2...v0.11.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** light and dark follow the system, with a theme setting ([#43](https://github.com/andymai/tug/issues/43)) ([8b2bb0e](https://github.com/andymai/tug/commit/8b2bb0e012068a75a2dbfea578496dfb3f33ec9d))
+
 ## [0.10.2](https://github.com/andymai/tug/compare/v0.10.1...v0.10.2) (2026-11-08)
 
 
