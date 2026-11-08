@@ -9,7 +9,13 @@ fn main() -> Result<(), tauri::Error> {
         .manage(tray::TrayState::<tauri::Wry>::default())
         .setup(|app| {
             bridge::setup(app)?;
-            tray::spawn(app.handle(), app.path().app_cache_dir()?.join("icons"));
+            let state = app.state::<bridge::AppState>();
+            tray::spawn(
+                app.handle(),
+                app.path().app_cache_dir()?.join("icons"),
+                state.library(),
+                state.subscribe(),
+            );
             Ok(())
         })
         .on_window_event(|window, event| {

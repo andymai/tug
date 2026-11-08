@@ -344,7 +344,17 @@ impl From<LibraryError> for CommandError {
 
 pub struct AppState {
     library: Arc<Library>,
-    _stream: ProgressStream,
+    stream: ProgressStream,
+}
+
+impl AppState {
+    pub fn library(&self) -> Arc<Library> {
+        Arc::clone(&self.library)
+    }
+
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<Arc<Batch>> {
+        self.stream.subscribe()
+    }
 }
 
 pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -358,10 +368,7 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     })?;
     forward_progress(app.handle().clone(), &stream);
     forward_color_scheme(app.handle().clone());
-    app.manage(AppState {
-        library,
-        _stream: stream,
-    });
+    app.manage(AppState { library, stream });
     Ok(())
 }
 

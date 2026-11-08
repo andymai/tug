@@ -21,6 +21,7 @@ ksni.workspace = true
 serde.workspace = true
 tauri.workspace = true
 tauri-plugin-opener.workspace = true
+tokio.workspace = true
 ts-rs.workspace = true
 tug-core.workspace = true
 url.workspace = true
@@ -28,7 +29,6 @@ url.workspace = true
 [dev-dependencies]
 serde_json.workspace = true
 tempfile.workspace = true
-tokio.workspace = true
 
 [lints]
 workspace = true

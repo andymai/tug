@@ -32,9 +32,16 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     grep -q ColorScheme-Text "$icons/io.github.andymai.Tug-symbolic.svg" || fail "the symbolic icon is missing"
     echo "ok: symbolic icon in $icons"
 
+    expect "idle status" "$(prop Status)" "s \"Passive\""
+    case "$(prop ToolTip)" in *"\"Nothing downloading\""*) echo "ok: idle tooltip";; *) fail "tooltip: $(prop ToolTip)";; esac
+    rings=$(ls "$icons" | grep -c "^io.github.andymai.Tug-progress-[0-9][0-9].svg$")
+    expect "progress icons" "$rings" 21
+
     menu=$(prop Menu | cut -d" " -f2 | tr -d \")
-    layout=$(busctl --user call -- "$item" "$menu" com.canonical.dbusmenu GetLayout iias 0 -1 1 label)
-    case "$layout" in *"\"Open Tug\""*"\"Quit Tug\""*) echo "ok: menu";; *) fail "menu: $layout";; esac
+    layout=$(busctl --user call -- "$item" "$menu" com.canonical.dbusmenu GetLayout iias 0 -1 2 label enabled)
+    case "$layout" in *"\"Open Tug\""*"\"Pause all\""*"\"Resume all\""*"\"Quit Tug\""*) echo "ok: menu";; *) fail "menu: $layout";; esac
+    disabled=$(grep -o "\"enabled\" b false" <<<"$layout" | wc -l)
+    expect "pause and resume wait for downloads" "$disabled" 2
 
     expect "visible at start" "$(visible)" 1
     for window in $(xdotool search --onlyvisible --name "^Tug$"); do /usr/bin/python3 "$here/close.py" "$window"; done
@@ -45,7 +52,7 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     sleep 2
     expect "visible after activate" "$(visible)" 1
 
-    quit=$(grep -o "[0-9]* 1 \"label\" s \"Quit Tug\"" <<<"$layout" | cut -d" " -f1)
+    quit=$(grep -oE "\(ia\{sv\}av\) [0-9]+ [0-9]+ \"label\" s \"Quit Tug\"" <<<"$layout" | cut -d" " -f2)
     busctl --user call -- "$item" "$menu" com.canonical.dbusmenu Event isvu "$quit" clicked s "" 0
     sleep 2
     kill -0 "$app" 2>/dev/null && fail "Quit Tug left Tug running"
@@ -69,5 +76,37 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     sleep 2
     kill -0 "$app" 2>/dev/null && fail "closing without a tray host left Tug running"
     echo "ok: closing without a tray host quits"
+
+    /usr/bin/python3 "$here/watcher.py" "$work/registered" & watcher=$!
+    /usr/bin/python3 "$here/slow_server.py" 8765 & server=$!
+    trap "kill $app $watcher $server 2>/dev/null || true" EXIT
+    mkdir -p "$work/downloads"
+    q=$(printf "\047")
+    sqlite3 "$work/data/io.github.andymai.Tug/tug.db" \
+      "INSERT INTO downloads (url, dir, state, added_ms) VALUES (${q}http://127.0.0.1:8765/big.bin${q}, CAST(${q}$work/downloads${q} AS BLOB), ${q}queued${q}, 0)"
+    rm -f "$work/registered"
+    ./target/debug/tug > "$work/app.log" 2>&1 & app=$!
+    trap "kill $app $watcher $server 2>/dev/null || true" EXIT
+    for _ in $(seq 1 30); do [ -s "$work/registered" ] && break; sleep 0.5; done
+    item=$(cut -d" " -f1 "$work/registered")
+    for _ in $(seq 1 20); do [ "$(prop Status)" = "s \"Active\"" ] && break; sleep 0.5; done
+    expect "active while downloading" "$(prop Status)" "s \"Active\""
+    sleep 2
+    case "$(prop IconName)" in *"Tug-progress-"[0-9][0-9]*) echo "ok: ring icon $(prop IconName)";; *) fail "icon: $(prop IconName)";; esac
+    case "$(prop ToolTip)" in *"1 downloading "*"/s "*"%\""*) echo "ok: tooltip while downloading";; *) fail "tooltip: $(prop ToolTip)";; esac
+
+    menu=$(prop Menu | cut -d" " -f2 | tr -d \")
+    layout=$(busctl --user call -- "$item" "$menu" com.canonical.dbusmenu GetLayout iias 0 -1 2 label enabled)
+    pause=$(grep -oE "\(ia\{sv\}av\) [0-9]+ [0-9]+ \"label\" s \"Pause all\"" <<<"$layout" | cut -d" " -f2)
+    busctl --user call -- "$item" "$menu" com.canonical.dbusmenu Event isvu "$pause" clicked s "" 0
+    for _ in $(seq 1 20); do [ "$(prop Status)" = "s \"Passive\"" ] && break; sleep 0.5; done
+    expect "passive after Pause all" "$(prop Status)" "s \"Passive\""
+    case "$(prop ToolTip)" in *"\"1 paused\""*) echo "ok: tooltip after Pause all";; *) fail "tooltip: $(prop ToolTip)";; esac
+
+    layout=$(busctl --user call -- "$item" "$menu" com.canonical.dbusmenu GetLayout iias 0 -1 2 label enabled)
+    resume=$(grep -oE "\(ia\{sv\}av\) [0-9]+ [0-9]+ \"label\" s \"Resume all\"" <<<"$layout" | cut -d" " -f2)
+    busctl --user call -- "$item" "$menu" com.canonical.dbusmenu Event isvu "$resume" clicked s "" 0
+    for _ in $(seq 1 20); do [ "$(prop Status)" = "s \"Active\"" ] && break; sleep 0.5; done
+    expect "active after Resume all" "$(prop Status)" "s \"Active\""
   '
 rm -rf "$work"
