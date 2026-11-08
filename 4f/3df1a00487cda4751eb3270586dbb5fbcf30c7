@@ -1,0 +1,21 @@
+apps/desktop/src/App.test.tsx
+  s_b050dc8a593981::t_d5677031a58baf 333-343
+apps/desktop/src/components/CommandBar.tsx
+  s_b050dc8a593981::t_d5677031a58baf 119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f3df1a00487cda4751eb3270586dbb5fbcf30c7",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
