@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/andymai/tug/compare/v0.5.0...v0.5.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **desktop:** load the list when progress can't be followed, and show batch errors ([#14](https://github.com/andymai/tug/issues/14)) ([8d2da12](https://github.com/andymai/tug/commit/8d2da12ca4ac9b73051f6e278118c129e2263a53))
+
 ## [0.5.0](https://github.com/andymai/tug/compare/v0.4.0...v0.5.0) (2026-11-08)
 
 
