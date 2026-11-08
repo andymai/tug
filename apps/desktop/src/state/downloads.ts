@@ -92,6 +92,7 @@ export function createDownloadsStore(backend: Backend) {
     let confirmed: Settings | null = null;
     let pending: { id: number; patch: Partial<Settings> }[] = [];
     let patches = 0;
+    let chooserFailed = false;
     let saving: Promise<void> = Promise.resolve();
     const queue = (task: () => Promise<void>) => {
       saving = saving.then(task);
@@ -170,6 +171,7 @@ export function createDownloadsStore(backend: Backend) {
       saveSettings: (patch) => {
         const id = ++patches;
         pending.push({ id, patch });
+        chooserFailed = false;
         set({ settingsError: null });
         showSettings();
         return queue(async () => {
@@ -192,7 +194,10 @@ export function createDownloadsStore(backend: Backend) {
           try {
             const chosen = await backend.chooseDownloadFolder();
             if (chosen !== null) confirmed = chosen;
+            if (chooserFailed) set({ settingsError: null });
+            chooserFailed = false;
           } catch (error) {
+            chooserFailed = true;
             set({ settingsError: BackendError.from(error).message });
           } finally {
             showSettings();

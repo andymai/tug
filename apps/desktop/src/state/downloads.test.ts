@@ -161,6 +161,26 @@ describe("downloads store", () => {
     expect(store.getState().settingsError).toMatch(/between 1 and 32/);
   });
 
+  it("clears the chooser's failure when a retry succeeds, and keeps a refused change's reason", async () => {
+    const backend = createMockBackend({ folder: "/data/iso" });
+    let fail = true;
+    const store = createDownloadsStore({
+      ...backend,
+      chooseDownloadFolder: () => (fail ? Promise.reject(new Error("the folder chooser failed: no portal")) : backend.chooseDownloadFolder()),
+    });
+    await store.getState().init();
+    await store.getState().chooseFolder();
+    expect(store.getState().settingsError).toMatch(/no portal/);
+    fail = false;
+    await store.getState().chooseFolder();
+    expect(store.getState().settingsError).toBeNull();
+    expect(store.getState().settings?.downloadDir).toBe("/data/iso");
+
+    await store.getState().saveSettings({ connections: 0 });
+    await store.getState().chooseFolder();
+    expect(store.getState().settingsError).toMatch(/between 1 and 32/);
+  });
+
   it("keeps a chosen folder when a change was queued after it", async () => {
     const backend = createMockBackend({ folder: "/data/iso" });
     const { store, release } = gated(backend);
