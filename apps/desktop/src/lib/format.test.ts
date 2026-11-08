@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { formatBytes, formatLeft, formatPercent, formatSpeed, percentOf, sentence, shortDir } from "./format";
+import {
+  formatBytes,
+  formatDate,
+  formatDuration,
+  formatLeft,
+  formatPercent,
+  formatSpeed,
+  percentOf,
+  sentence,
+  shortDir,
+} from "./format";
 
 const KB = 1024;
 const MB = KB * 1024;
@@ -36,6 +46,11 @@ describe("formatSpeed and formatLeft", () => {
     expect(formatLeft(161_000)).toBe("2:41 left");
     expect(formatLeft(3_761_000)).toBe("1:02:41 left");
     expect(formatLeft(200)).toBe("0:01 left");
+    expect(formatDuration(161_000)).toBe("2:41");
+  });
+
+  it("formats a date with its year and time", () => {
+    expect(formatDate(Date.UTC(2026, 10, 8, 12))).toMatch(/2026/);
   });
 });
 

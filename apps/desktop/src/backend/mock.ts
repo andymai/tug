@@ -154,6 +154,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         find(id);
         downloads.delete(id);
       }),
+    openFile: (id) =>
+      attempt(() => {
+        const download = find(id);
+        if (download.state !== "done") throw new BackendError("invalid", `${download.name} isn't finished yet`);
+      }),
+    showInFolder: (id) =>
+      attempt(() => {
+        find(id);
+      }),
     settings: () => Promise.resolve({ ...settings }),
     updateSettings: (next) =>
       attempt(() => {

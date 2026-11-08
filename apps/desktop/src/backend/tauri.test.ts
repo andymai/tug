@@ -22,6 +22,8 @@ describe("tauri backend", () => {
     await tauriBackend.pause(3);
     await tauriBackend.resume(3);
     await tauriBackend.remove(3, true);
+    await tauriBackend.openFile(3);
+    await tauriBackend.showInFolder(3);
     await tauriBackend.settings();
     const settings = { downloadDir: "/d", connections: 8, speedLimit: null };
     await tauriBackend.updateSettings(settings);
@@ -33,6 +35,8 @@ describe("tauri backend", () => {
       ["pause_download", { id: 3 }],
       ["resume_download", { id: 3 }],
       ["remove_download", { id: 3, deleteFile: true }],
+      ["open_file", { id: 3 }],
+      ["show_in_folder", { id: 3 }],
       ["get_settings", undefined],
       ["update_settings", { settings }],
     ]);

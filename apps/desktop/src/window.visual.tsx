@@ -9,10 +9,11 @@ import { SHOWCASE } from "./backend/showcase";
 import { createDownloadsStore } from "./state/downloads";
 import "./styles/app.css";
 
+const NOW = Date.UTC(2026, 10, 8, 13, 5);
 const scheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 
 async function open(seed: readonly SeedDownload[], overrides: Partial<Backend> = {}) {
-  const backend = createMockBackend({ seed });
+  const backend = createMockBackend({ seed, now: () => NOW });
   const store = createDownloadsStore({ ...backend, ...overrides });
   const root = document.createElement("div");
   root.id = "root";
@@ -24,15 +25,17 @@ async function open(seed: readonly SeedDownload[], overrides: Partial<Backend> =
   return { backend, store, window: page.elementLocator(root) };
 }
 
-async function showcase() {
+async function showcase(select?: string) {
   const opened = await open(SHOWCASE);
   act(() => {
     opened.backend.tick();
   });
-  const queued = opened.store.getState().items.find((d) => d.state === "queued");
-  act(() => {
-    opened.store.getState().select(queued?.id ?? null);
-  });
+  if (select !== undefined) {
+    const item = opened.store.getState().items.find((d) => d.name === select);
+    act(() => {
+      opened.store.getState().select(item?.id ?? null);
+    });
+  }
   return opened;
 }
 
@@ -47,7 +50,7 @@ afterEach(async () => {
 });
 
 describe("main window", () => {
-  it("shows every download state, live numbers and a selected row", async () => {
+  it("shows every download state and live numbers", async () => {
     const { window } = await showcase();
     await capture(window, "window");
   });
@@ -96,5 +99,16 @@ describe("main window", () => {
       document.body.dispatchEvent(new DragEvent("dragenter", { dataTransfer, bubbles: true }));
     });
     await capture(window, "drop");
+  });
+
+  it("shows a running download's details beside the list", async () => {
+    const { window } = await showcase("fedora-kde-44-x86_64.iso");
+    await capture(window, "detail");
+  });
+
+  it("floats the details over the list at the minimum width", async () => {
+    await page.viewport(720, 480);
+    const { window } = await showcase("noto-fonts-2026.11.zip");
+    await capture(window, "detail-narrow");
   });
 });

@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
     Batch, Download, DownloadId, DownloadState, Library, LibraryError, Phase, ProgressStream,
@@ -358,6 +359,63 @@ pub fn update_settings(
     Ok(state.library.update_settings(Settings::from(settings))?)
 }
 
+pub fn finished_file(d: &Download) -> Result<&Path, CommandError> {
+    match (&d.file, d.state) {
+        (Some(file), DownloadState::Done) => Ok(file),
+        _ => Err(CommandError::invalid(format!(
+            "{} isn't finished yet",
+            display_name(d)
+        ))),
+    }
+}
+
+fn opener_error(e: &tauri_plugin_opener::Error) -> CommandError {
+    CommandError {
+        kind: ErrorKind::Internal,
+        message: format!("couldn't open it: {e}"),
+    }
+}
+
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects AppHandle and State by value"
+)]
+pub fn open_file(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<(), CommandError> {
+    let download = state.library.get(DownloadId::from(id))?;
+    let file = finished_file(&download)?;
+    app.opener()
+        .open_path(file.to_string_lossy(), None::<&str>)
+        .map_err(|e| opener_error(&e))
+}
+
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects AppHandle and State by value"
+)]
+pub fn show_in_folder(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<(), CommandError> {
+    let download = state.library.get(DownloadId::from(id))?;
+    match finished_file(&download) {
+        Ok(file) if file.exists() => app
+            .opener()
+            .reveal_item_in_dir(file)
+            .map_err(|e| opener_error(&e)),
+        _ => app
+            .opener()
+            .open_path(download.dir.to_string_lossy(), None::<&str>)
+            .map_err(|e| opener_error(&e)),
+    }
+}
+
 fn display_name(d: &Download) -> String {
     if let Some(name) = d.file.as_deref().and_then(Path::file_name) {
         return name.to_string_lossy().into_owned();
@@ -401,6 +459,26 @@ mod tests {
             added: UNIX_EPOCH + Duration::from_millis(1_762_600_000_123),
             finished: None,
         }
+    }
+
+    #[test]
+    fn only_a_finished_download_has_a_file_to_open() {
+        let mut d = stored(
+            "https://example.org/fedora.iso",
+            Some("/home/u/Downloads/fedora.iso"),
+        );
+        let err = finished_file(&d).unwrap_err();
+        assert_eq!(err.kind, ErrorKind::Invalid);
+        assert_eq!(err.message, "fedora.iso isn't finished yet");
+
+        d.state = DownloadState::Done;
+        assert_eq!(
+            finished_file(&d).unwrap(),
+            Path::new("/home/u/Downloads/fedora.iso")
+        );
+
+        d.file = None;
+        assert!(finished_file(&d).is_err());
     }
 
     #[test]

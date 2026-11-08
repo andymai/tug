@@ -16,13 +16,23 @@ export function formatSpeed(bytesPerSecond: number): string {
   return `${formatBytes(bytesPerSecond)}/s`;
 }
 
-export function formatLeft(ms: number): string {
+export function formatDuration(ms: number): string {
   const total = Math.max(1, Math.ceil(ms / 1000));
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
   const pad = (n: number) => String(n).padStart(2, "0");
-  return hours > 0 ? `${String(hours)}:${pad(minutes)}:${pad(seconds)} left` : `${String(minutes)}:${pad(seconds)} left`;
+  return hours > 0 ? `${String(hours)}:${pad(minutes)}:${pad(seconds)}` : `${String(minutes)}:${pad(seconds)}`;
+}
+
+export function formatLeft(ms: number): string {
+  return `${formatDuration(ms)} left`;
+}
+
+const DATE = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+export function formatDate(ms: number): string {
+  return DATE.format(ms);
 }
 
 export function formatPercent(received: number, total: number | null): string | null {

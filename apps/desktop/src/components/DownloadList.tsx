@@ -8,6 +8,7 @@ import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { type View, visibleItems } from "../state/downloads";
 import { Button } from "./Button";
+import { DetailPanel } from "./DetailPanel";
 import { DownloadRow } from "./DownloadRow";
 
 const TITLES: Record<View, string> = {
@@ -87,7 +88,7 @@ function Notice() {
     <div role="alert" className="flex items-center gap-2 border-b border-line py-1 pr-2 pl-4 text-small text-ink">
       <CircleAlert {...ICON} className="shrink-0 text-state-error" />
       <p className="min-w-0 flex-1">{sentence(notice)}</p>
-      <Button variant="ghost" size="sm" icon={X} aria-label="Dismiss" onClick={dismiss} className="w-6 px-0 text-ink-muted hover:text-ink" />
+      <Button variant="quiet" size="icon" icon={X} aria-label="Dismiss" onClick={dismiss} />
     </div>
   );
 }
@@ -102,7 +103,7 @@ export function DownloadList() {
   const openAdd = useDownloads((s) => s.openAdd);
 
   return (
-    <main className="@container flex min-w-0 flex-1 flex-col bg-surface">
+    <main className="@container/main flex min-w-0 flex-1 flex-col bg-surface">
       <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line px-4">
         <h1 className="text-title text-ink">{TITLES[view]}</h1>
         <div className="flex items-center gap-4">
@@ -119,17 +120,22 @@ export function DownloadList() {
         </div>
       </header>
       <Notice />
-      {status === "error" ? (
-        <LoadError message={sentence(loadError ?? "")} />
-      ) : status === "ready" && items.length === 0 ? (
-        <Empty view={view} first={total === 0} />
-      ) : (
-        <ul aria-label={TITLES[view]} className="flex-1 overflow-y-auto">
-          {items.map((download) => (
-            <DownloadRow key={download.id} download={download} selected={download.id === selected} />
-          ))}
-        </ul>
-      )}
+      <div className="relative flex min-h-0 flex-1">
+        <div className="@container flex min-w-0 flex-1 flex-col">
+          {status === "error" ? (
+            <LoadError message={sentence(loadError ?? "")} />
+          ) : status === "ready" && items.length === 0 ? (
+            <Empty view={view} first={total === 0} />
+          ) : (
+            <ul aria-label={TITLES[view]} className="flex-1 overflow-y-auto">
+              {items.map((download) => (
+                <DownloadRow key={download.id} download={download} selected={download.id === selected} />
+              ))}
+            </ul>
+          )}
+        </div>
+        <DetailPanel />
+      </div>
     </main>
   );
 }

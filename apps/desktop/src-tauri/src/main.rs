@@ -2,6 +2,7 @@ mod bridge;
 
 fn main() -> Result<(), tauri::Error> {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| bridge::setup(app))
         .invoke_handler(tauri::generate_handler![
             bridge::list_downloads,
@@ -11,6 +12,8 @@ fn main() -> Result<(), tauri::Error> {
             bridge::remove_download,
             bridge::get_settings,
             bridge::update_settings,
+            bridge::open_file,
+            bridge::show_in_folder,
         ])
         .run(tauri::generate_context!())
 }
