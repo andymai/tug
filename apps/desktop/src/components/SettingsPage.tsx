@@ -80,7 +80,7 @@ function Stepper({ value, min, max, onChange, label }: { value: number; min: num
   );
 }
 
-function SpeedLimit({ settings, save }: { settings: Settings; save: (next: Settings) => void }) {
+function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>) => void }) {
   const fieldId = useId();
   const [draft, setDraft] = useState(formatLimit(settings.speedLimit));
   const [problem, setProblem] = useState<string | null>(null);
@@ -97,7 +97,7 @@ function SpeedLimit({ settings, save }: { settings: Settings; save: (next: Setti
       return;
     }
     setProblem(null);
-    save({ ...settings, speedLimit: Math.round(value * MB) });
+    save({ speedLimit: Math.round(value * MB) });
   };
 
   return (
@@ -112,7 +112,7 @@ function SpeedLimit({ settings, save }: { settings: Settings; save: (next: Setti
             onChange={(on) => {
               setDraft(on ? formatLimit(DEFAULT_LIMIT) : "");
               setProblem(null);
-              save({ ...settings, speedLimit: on ? DEFAULT_LIMIT : null });
+              save({ speedLimit: on ? DEFAULT_LIMIT : null });
             }}
           />
         }
@@ -152,7 +152,7 @@ export function SettingsPage() {
   const error = useDownloads((s) => s.settingsError);
   const saveSettings = useDownloads((s) => s.saveSettings);
   const chooseFolder = useDownloads((s) => s.chooseFolder);
-  const save = (next: Settings) => void saveSettings(next);
+  const save = (patch: Partial<Settings>) => void saveSettings(patch);
 
   return (
     <main className="flex min-w-0 flex-1 flex-col bg-surface">
@@ -193,7 +193,7 @@ export function SettingsPage() {
                     min={1}
                     max={32}
                     onChange={(connections) => {
-                      save({ ...settings, connections });
+                      save({ connections });
                     }}
                   />
                 }
