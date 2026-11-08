@@ -231,6 +231,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     dispose: () => {
       if (timer !== undefined) clearInterval(timer);
       listeners.clear();
+      schemeListeners.clear();
     },
   };
 }

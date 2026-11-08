@@ -338,6 +338,29 @@ describe("downloads store", () => {
     expect(names()).toBe("talk.mp4");
   });
 
+  it("keeps a scheme change that arrives while the first read is pending", async () => {
+    const backend = createMockBackend({ colorScheme: "light" });
+    let answer: (scheme: "light" | "dark" | null) => void = () => undefined;
+    let asked: () => void = () => undefined;
+    const reading = new Promise<void>((resolve) => {
+      asked = resolve;
+    });
+    const store = createDownloadsStore({
+      ...backend,
+      systemColorScheme: () =>
+        new Promise((resolve) => {
+          answer = resolve;
+          asked();
+        }),
+    });
+    const started = store.getState().init();
+    await reading;
+    backend.setColorScheme("dark");
+    answer("light");
+    await started;
+    expect(store.getState().systemScheme).toBe("dark");
+  });
+
   it("records an error instead of throwing when the backend refuses", async () => {
     const { store } = await ready();
     await store.getState().resume(999);
