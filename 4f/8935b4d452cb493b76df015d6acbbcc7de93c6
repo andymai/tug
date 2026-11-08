@@ -1,0 +1,28 @@
+apps/desktop/src/lib/links.ts
+  s_b050dc8a593981::t_e96f018ce641b5 13-18,30-48,78,83-88
+apps/desktop/src/state/downloads.test.ts
+  s_b050dc8a593981::t_5267379bbec8bb 157-158,160-178
+  s_b050dc8a593981::t_b011deb3e28a50 159
+apps/desktop/src/lib/links.test.ts
+  s_b050dc8a593981::t_e96f018ce641b5 28-33,64-67,86-87,89,91-100
+apps/desktop/src/components/AddDialog.tsx
+  s_b050dc8a593981::t_5267379bbec8bb 72
+apps/desktop/src/state/downloads.ts
+  s_b050dc8a593981::t_5267379bbec8bb 44,47,131,140,144-145,164-165,170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f8935b4d452cb493b76df015d6acbbcc7de93c6",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
