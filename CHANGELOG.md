@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/andymai/tug/compare/v0.12.0...v0.12.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **desktop:** show the window and stop hiding it when the tray host leaves ([#49](https://github.com/andymai/tug/issues/49)) ([e3dfa88](https://github.com/andymai/tug/commit/e3dfa88ce8d283d31b198c88be6c5d4ab90faf5f))
+
 ## [0.12.0](https://github.com/andymai/tug/compare/v0.11.1...v0.12.0) (2026-11-08)
 
 
