@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/andymai/tug/compare/v0.1.0...v0.2.0) (2026-11-08)
+
+
+### Features
+
+* **core:** stream batched progress for every download ([#4](https://github.com/andymai/tug/issues/4)) ([3477def](https://github.com/andymai/tug/commit/3477deff3cdeac318ec797f30d3535f2d713cf68))
+
 ## [0.1.0](https://github.com/andymai/tug/compare/v0.0.1...v0.1.0) (2026-11-08)
 
 
