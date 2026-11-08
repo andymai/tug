@@ -1,0 +1,36 @@
+apps/desktop/src/state/downloads.test.ts
+  s_b050dc8a593981::t_9755bb2f334919 364-373
+apps/desktop/src/backend/tauri.ts
+  s_b050dc8a593981::t_0b7bf574607e1c 16,43-44
+  s_b050dc8a593981::t_db1439532d5c99 45-46
+apps/desktop/src/backend/tauri.test.ts
+  s_b050dc8a593981::t_9755bb2f334919 9,60-66
+  s_b050dc8a593981::t_c937a81086574e 67-68
+apps/desktop/src/backend/backend.ts
+  s_b050dc8a593981::t_0b7bf574607e1c 36
+scripts/tray/check.sh
+  s_b050dc8a593981::t_f2e82416330831 80
+apps/desktop/src/backend/mock.ts
+  s_b050dc8a593981::t_9755bb2f334919 21,67,222-230,246
+apps/desktop/src-tauri/src/tray.rs
+  s_b050dc8a593981::t_f2e82416330831 10,20-30,185,187-204,369-370,375,379,381,389,483-492
+  s_b050dc8a593981::t_b42680e296fcd1 493-495
+apps/desktop/src/state/downloads.ts
+  s_b050dc8a593981::t_9755bb2f334919 144-148,169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "879590b6985929a4ebb0fc59d9aa9c0453a6a2e4",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
