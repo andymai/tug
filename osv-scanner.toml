@@ -21,3 +21,18 @@ ignoreUntil = 2026-12-01
 # optimizationLevel, and the tree has no glob package (glob 9+ sets it). Every
 # glob they compile comes from config authored in this repo.
 reason = "dev-only lint tooling; no consumer sets optimizationLevel >= 2, the only path that amplifies globParts; globs are repo-authored"
+
+# tauri-plugin-opener 2.x reveals files on Linux through zbus 5 (it asks for
+# zbus ^5.9). zbus 6 took these crates in as modules, so their standalone
+# releases are unmaintained. All three leave when the plugin moves to zbus 6.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+reason = "unmaintained zvariant, merged into zbus 6; via zbus 5 in tauri-plugin-opener 2.x; removed when the plugin moves to zbus 6"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+reason = "unmaintained zbus_names, merged into zbus 6; via zbus 5 in tauri-plugin-opener 2.x; removed when the plugin moves to zbus 6"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+reason = "unmaintained zvariant_derive, merged into zbus 6; via zbus 5 in tauri-plugin-opener 2.x; removed when the plugin moves to zbus 6"
