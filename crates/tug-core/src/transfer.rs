@@ -80,9 +80,18 @@ impl Transfer {
         self.download.cancel();
     }
 
-    pub async fn finish(self) -> Result<PathBuf, Error> {
-        self.download.wait().await.map(|outcome| outcome.path)
+    pub async fn finish(self) -> Result<Finished, Error> {
+        self.download.wait().await.map(|outcome| Finished {
+            path: outcome.path,
+            size: outcome.size,
+        })
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Finished {
+    pub path: PathBuf,
+    pub size: u64,
 }
 
 fn options(connections: u32) -> Options {

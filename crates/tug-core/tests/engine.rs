@@ -44,7 +44,7 @@ async fn downloads_over_several_connections_as_tug() {
         p.phase == Phase::Downloading && p.connections > 1
     })
     .await;
-    let path = transfer.finish().await.unwrap();
+    let path = transfer.finish().await.unwrap().path;
 
     assert_intact(&path, 7, 8 << 20);
     let log = lab.log();
@@ -81,7 +81,7 @@ async fn a_stopped_download_resumes_to_an_intact_file() {
     );
 
     let second = Transfer::resume(&file, 4).unwrap();
-    let path = second.finish().await.unwrap();
+    let path = second.finish().await.unwrap().path;
 
     assert_eq!(path, file);
     assert_intact(&path, 11, 6 << 20);
@@ -96,7 +96,11 @@ async fn dropped_connections_are_retried_to_an_intact_file() {
         .parse()
         .unwrap();
 
-    let path = Transfer::start(url, dir.path(), 6).finish().await.unwrap();
+    let path = Transfer::start(url, dir.path(), 6)
+        .finish()
+        .await
+        .unwrap()
+        .path;
 
     assert_intact(&path, 23, 4 << 20);
     assert!(

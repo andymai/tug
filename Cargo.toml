@@ -17,7 +17,7 @@ mdm-labserver = {git = "https://github.com/anefzaoui/misterdownloadmanager", rev
 rusqlite = {version = "0.41", features = ["bundled"]}
 tempfile = "3"
 thiserror = "2"
-tokio = {version = "1", features = ["macros", "rt-multi-thread", "time"]}
+tokio = {version = "1", features = ["macros", "rt-multi-thread", "sync", "time"]}
 url = "2"
 
 [workspace.lints.rust]
