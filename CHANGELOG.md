@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/andymai/tug/compare/v0.3.0...v0.4.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** bridge the library to the UI with typed commands and a mock ([#10](https://github.com/andymai/tug/issues/10)) ([df5d700](https://github.com/andymai/tug/commit/df5d700892c53106299651cbe95d776b4eb11616))
+
 ## [0.3.0](https://github.com/andymai/tug/compare/v0.2.0...v0.3.0) (2026-11-08)
 
 
