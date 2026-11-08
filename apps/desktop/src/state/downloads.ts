@@ -31,11 +31,16 @@ export interface DownloadsState {
   adding: Adding;
   fresh: number[];
   history: { id: number; events: DownloadEvent[] } | null;
+  overlay: Overlay;
+  focusRequest: number | null;
   init: () => Promise<() => void>;
   reload: () => Promise<void>;
   applyBatch: (batch: ProgressBatch) => void;
   setView: (view: View) => void;
   select: (id: number | null) => void;
+  step: (delta: number) => number | null;
+  setOverlay: (overlay: Overlay) => void;
+  requestFocus: (id: number | null) => void;
   pause: (id: number) => Promise<void>;
   resume: (id: number) => Promise<void>;
   openFile: (id: number) => Promise<void>;
@@ -49,6 +54,8 @@ export interface DownloadsState {
   addLinks: (hrefs: readonly string[]) => Promise<void>;
   settleFresh: (id: number) => void;
 }
+
+export type Overlay = "commands" | "shortcuts" | null;
 
 export interface Adding {
   open: boolean;
@@ -94,6 +101,8 @@ export function createDownloadsStore(backend: Backend) {
       adding: CLOSED,
       fresh: [],
       history: null,
+      overlay: null,
+      focusRequest: null,
 
       init: async () => {
         let stop: () => void = () => undefined;
@@ -132,6 +141,25 @@ export function createDownloadsStore(backend: Backend) {
 
       select: (id) => {
         set({ selected: id });
+      },
+
+      step: (delta) => {
+        const visible = visibleItems(get());
+        if (visible.length === 0) return null;
+        const at = visible.findIndex((item) => item.id === get().selected);
+        const next =
+          at === -1 ? (delta > 0 ? 0 : visible.length - 1) : Math.min(visible.length - 1, Math.max(0, at + delta));
+        const id = visible[next]?.id ?? null;
+        set({ selected: id });
+        return id;
+      },
+
+      setOverlay: (overlay) => {
+        set({ overlay });
+      },
+
+      requestFocus: (id) => {
+        set({ focusRequest: id });
       },
 
       pause: (id) =>
@@ -235,4 +263,8 @@ export function visibleItems(state: Pick<DownloadsState, "items" | "view">): Dow
 
 export function countFor(items: readonly Download[], view: View): number {
   return items.filter((item) => inView(view, item)).length;
+}
+
+export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay">): boolean {
+  return state.adding.open || state.overlay !== null;
 }

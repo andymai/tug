@@ -1,11 +1,13 @@
-import { ArrowDown, Check, CircleAlert, Layers, type LucideIcon } from "lucide-react";
+import { ArrowDown, Check, CircleAlert, Layers, type LucideIcon, Search } from "lucide-react";
 import { useShallow } from "zustand/shallow";
 
 import lockupDark from "../../../../brand/svg/lockup-dark.svg";
 import lockup from "../../../../brand/svg/lockup.svg";
+import { PALETTE_KEYS } from "../lib/commands";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { countFor, type View, VIEWS } from "../state/downloads";
+import { Keys } from "./Kbd";
 
 const VIEW_ICONS: Record<View, LucideIcon> = {
   all: Layers,
@@ -17,6 +19,7 @@ const VIEW_ICONS: Record<View, LucideIcon> = {
 export function Sidebar() {
   const view = useDownloads((s) => s.view);
   const setView = useDownloads((s) => s.setView);
+  const setOverlay = useDownloads((s) => s.setOverlay);
   const counts = useDownloads(useShallow((s) => VIEWS.map((v) => countFor(s.items, v.id))));
 
   return (
@@ -54,6 +57,19 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
+      <div className="mt-auto p-2">
+        <button
+          type="button"
+          onClick={() => {
+            setOverlay("commands");
+          }}
+          className="flex h-8 w-full items-center gap-2 rounded-sm px-2 text-body text-ink-muted transition-colors duration-(--duration-fast) ease-(--ease-out) hover:bg-hover hover:text-ink"
+        >
+          <Search {...ICON} />
+          <span className="flex-1 text-left">Commands</span>
+          <Keys label={PALETTE_KEYS.label} />
+        </button>
+      </div>
     </aside>
   );
 }

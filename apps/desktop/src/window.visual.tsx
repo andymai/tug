@@ -111,4 +111,20 @@ describe("main window", () => {
     const { window } = await showcase("noto-fonts-2026.11.zip");
     await capture(window, "detail-narrow");
   });
+
+  it("lists commands for the selected download in the command bar", async () => {
+    const { store, window } = await showcase("fedora-kde-44-x86_64.iso");
+    act(() => {
+      store.getState().setOverlay("commands");
+    });
+    await capture(window, "commands");
+  });
+
+  it("shows the keyboard shortcuts", async () => {
+    const { store, window } = await open(SHOWCASE);
+    act(() => {
+      store.getState().setOverlay("shortcuts");
+    });
+    await capture(window, "shortcuts");
+  });
 });

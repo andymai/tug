@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 
 import type { Download, ProgressUpdate } from "../backend/backend";
 import { formatBytes, formatLeft, formatPercent, formatSpeed, percentOf, sentence, shortDir } from "../lib/format";
@@ -45,6 +45,15 @@ export const DownloadRow = memo(function DownloadRow({ download, selected }: Dow
   const resume = useDownloads((s) => s.resume);
   const fresh = useDownloads((s) => s.fresh.includes(download.id));
   const settleFresh = useDownloads((s) => s.settleFresh);
+  const wantsFocus = useDownloads((s) => s.focusRequest === download.id);
+  const requestFocus = useDownloads((s) => s.requestFocus);
+  const button = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!wantsFocus) return;
+    button.current?.focus();
+    requestFocus(null);
+  }, [wantsFocus, requestFocus]);
   const look = STATES[download.state];
   const received = live?.received ?? download.received;
   const total = live?.total ?? download.size;
@@ -54,6 +63,7 @@ export const DownloadRow = memo(function DownloadRow({ download, selected }: Dow
   return (
     <li className="relative border-t border-line first:border-t-0">
       <button
+        ref={button}
         type="button"
         data-download={download.id}
         aria-pressed={selected}

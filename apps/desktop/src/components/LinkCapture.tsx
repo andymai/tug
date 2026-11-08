@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
 
+import { editable } from "../lib/dom";
 import { findLinks, linksFromTransfer } from "../lib/links";
 import { useDownloads } from "../state/context";
-
-function editable(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select") !== null);
-}
 
 function carriesText(event: DragEvent): boolean {
   const types = Array.from(event.dataTransfer?.types ?? []);
