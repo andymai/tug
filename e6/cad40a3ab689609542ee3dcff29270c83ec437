@@ -1,0 +1,80 @@
+apps/desktop/src/jsdom-setup.ts
+  s_b050dc8a593981::t_e333bb3b88eeed 1-33
+apps/desktop/src/state/downloads.ts
+  s_b050dc8a593981::t_0674126fcd1fff 6,33,125,143-161
+apps/desktop/src-tauri/src/main.rs
+  s_b050dc8a593981::t_a1f2150585db33 19
+Cargo.toml
+  s_b050dc8a593981::t_a1f2150585db33 14-18,20
+apps/desktop/src-tauri/Cargo.toml
+  s_b050dc8a593981::t_a1f2150585db33 19
+crates/tug-core/tests/settings.rs
+  s_b050dc8a593981::t_51f69c68ff3354 7-9
+  s_b050dc8a593981::t_66cf60c8a30eab 33,74,98
+apps/desktop/src/components/SettingsPage.tsx
+  s_b050dc8a593981::t_86ead35a8cef7a 2,4,83-90,92-115,117-128,254-269
+  s_b050dc8a593981::t_86fd01246b9c9a 91,116
+  s_b050dc8a593981::t_ec9e1aedd3de2e 270
+apps/desktop/src/backend/mock.ts
+  s_b050dc8a593981::t_c97de2e06a160b 6,20,38,63-65,213-223
+apps/desktop/src/App.tsx
+  s_b050dc8a593981::t_7b2870fee3af03 12,43,52-61
+  s_b050dc8a593981::t_af8f44759986ab 62
+apps/desktop/src/components/DownloadList.tsx
+  s_b050dc8a593981::t_7b2870fee3af03 10,55,59
+apps/desktop/src/backend/bindings/ColorScheme.ts
+  s_b050dc8a593981::t_12a533702d3d98 1-3
+apps/desktop/src/state/theme.ts
+  s_b050dc8a593981::t_7b2870fee3af03 1-26
+crates/tug-core/src/settings.rs
+  s_b050dc8a593981::t_026eb147d0f91a 4,15-46,53,72,107-110,115,128
+  s_b050dc8a593981::t_66cf60c8a30eab 148
+  s_b050dc8a593981::t_a1f2150585db33 164-167
+  s_b050dc8a593981::t_51f69c68ff3354 161-163,168-169,185
+  s_b050dc8a593981::t_951dd12dfddd71 160
+crates/tug-core/src/lib.rs
+  s_b050dc8a593981::t_026eb147d0f91a 11
+apps/desktop/src/components/Sidebar.tsx
+  s_b050dc8a593981::t_7b2870fee3af03 10,25,32
+apps/desktop/src/backend/bindings/Appearance.ts
+  s_b050dc8a593981::t_12a533702d3d98 1-3
+apps/desktop/src/App.test.tsx
+  s_b050dc8a593981::t_86ead35a8cef7a 484-526
+apps/desktop/vite.config.ts
+  s_b050dc8a593981::t_e333bb3b88eeed 30
+apps/desktop/src/backend/tauri.ts
+  s_b050dc8a593981::t_c97de2e06a160b 4-12,15,37-41
+apps/desktop/src/backend/bindings/Settings.ts
+  s_b050dc8a593981::t_12a533702d3d98 2,4
+apps/desktop/src/backend/tauri.test.ts
+  s_b050dc8a593981::t_1c79c3751389ae 29
+  s_b050dc8a593981::t_c97de2e06a160b 32,47
+apps/desktop/src-tauri/src/bridge.rs
+  s_b050dc8a593981::t_a1f2150585db33 10-11,16,212-257,266,275,297,360,490-513,685-710
+  s_b050dc8a593981::t_66cf60c8a30eab 737,840
+  s_b050dc8a593981::t_392453614d9524 711
+apps/desktop/src/backend/backend.ts
+  s_b050dc8a593981::t_c97de2e06a160b 1,9-10,34-35
+apps/desktop/src/backend/mock.test.ts
+  s_b050dc8a593981::t_1c79c3751389ae 55
+apps/desktop/src/window.visual.tsx
+  s_b050dc8a593981::t_7ec0058e771d06 139-146
+Cargo.lock
+  s_b050dc8a593981::t_8856a8a2371507 5297
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e6cad40a3ab689609542ee3dcff29270c83ec437",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
