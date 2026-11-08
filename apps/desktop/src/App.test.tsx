@@ -85,6 +85,21 @@ describe("main window", () => {
     expect(fedora).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("shows why a retry failed until it is dismissed", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const store = createDownloadsStore({
+      ...backend,
+      resume: () => Promise.reject(new BackendError("engine", "the mirror refused the range request")),
+    });
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Retry dataset-shard-07.parquet" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The mirror refused the range request");
+
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("says when the list can't load, and loads again on Retry", async () => {
     const backend = createMockBackend({ seed: SHOWCASE });
     let fail = true;

@@ -1,4 +1,4 @@
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, X } from "lucide-react";
 import { useShallow } from "zustand/shallow";
 
 import markDark from "../../../../brand/svg/mark-dark.svg";
@@ -84,10 +84,30 @@ function LoadError({ message }: { message: string }) {
   );
 }
 
+function Notice() {
+  const notice = useDownloads((s) => s.notice);
+  const dismiss = useDownloads((s) => s.dismissNotice);
+  if (notice === null) return null;
+  return (
+    <div role="alert" className="flex items-center gap-2 border-b border-line py-1 pr-2 pl-4 text-small text-ink">
+      <CircleAlert {...ICON} className="shrink-0 text-state-error" />
+      <p className="min-w-0 flex-1">{sentence(notice)}</p>
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={dismiss}
+        className="grid size-6 shrink-0 place-items-center rounded-sm text-ink-muted transition-colors duration-(--duration-fast) ease-(--ease-out) hover:bg-hover hover:text-ink"
+      >
+        <X {...ICON} />
+      </button>
+    </div>
+  );
+}
+
 export function DownloadList() {
   const view = useDownloads((s) => s.view);
   const status = useDownloads((s) => s.status);
-  const error = useDownloads((s) => s.error);
+  const loadError = useDownloads((s) => s.loadError);
   const total = useDownloads((s) => s.items.length);
   const items = useDownloads(useShallow((s) => visibleItems(s)));
   const selected = useDownloads((s) => s.selected);
@@ -98,14 +118,9 @@ export function DownloadList() {
         <h1 className="text-title text-ink">{TITLES[view]}</h1>
         <Summary />
       </header>
-      {status === "ready" && error !== null && (
-        <p role="alert" className="flex items-center gap-2 border-b border-line px-4 py-2 text-small text-ink">
-          <CircleAlert {...ICON} className="shrink-0 text-state-error" />
-          {sentence(error)}
-        </p>
-      )}
+      <Notice />
       {status === "error" ? (
-        <LoadError message={sentence(error ?? "")} />
+        <LoadError message={sentence(loadError ?? "")} />
       ) : status === "ready" && items.length === 0 ? (
         <Empty view={view} first={total === 0} />
       ) : (
