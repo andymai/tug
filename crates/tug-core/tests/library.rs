@@ -4,7 +4,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer, content};
-use tug_core::{Download, DownloadId, DownloadState, Library, LibraryError, Store};
+use tug_core::{Download, DownloadId, DownloadState, EventKind, Library, LibraryError, Store};
 
 fn assert_intact(path: &Path, seed: u64, len: usize) {
     let mut want = vec![0; len];
@@ -24,6 +24,15 @@ async fn tick_until(library: &Library, done: impl Fn(&Library) -> bool) {
         assert!(Instant::now() < deadline, "timed out: {:?}", library.list());
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
+}
+
+fn kinds(library: &Library, id: DownloadId) -> Vec<EventKind> {
+    library
+        .events(id)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.kind)
+        .collect()
 }
 
 fn state_of(library: &Library, id: DownloadId) -> DownloadState {
@@ -60,6 +69,13 @@ async fn adds_and_completes_a_download() {
     assert_intact(&file, 3, 3 << 20);
     assert_eq!((done.received, done.size), (3 << 20, Some(3 << 20)));
     assert!(done.finished.is_some() && done.error.is_none());
+
+    let events = library.events(id).unwrap();
+    assert_eq!(
+        kinds(&library, id),
+        [EventKind::Added, EventKind::Started, EventKind::Finished]
+    );
+    assert_eq!(events[2].bytes, Some(3 << 20));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -86,6 +102,20 @@ async fn a_paused_download_resumes_to_an_intact_file() {
     library.resume(id).await.unwrap();
     tick_until(&library, |l| state_of(l, id) == DownloadState::Done).await;
     assert_intact(&library.get(id).unwrap().file.unwrap(), 11, 6 << 20);
+
+    assert_eq!(
+        kinds(&library, id),
+        [
+            EventKind::Added,
+            EventKind::Started,
+            EventKind::Paused,
+            EventKind::Resumed,
+            EventKind::Finished
+        ]
+    );
+    let events = library.events(id).unwrap();
+    assert_eq!(events[2].bytes, Some(paused.received));
+    assert_eq!(events[3].bytes, Some(paused.received));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -170,6 +200,13 @@ async fn a_missing_file_fails_with_the_reason() {
         "no reason recorded"
     );
     assert!(failed.finished.is_none());
+
+    let events = library.events(id).unwrap();
+    assert_eq!(
+        kinds(&library, id),
+        [EventKind::Added, EventKind::Started, EventKind::Failed]
+    );
+    assert_eq!(events[2].detail, library.get(id).unwrap().error);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -196,4 +233,5 @@ async fn actions_on_a_removed_download_report_it_unknown() {
         library.remove(id, false).await,
         Err(LibraryError::Unknown(_))
     ));
+    assert!(matches!(library.events(id), Err(LibraryError::Unknown(_))));
 }

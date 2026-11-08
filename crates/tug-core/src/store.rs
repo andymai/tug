@@ -7,7 +7,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use url::Url;
 
-const MIGRATIONS: &[&str] = &[r"
+const MIGRATIONS: &[&str] = &[
+    r"
     CREATE TABLE downloads (
         id          INTEGER PRIMARY KEY,
         url         TEXT    NOT NULL,
@@ -26,7 +27,20 @@ const MIGRATIONS: &[&str] = &[r"
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL
     ) WITHOUT ROWID;
-"];
+",
+    r"
+    CREATE TABLE events (
+        id          INTEGER PRIMARY KEY,
+        download_id INTEGER NOT NULL REFERENCES downloads (id) ON DELETE CASCADE,
+        at_ms       INTEGER NOT NULL,
+        kind        TEXT    NOT NULL
+                    CHECK (kind IN ('added', 'started', 'resumed', 'paused', 'finished', 'failed')),
+        bytes       INTEGER CHECK (bytes >= 0),
+        detail      TEXT
+    );
+    CREATE INDEX events_download ON events (download_id, id);
+",
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -93,6 +107,53 @@ impl FromStr for DownloadState {
             other => Err(format!("unknown state {other:?}")),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventKind {
+    Added,
+    Started,
+    Resumed,
+    Paused,
+    Finished,
+    Failed,
+}
+
+impl EventKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Added => "added",
+            Self::Started => "started",
+            Self::Resumed => "resumed",
+            Self::Paused => "paused",
+            Self::Finished => "finished",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+impl FromStr for EventKind {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "added" => Ok(Self::Added),
+            "started" => Ok(Self::Started),
+            "resumed" => Ok(Self::Resumed),
+            "paused" => Ok(Self::Paused),
+            "finished" => Ok(Self::Finished),
+            "failed" => Ok(Self::Failed),
+            other => Err(format!("unknown event {other:?}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Event {
+    pub kind: EventKind,
+    pub at: SystemTime,
+    pub bytes: Option<u64>,
+    pub detail: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -213,6 +274,45 @@ impl Store {
             .conn
             .execute("DELETE FROM downloads WHERE id = ?1", [id.0])?
             > 0)
+    }
+
+    pub fn add_event(&self, id: DownloadId, event: &Event) -> Result<(), StoreError> {
+        let bytes = event.bytes.map(to_sql_int).transpose()?;
+        self.conn.execute(
+            "INSERT INTO events (download_id, at_ms, kind, bytes, detail) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id.0, to_ms(event.at), event.kind.as_str(), bytes, event.detail],
+        )?;
+        Ok(())
+    }
+
+    pub fn events(&self, id: DownloadId) -> Result<Vec<Event>, StoreError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT at_ms, kind, bytes, detail FROM events WHERE download_id = ?1 ORDER BY id",
+        )?;
+        let rows = stmt.query_map([id.0], |row| {
+            let at: i64 = row.get(0)?;
+            let kind: String = row.get(1)?;
+            let bytes: Option<i64> = row.get(2)?;
+            let detail: Option<String> = row.get(3)?;
+            Ok((at, kind, bytes, detail))
+        })?;
+        let corrupt = |column, detail: String| StoreError::Corrupt {
+            id: id.0,
+            column,
+            detail,
+        };
+        rows.map(|row| {
+            let (at, kind, bytes, detail) = row?;
+            Ok(Event {
+                kind: kind.parse().map_err(|e| corrupt("event kind", e))?,
+                at: from_ms(at),
+                bytes: bytes
+                    .map(|b| u64::try_from(b).map_err(|e| corrupt("event bytes", e.to_string())))
+                    .transpose()?,
+                detail,
+            })
+        })
+        .collect()
     }
 
     pub fn setting(&self, key: &str) -> Result<Option<String>, StoreError> {
@@ -347,7 +447,7 @@ mod tests {
     #[test]
     fn migrates_a_fresh_database_to_the_latest_schema() {
         let store = Store::open_in_memory().unwrap();
-        assert_eq!(store.schema_version().unwrap(), 1);
+        assert_eq!(store.schema_version().unwrap(), 2);
         assert!(store.list().unwrap().is_empty());
     }
 
@@ -360,11 +460,82 @@ mod tests {
             .insert(&new("https://example.org/a.iso", "/home/u/Downloads"))
             .unwrap();
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 1);
+        assert_eq!(store.schema_version().unwrap(), 2);
         assert_eq!(
             store.get(id).unwrap().unwrap().url.as_str(),
             "https://example.org/a.iso"
         );
+    }
+
+    #[test]
+    fn events_keep_their_order_and_leave_with_their_download() {
+        let store = Store::open_in_memory().unwrap();
+        let id = store
+            .insert(&new("https://example.org/a.iso", "/d"))
+            .unwrap();
+        let other = store
+            .insert(&new("https://example.org/b.iso", "/d"))
+            .unwrap();
+        let at = UNIX_EPOCH + Duration::from_millis(1_800_000_000_500);
+        let events = [
+            Event {
+                kind: EventKind::Added,
+                at,
+                bytes: None,
+                detail: None,
+            },
+            Event {
+                kind: EventKind::Paused,
+                at,
+                bytes: Some(1 << 20),
+                detail: None,
+            },
+            Event {
+                kind: EventKind::Failed,
+                at,
+                bytes: Some(2 << 20),
+                detail: Some("the server closed the connection".into()),
+            },
+        ];
+        for event in &events {
+            store.add_event(id, event).unwrap();
+        }
+        store.add_event(other, &events[0]).unwrap();
+
+        assert_eq!(store.events(id).unwrap(), events);
+        assert!(store.remove(id).unwrap());
+        assert!(store.events(id).unwrap().is_empty());
+        assert_eq!(store.events(other).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_version_1_database_gains_the_events_table() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("tug.db");
+        {
+            let mut conn = Connection::open(&db).unwrap();
+            let tx = conn.transaction().unwrap();
+            tx.execute_batch(MIGRATIONS[0]).unwrap();
+            tx.pragma_update(None, "user_version", 1).unwrap();
+            tx.commit().unwrap();
+        }
+        let store = Store::open(&db).unwrap();
+        assert_eq!(store.schema_version().unwrap(), 2);
+        let id = store
+            .insert(&new("https://example.org/a.iso", "/d"))
+            .unwrap();
+        store
+            .add_event(
+                id,
+                &Event {
+                    kind: EventKind::Added,
+                    at: UNIX_EPOCH,
+                    bytes: None,
+                    detail: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(store.events(id).unwrap().len(), 1);
     }
 
     #[test]
@@ -524,10 +695,7 @@ mod tests {
             .unwrap();
         assert!(matches!(
             Store::open(&db),
-            Err(StoreError::FromNewerTug {
-                found: 99,
-                known: 1
-            })
+            Err(StoreError::FromNewerTug { found: 99, known }) if Ok(known) == i64::try_from(MIGRATIONS.len())
         ));
     }
 

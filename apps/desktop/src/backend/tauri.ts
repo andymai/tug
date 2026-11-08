@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-import { type Backend, BackendError, type Download, type ProgressBatch, type Settings } from "./backend";
+import { type Backend, BackendError, type Download, type DownloadEvent, type ProgressBatch, type Settings } from "./backend";
 
 export const PROGRESS_EVENT = "progress";
 
@@ -21,6 +21,7 @@ export const tauriBackend: Backend = {
   remove: (id, deleteFile) => call("remove_download", { id, deleteFile }),
   openFile: (id) => call("open_file", { id }),
   showInFolder: (id) => call("show_in_folder", { id }),
+  events: (id) => call<DownloadEvent[]>("download_events", { id }),
   settings: () => call<Settings>("get_settings"),
   updateSettings: (settings) => call("update_settings", { settings }),
   onProgress: (listener) =>

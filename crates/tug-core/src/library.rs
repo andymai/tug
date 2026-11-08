@@ -10,7 +10,9 @@ use mdm_engine::state::state_path;
 use url::Url;
 
 use crate::settings::{Settings, SettingsError};
-use crate::store::{Download, DownloadId, DownloadState, NewDownload, Store, StoreError};
+use crate::store::{
+    Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Store, StoreError,
+};
 use crate::transfer::{Finished, Phase, Progress, Transfer, TransferOptions};
 
 #[derive(Debug, thiserror::Error)]
@@ -69,11 +71,17 @@ impl Library {
     }
 
     pub async fn add(&self, url: Url, dir: &Path) -> Result<DownloadId, LibraryError> {
-        let id = self.store()?.insert(&NewDownload {
-            url,
-            dir: dir.to_owned(),
-            added: SystemTime::now(),
-        })?;
+        let added = SystemTime::now();
+        let id = {
+            let store = self.store()?;
+            let id = store.insert(&NewDownload {
+                url,
+                dir: dir.to_owned(),
+                added,
+            })?;
+            store.add_event(id, &event(EventKind::Added, added, None, None))?;
+            id
+        };
         let download = self.get(id)?;
         self.launch(&download).await?;
         Ok(id)
@@ -103,6 +111,11 @@ impl Library {
 
     pub fn list(&self) -> Result<Vec<Download>, LibraryError> {
         Ok(self.store()?.list()?)
+    }
+
+    pub fn events(&self, id: DownloadId) -> Result<Vec<Event>, LibraryError> {
+        self.get(id)?;
+        Ok(self.store()?.events(id)?)
     }
 
     pub async fn pause(&self, id: DownloadId) -> Result<(), LibraryError> {
@@ -198,12 +211,16 @@ impl Library {
             Some(file) => Transfer::resume(file, &options)?,
             None => Transfer::start(download.url.clone(), &download.dir, &options),
         };
-        self.store()?.set_state(
-            download.id,
-            DownloadState::Downloading,
-            None,
-            SystemTime::now(),
-        )?;
+        let now = SystemTime::now();
+        let started = match resumable {
+            Some(_) => event(EventKind::Resumed, now, Some(download.received), None),
+            None => event(EventKind::Started, now, None, None),
+        };
+        {
+            let store = self.store()?;
+            store.set_state(download.id, DownloadState::Downloading, None, now)?;
+            store.add_event(download.id, &started)?;
+        }
         self.running.lock().await.insert(
             download.id,
             Running {
@@ -246,12 +263,32 @@ fn record(
             store.set_file(id, &done.path)?;
             store.set_progress(id, done.size, Some(done.size))?;
             store.set_state(id, DownloadState::Done, None, now)?;
+            store.add_event(id, &event(EventKind::Finished, now, Some(done.size), None))?;
         }
         Err(error) => {
             store.set_progress(id, last.received, last.total)?;
             let reason = (unfinished == DownloadState::Failed).then(|| error.to_string());
             store.set_state(id, unfinished, reason.as_deref(), now)?;
+            let kind = match unfinished {
+                DownloadState::Failed => EventKind::Failed,
+                _ => EventKind::Paused,
+            };
+            store.add_event(id, &event(kind, now, Some(last.received), reason))?;
         }
     }
     Ok(())
+}
+
+const fn event(
+    kind: EventKind,
+    at: SystemTime,
+    bytes: Option<u64>,
+    detail: Option<String>,
+) -> Event {
+    Event {
+        kind,
+        at,
+        bytes,
+        detail,
+    }
 }
