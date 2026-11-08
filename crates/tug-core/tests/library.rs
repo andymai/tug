@@ -35,7 +35,7 @@ fn state_of(library: &Library, id: DownloadId) -> DownloadState {
 async fn received_at_least(library: &Library, id: DownloadId, bytes: u64) {
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
-        let live = library.tick().await.unwrap();
+        let live = library.tick().await.unwrap().live;
         if live.iter().any(|(i, p)| *i == id && p.received >= bytes) {
             return;
         }
