@@ -10,6 +10,10 @@ import { Button } from "./Button";
 const MB = 1 << 20;
 const DEFAULT_LIMIT = 10 * MB;
 
+function formatLimit(bytes: number | null): string {
+  return bytes === null ? "" : String(Number((bytes / MB).toFixed(2)));
+}
+
 function Row({ label, description, control, labelFor }: { label: string; description: string; control: ReactNode; labelFor?: string }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-line py-4 first:border-t-0">
@@ -78,11 +82,15 @@ function Stepper({ value, min, max, onChange, label }: { value: number; min: num
 
 function SpeedLimit({ settings, save }: { settings: Settings; save: (next: Settings) => void }) {
   const fieldId = useId();
-  const [draft, setDraft] = useState(settings.speedLimit === null ? "" : String(Math.round((settings.speedLimit / MB) * 10) / 10));
+  const [draft, setDraft] = useState(formatLimit(settings.speedLimit));
   const [problem, setProblem] = useState<string | null>(null);
   const limited = settings.speedLimit !== null;
 
   const commit = () => {
+    if (draft === formatLimit(settings.speedLimit)) {
+      setProblem(null);
+      return;
+    }
     const value = Number(draft.replace(",", "."));
     if (!Number.isFinite(value) || value <= 0) {
       setProblem("Enter a speed above zero.");
@@ -102,7 +110,7 @@ function SpeedLimit({ settings, save }: { settings: Settings; save: (next: Setti
             label="Limit download speed"
             checked={limited}
             onChange={(on) => {
-              setDraft(on ? String(DEFAULT_LIMIT / MB) : "");
+              setDraft(on ? formatLimit(DEFAULT_LIMIT) : "");
               setProblem(null);
               save({ ...settings, speedLimit: on ? DEFAULT_LIMIT : null });
             }}
