@@ -199,10 +199,24 @@ jobs:
 
   # !cancelled() rather than always(): a run superseded by a newer push must
   # not report a failing gate for its commit.
+  packaging:
+    name: Packaging
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends appstream desktop-file-utils
+      - run: scripts/install-data.sh "$RUNNER_TEMP/prefix"
+      - run: desktop-file-validate "$RUNNER_TEMP/prefix/share/applications/io.github.andymai.Tug.desktop"
+      - run: appstreamcli validate --no-net --explain "$RUNNER_TEMP/prefix/share/metainfo/io.github.andymai.Tug.metainfo.xml"
+
   ci-pass:
     name: CI Pass
     if: ${{ !cancelled() }}
-    needs: [fmt, clippy, test, msrv, docs, deps, frontend, deny, audit, machete, taplo]
+    needs: [fmt, clippy, test, msrv, docs, deps, frontend, deny, audit, machete, taplo, packaging]
     runs-on: ubuntu-24.04
     steps:
       - name: Check all jobs
