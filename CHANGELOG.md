@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/andymai/tug/compare/v0.6.1...v0.7.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** the detail panel with live facts and actions ([#23](https://github.com/andymai/tug/issues/23)) ([c445621](https://github.com/andymai/tug/commit/c445621aab1cc2994d33230bd3341cfa38a1dc8e))
+
 ## [0.6.1](https://github.com/andymai/tug/compare/v0.6.0...v0.6.1) (2026-11-08)
 
 
