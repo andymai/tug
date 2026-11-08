@@ -253,6 +253,19 @@ describe("detail panel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't open it: no app for zip files");
   });
 
+  it("gives focus back to the row when it closes from inside", async () => {
+    const { user } = open();
+    const row = await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ });
+    await user.click(row);
+    await user.click(screen.getByRole("button", { name: "Close details" }));
+    expect(row).toHaveFocus();
+
+    await user.click(row);
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
+    await user.keyboard("{Escape}");
+    expect(row).toHaveFocus();
+  });
+
   it("closes with its button and with Escape", async () => {
     const { user } = open();
     const row = await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ });

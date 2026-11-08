@@ -369,6 +369,11 @@ pub fn finished_file(d: &Download) -> Result<&Path, CommandError> {
     }
 }
 
+pub fn file_url(path: &Path) -> Result<Url, CommandError> {
+    Url::from_file_path(path)
+        .map_err(|()| CommandError::invalid(format!("{} is not a full path", path.display())))
+}
+
 fn opener_error(e: &tauri_plugin_opener::Error) -> CommandError {
     CommandError {
         kind: ErrorKind::Internal,
@@ -387,9 +392,9 @@ pub fn open_file(
     id: i64,
 ) -> Result<(), CommandError> {
     let download = state.library.get(DownloadId::from(id))?;
-    let file = finished_file(&download)?;
+    let url = file_url(finished_file(&download)?)?;
     app.opener()
-        .open_path(file.to_string_lossy(), None::<&str>)
+        .open_url(url, None::<&str>)
         .map_err(|e| opener_error(&e))
 }
 
@@ -411,7 +416,7 @@ pub fn show_in_folder(
             .map_err(|e| opener_error(&e)),
         _ => app
             .opener()
-            .open_path(download.dir.to_string_lossy(), None::<&str>)
+            .open_url(file_url(&download.dir)?, None::<&str>)
             .map_err(|e| opener_error(&e)),
     }
 }
@@ -479,6 +484,22 @@ mod tests {
 
         d.file = None;
         assert!(finished_file(&d).is_err());
+    }
+
+    #[test]
+    fn a_path_opens_as_a_file_url_that_keeps_every_byte() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        let path = Path::new(OsStr::from_bytes(b"/home/u/Downloads/caf\xe9 (1).iso"));
+        let url = file_url(path).unwrap();
+        assert_eq!(url.as_str(), "file:///home/u/Downloads/caf%E9%20(1).iso");
+        assert_eq!(url.to_file_path().unwrap(), path);
+
+        assert_eq!(
+            file_url(Path::new("Downloads")).unwrap_err().kind,
+            ErrorKind::Invalid
+        );
     }
 
     #[test]
