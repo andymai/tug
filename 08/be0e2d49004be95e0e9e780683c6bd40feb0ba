@@ -1,0 +1,29 @@
+Cargo.toml
+  s_b050dc8a593981::t_004a68faf75fd8 17,19
+crates/tug-core/Cargo.toml
+  s_b050dc8a593981::t_004a68faf75fd8 13-14
+crates/tug-core/src/lib.rs
+  s_b050dc8a593981::t_004a68faf75fd8 1,4
+crates/tug-core/src/store.rs
+  s_b050dc8a593981::t_ee3d206ce10b8d 383
+  s_b050dc8a593981::t_9356a52a5b3f6c 1-156,158-230,233-332,337-382,384-385,391-392,397-399,404-421,427-459,464-480,485-503
+  s_b050dc8a593981::t_3b7d73e5fbbcb2 157,231-232,333-336,386-390,393-396,400-403,422-426,460-463,481-484
+Cargo.lock
+  s_b050dc8a593981::t_23e15de1a57fcc 549-560,745-753,1224-1234,1835-1858,2179-2188,2514,2516,2590-2595
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "08be0e2d49004be95e0e9e780683c6bd40feb0ba",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
