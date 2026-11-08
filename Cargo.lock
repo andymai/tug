@@ -5260,7 +5260,7 @@ dependencies = [
 
 [[package]]
 name = "tug-core"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "dirs 6.0.0",
  "http",
@@ -5275,7 +5275,7 @@ dependencies = [
 
 [[package]]
 name = "tug-desktop"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "serde",
  "serde_json",
