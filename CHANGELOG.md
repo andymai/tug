@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.2](https://github.com/andymai/tug/compare/v0.10.1...v0.10.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **desktop:** clear the folder chooser's failure when a retry succeeds ([#42](https://github.com/andymai/tug/issues/42)) ([b386ac0](https://github.com/andymai/tug/commit/b386ac0b113658ef8c5a295f306de70fa9d939b6))
+* **desktop:** save settings as patches over the confirmed settings ([#40](https://github.com/andymai/tug/issues/40)) ([e49639a](https://github.com/andymai/tug/commit/e49639aeef736dfcd336ef190c393ac072b468a5))
+
 ## [0.10.1](https://github.com/andymai/tug/compare/v0.10.0...v0.10.1) (2026-11-08)
 
 
