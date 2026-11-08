@@ -1,0 +1,70 @@
+import { describe, expect, it } from "vitest";
+
+import { createMockBackend } from "../backend/mock";
+import { countFor, createDownloadsStore, visibleItems } from "./downloads";
+
+const MB = 1 << 20;
+
+const showcase = [
+  { url: "https://example.org/fedora.iso", state: "downloading", progress: 0.5, size: 64 * MB },
+  { url: "https://example.org/blender.tar.xz", state: "queued" },
+  { url: "https://example.org/talk.mp4", state: "paused", progress: 0.38 },
+  { url: "https://example.org/fonts.zip", state: "done" },
+  { url: "https://example.org/shard.parquet", state: "failed", error: "Couldn't reach mirror.example.org" },
+] as const;
+
+async function ready() {
+  const backend = createMockBackend({ seed: showcase });
+  const store = createDownloadsStore(backend);
+  const stop = await store.getState().init();
+  return { backend, store, stop };
+}
+
+describe("downloads store", () => {
+  it("loads the list and counts each view", async () => {
+    const { store } = await ready();
+    const { items, status } = store.getState();
+    expect(status).toBe("ready");
+    expect([countFor(items, "all"), countFor(items, "active"), countFor(items, "done"), countFor(items, "failed")]).toEqual([5, 3, 1, 1]);
+  });
+
+  it("filters by view and clears the selection when the view changes", async () => {
+    const { store } = await ready();
+    store.getState().select(1);
+    store.getState().setView("active");
+    expect(store.getState().selected).toBeNull();
+    expect(visibleItems(store.getState()).map((d) => d.name)).toEqual(["fedora.iso", "blender.tar.xz", "talk.mp4"]);
+  });
+
+  it("puts the newest download first", async () => {
+    const { backend, store } = await ready();
+    await backend.add("https://example.org/new.img");
+    await store.getState().reload();
+    expect(visibleItems(store.getState())[0]?.name).toBe("new.img");
+  });
+
+  it("applies live progress and reloads when a download settles", async () => {
+    const { backend, store } = await ready();
+    backend.tick();
+    const fedora = store.getState().items.find((d) => d.name === "fedora.iso");
+    expect(fedora && store.getState().live[fedora.id]?.speed).toBeGreaterThan(0);
+
+    for (let i = 0; i < 100; i++) backend.tick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(store.getState().items.find((d) => d.name === "fedora.iso")?.state).toBe("done");
+  });
+
+  it("retries a failed download", async () => {
+    const { store } = await ready();
+    const failed = store.getState().items.find((d) => d.state === "failed");
+    expect(failed).toBeDefined();
+    await store.getState().retry(failed?.id ?? -1);
+    expect(store.getState().items.find((d) => d.id === failed?.id)?.state).toBe("downloading");
+  });
+
+  it("records an error instead of throwing when the backend refuses", async () => {
+    const { store } = await ready();
+    await store.getState().retry(999);
+    expect(store.getState().error).toMatch(/no download 999/);
+  });
+});

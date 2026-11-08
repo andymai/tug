@@ -1,8 +1,16 @@
-import { type Backend, BackendError, type Download, type ProgressBatch, type ProgressUpdate, type Settings } from "./backend";
+import {
+  type Backend,
+  BackendError,
+  type Download,
+  type DownloadState,
+  type ProgressBatch,
+  type ProgressUpdate,
+  type Settings,
+} from "./backend";
 
 const MB = 1 << 20;
 const TICK_MS = 100;
-const RATE = 24 * MB;
+const RATE = 18.4 * MB;
 const SCHEMES = new Set(["http:", "https:", "ftp:", "ftps:"]);
 
 export interface MockBackend extends Backend {
@@ -10,9 +18,18 @@ export interface MockBackend extends Backend {
   dispose(): void;
 }
 
+export interface SeedDownload {
+  url: string;
+  state?: DownloadState;
+  progress?: number;
+  size?: number;
+  dir?: string;
+  error?: string;
+}
+
 export interface MockOptions {
   autoTick?: boolean;
-  seed?: readonly string[];
+  seed?: readonly (string | SeedDownload)[];
   now?: () => number;
 }
 
@@ -77,7 +94,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   };
 
   const tick = () => {
-    const perTick = Math.floor((settings.speedLimit ?? RATE * 10) / (1000 / TICK_MS));
+    const perTick = Math.floor((settings.speedLimit ?? RATE) / (1000 / TICK_MS));
     const updates: ProgressUpdate[] = [];
     const settled: number[] = [];
     for (const download of downloads.values()) {
@@ -106,7 +123,19 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     for (const listener of listeners) listener(batch);
   };
 
-  for (const link of options.seed ?? []) addNow(link);
+  (options.seed ?? []).forEach((entry, index) => {
+    const spec = typeof entry === "string" ? { url: entry } : entry;
+    const download = addNow(spec.url, spec.dir);
+    const size = Math.round(spec.size ?? download.size ?? 0);
+    const state = spec.state ?? "downloading";
+    download.size = size;
+    download.state = state;
+    download.addedMs -= (index + 1) * 60_000;
+    download.received = state === "done" ? size : Math.min(size, Math.ceil(size * (spec.progress ?? 0)));
+    if (download.received > 0) download.file = `${download.dir}/${download.name}`;
+    if (state === "done") download.finishedMs = download.addedMs + 30_000;
+    if (state === "failed") download.error = spec.error ?? "the server closed the connection";
+  });
   const timer = options.autoTick ? setInterval(tick, TICK_MS) : undefined;
 
   return {
