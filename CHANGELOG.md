@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/andymai/tug/compare/v0.8.1...v0.9.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** the command bar (Ctrl+K) and the keyboard map ([#32](https://github.com/andymai/tug/issues/32)) ([845671d](https://github.com/andymai/tug/commit/845671d99dfe7afd3022afd09fda8dc1c69e40c0))
+
 ## [0.8.1](https://github.com/andymai/tug/compare/v0.8.0...v0.8.1) (2026-11-08)
 
 
