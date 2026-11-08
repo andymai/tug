@@ -371,6 +371,13 @@ describe("downloads store", () => {
     expect(store.getState().notice).toBeNull();
   });
 
+  it("says why notices can't be followed, and still loads", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    const store = createDownloadsStore({ ...backend, onNotice: () => Promise.reject(new Error("the event bus is closed")) });
+    await store.getState().init();
+    expect(store.getState()).toMatchObject({ status: "ready", notice: "the event bus is closed" });
+  });
+
   it("records an error instead of throwing when the backend refuses", async () => {
     const { store } = await ready();
     await store.getState().resume(999);

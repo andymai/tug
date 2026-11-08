@@ -351,6 +351,24 @@ impl<R: Runtime> TrayState<R> {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct Gate {
+    checked: Option<Instant>,
+}
+
+impl Gate {
+    pub fn due(&mut self, now: Instant, settled: bool) -> bool {
+        let due = settled
+            || self
+                .checked
+                .is_none_or(|at| now.duration_since(at) >= PUBLISH_EVERY);
+        if due {
+            self.checked = Some(now);
+        }
+        due
+    }
+}
+
 fn paused(library: &Library) -> usize {
     library.list().map_or(0, |downloads| {
         downloads
@@ -367,16 +385,12 @@ fn follow<R: Runtime>(
 ) {
     tauri::async_runtime::spawn(async move {
         let mut published: Option<Summary> = None;
-        let mut checked: Option<Instant> = None;
+        let mut gate = Gate::default();
         while batches.changed().await.is_ok() {
             let batch = Arc::clone(&batches.borrow_and_update());
-            let now = Instant::now();
-            let due = !batch.settled.is_empty()
-                || checked.is_none_or(|at| now.duration_since(at) >= PUBLISH_EVERY);
-            if !due {
+            if !gate.due(Instant::now(), !batch.settled.is_empty()) {
                 continue;
             }
-            checked = Some(now);
             let summary = Summary::from_batch(&batch, paused(&library));
             if published.as_ref() == Some(&summary) {
                 continue;
@@ -477,6 +491,21 @@ mod tests {
         assert_eq!(format_bytes(412 * MB), "412 MB");
         assert_eq!(format_bytes(18 * MB + 400 * 1024), "18.4 MB");
         assert_eq!(format_bytes(4 * 1024 * MB + 205 * MB), "4.20 GB");
+    }
+
+    #[test]
+    fn the_gate_checks_once_a_second_and_at_once_on_a_settle() {
+        let start = Instant::now();
+        let mut gate = Gate::default();
+        let ticks: Vec<bool> = (0..25)
+            .map(|tick| gate.due(start + Duration::from_millis(tick * 100), false))
+            .collect();
+        assert_eq!(ticks.iter().filter(|&&due| due).count(), 3);
+        assert!(ticks[0] && ticks[10] && ticks[20]);
+
+        assert!(gate.due(start + Duration::from_millis(2_050), true));
+        assert!(!gate.due(start + Duration::from_millis(2_150), false));
+        assert!(gate.due(start + Duration::from_millis(3_050), false));
     }
 
     #[test]
