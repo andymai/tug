@@ -117,6 +117,16 @@ describe("mock backend", () => {
     await expect(backend.events(id)).rejects.toMatchObject({ kind: "notFound" });
   });
 
+  it("stops calling scheme listeners once disposed", async () => {
+    const backend = createMockBackend();
+    const seen: unknown[] = [];
+    await backend.onColorScheme((scheme) => seen.push(scheme));
+    backend.setColorScheme("dark");
+    backend.dispose();
+    backend.setColorScheme("light");
+    expect(seen).toEqual(["dark"]);
+  });
+
   it("starts with the seed links", async () => {
     const backend = createMockBackend({ seed: ["https://example.org/one.zip", "https://example.org/two.zip"] });
     expect((await backend.list()).map((d) => d.name)).toEqual(["one.zip", "two.zip"]);
