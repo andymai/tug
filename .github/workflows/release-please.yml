@@ -101,3 +101,13 @@ jobs:
           PR_NUMBER: ${{ steps.release.outputs.pr && fromJSON(steps.release.outputs.pr).number || '' }}
           REPO: ${{ github.repository }}
         run: gh pr merge "$PR_NUMBER" --auto --squash --repo "$REPO"
+
+  appimage:
+    name: AppImage
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/appimage.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    permissions:
+      contents: write
