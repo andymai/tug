@@ -1,6 +1,6 @@
 # Tug
 
-A calm, exact download manager for Linux, Plasma first. Tauri 2 and React on the front; Mister Download Manager's (MDM's) download engine underneath as pinned Rust crates. GPL-3.0-or-later.
+Fast, resumable downloads for Linux, Plasma first. Tauri 2 and React on the front; Mister Download Manager's (MDM's) download engine underneath as pinned Rust crates. GPL-3.0-or-later.
 
 Plan and decisions: Obsidian vault `Projects/tug`. Design system (tokens, brand book, component guidelines): https://claude.ai/artifact/AJonHX5iRg63Z4wRx9yffA. Brand sources: `brand/`.
 

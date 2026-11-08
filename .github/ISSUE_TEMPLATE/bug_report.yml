@@ -1,0 +1,35 @@
+name: Bug Report
+description: Something is broken
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the download's address if it is public
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        Distro: Fedora 44 / Ubuntu 24.04 / Arch
+        Desktop: KDE Plasma 6 Wayland / GNOME 49 / X11
+        Install method: Flatpak / AppImage / source
+        Tug version:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Anything Tug printed around the failure, if relevant
+      render: shell
