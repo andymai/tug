@@ -1,0 +1,30 @@
+crates/tug-core/src/lib.rs
+  s_b050dc8a593981::t_c0acf5658478dd 2,6-9
+crates/tug-core/src/progress.rs
+  s_b050dc8a593981::t_1616b2eda9a85e 105,139,162
+  s_b050dc8a593981::t_65dce36c6a1e8b 1-104,110-138,140-161,163-201,210-220,229-233
+  s_b050dc8a593981::t_c0acf5658478dd 106-109,202-209,221-228
+crates/tug-core/tests/progress.rs
+  s_b050dc8a593981::t_f01fd080a50072 1-26,31-51,54-61,74-97,103
+  s_b050dc8a593981::t_c0acf5658478dd 27-30,52-53,62-73,98-102
+crates/tug-core/src/library.rs
+  s_b050dc8a593981::t_5ba014429383cb 28-33,124,147,151-159,161-162
+crates/tug-core/tests/library.rs
+  s_b050dc8a593981::t_5ba014429383cb 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a679a9a2a1e04925cc5bdbe0b05bbcbef00967a0",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
