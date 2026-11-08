@@ -107,16 +107,15 @@ describe("downloads store", () => {
     expect(settings?.downloadDir).toBe("/home/you/Downloads");
     if (settings === null) return;
 
-    await store.getState().saveSettings({ ...settings, connections: 16 });
+    await store.getState().saveSettings({ connections: 16 });
     expect(store.getState().settings?.connections).toBe(16);
 
-    await store.getState().saveSettings({ ...settings, connections: 0 });
+    await store.getState().saveSettings({ connections: 0 });
     expect(store.getState().settings?.connections).toBe(16);
     expect(store.getState().settingsError).toMatch(/between 1 and 32/);
   });
 
-  it("keeps two quick changes, saved in order, and rolls back one the backend refuses", async () => {
-    const backend = createMockBackend();
+  function gated(backend: ReturnType<typeof createMockBackend>) {
     const writes: Settings[] = [];
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {
@@ -130,14 +129,16 @@ describe("downloads store", () => {
         return backend.updateSettings(next);
       },
     });
-    await store.getState().init();
-    const start = store.getState().settings;
-    if (start === null) return;
+    return { store, writes, release };
+  }
 
-    const first = store.getState().saveSettings({ ...start, connections: 12 });
-    const latest = store.getState().settings;
-    if (latest === null) return;
-    const second = store.getState().saveSettings({ ...latest, speedLimit: 1 << 20 });
+  it("keeps two quick changes, saved in order", async () => {
+    const backend = createMockBackend();
+    const { store, writes, release } = gated(backend);
+    await store.getState().init();
+    const first = store.getState().saveSettings({ connections: 12 });
+    const second = store.getState().saveSettings({ speedLimit: 1 << 20 });
+    expect(store.getState().settings).toMatchObject({ connections: 12, speedLimit: 1 << 20 });
     release();
     await Promise.all([first, second]);
     expect(writes.map((w) => [w.connections, w.speedLimit])).toEqual([
@@ -145,10 +146,32 @@ describe("downloads store", () => {
       [12, 1 << 20],
     ]);
     expect(await backend.settings()).toMatchObject({ connections: 12, speedLimit: 1 << 20 });
+  });
 
-    await store.getState().saveSettings({ ...latest, connections: 0 });
-    expect(store.getState().settings).toMatchObject({ connections: 12, speedLimit: 1 << 20 });
+  it("drops a refused change and keeps a later one that saved", async () => {
+    const backend = createMockBackend();
+    const { store, release } = gated(backend);
+    await store.getState().init();
+    const refused = store.getState().saveSettings({ connections: 0 });
+    const saved = store.getState().saveSettings({ speedLimit: 1 << 20 });
+    release();
+    await Promise.all([refused, saved]);
+    expect(store.getState().settings).toMatchObject({ connections: 8, speedLimit: 1 << 20 });
+    expect(await backend.settings()).toMatchObject({ connections: 8, speedLimit: 1 << 20 });
     expect(store.getState().settingsError).toMatch(/between 1 and 32/);
+  });
+
+  it("keeps a chosen folder when a change was queued after it", async () => {
+    const backend = createMockBackend({ folder: "/data/iso" });
+    const { store, release } = gated(backend);
+    await store.getState().init();
+    const slow = store.getState().saveSettings({ connections: 4 });
+    const folder = store.getState().chooseFolder();
+    const after = store.getState().saveSettings({ connections: 16 });
+    release();
+    await Promise.all([slow, folder, after]);
+    expect(await backend.settings()).toMatchObject({ downloadDir: "/data/iso", connections: 16 });
+    expect(store.getState().settings).toMatchObject({ downloadDir: "/data/iso", connections: 16 });
   });
 
   it("takes the folder the person chooses, and leaves settings alone on cancel", async () => {

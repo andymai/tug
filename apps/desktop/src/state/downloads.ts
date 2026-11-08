@@ -41,7 +41,7 @@ export interface DownloadsState {
   applyBatch: (batch: ProgressBatch) => void;
   setView: (view: View) => void;
   setPage: (page: Page) => void;
-  saveSettings: (next: Settings) => Promise<void>;
+  saveSettings: (patch: Partial<Settings>) => Promise<void>;
   chooseFolder: () => Promise<void>;
   select: (id: number | null) => void;
   step: (delta: number) => number | null;
@@ -90,10 +90,16 @@ export function createDownloadsStore(backend: Backend) {
     };
 
     let confirmed: Settings | null = null;
+    let pending: { id: number; patch: Partial<Settings> }[] = [];
+    let patches = 0;
     let saving: Promise<void> = Promise.resolve();
     const queue = (task: () => Promise<void>) => {
       saving = saving.then(task);
       return saving;
+    };
+    const showSettings = () => {
+      if (confirmed === null) return;
+      set({ settings: pending.reduce<Settings>((settings, { patch }) => ({ ...settings, ...patch }), confirmed) });
     };
 
     const loadSettings = async () => {
@@ -161,14 +167,22 @@ export function createDownloadsStore(backend: Backend) {
         set({ page, settingsError: null });
       },
 
-      saveSettings: (next) => {
-        set({ settings: next, settingsError: null });
+      saveSettings: (patch) => {
+        const id = ++patches;
+        pending.push({ id, patch });
+        set({ settingsError: null });
+        showSettings();
         return queue(async () => {
+          if (confirmed === null) return;
+          const next = { ...confirmed, ...patch };
           try {
             await backend.updateSettings(next);
             confirmed = next;
           } catch (error) {
-            set({ settings: confirmed, settingsError: BackendError.from(error).message });
+            set({ settingsError: BackendError.from(error).message });
+          } finally {
+            pending = pending.filter((entry) => entry.id !== id);
+            showSettings();
           }
         });
       },
@@ -177,11 +191,11 @@ export function createDownloadsStore(backend: Backend) {
         queue(async () => {
           try {
             const chosen = await backend.chooseDownloadFolder();
-            if (chosen === null) return;
-            confirmed = chosen;
-            set({ settings: chosen, settingsError: null });
+            if (chosen !== null) confirmed = chosen;
           } catch (error) {
             set({ settingsError: BackendError.from(error).message });
+          } finally {
+            showSettings();
           }
         }),
 
