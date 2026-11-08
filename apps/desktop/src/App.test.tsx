@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { BackendError } from "./backend/backend";
@@ -189,5 +189,78 @@ describe("adding links", () => {
     fireEvent.drop(document.body, { dataTransfer });
     expect(screen.queryByText("Drop to add")).not.toBeInTheDocument();
     expect(await screen.findByRole("textbox", { name: "Links" })).toHaveValue("https://example.org/d.iso");
+  });
+});
+
+describe("detail panel", () => {
+  it("opens on a selected row with its facts and live numbers", async () => {
+    const { backend, user } = open();
+    await user.click(await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    const panel = within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" }));
+    expect(panel.getByText("download.example.org")).toHaveAttribute(
+      "title",
+      "https://download.example.org/fedora-kde-44-x86_64.iso",
+    );
+    expect(panel.getByText("4.20 GB")).toBeInTheDocument();
+    act(() => {
+      backend.tick();
+    });
+    expect(panel.getByText("18.4 MB/s")).toBeInTheDocument();
+    expect(panel.getByText("8")).toBeInTheDocument();
+  });
+
+  it("pauses and resumes the download it shows", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    const panel = within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" }));
+    await user.click(panel.getByRole("button", { name: "Pause" }));
+    expect(await panel.findByText("Paused")).toBeInTheDocument();
+    await user.click(panel.getByRole("button", { name: "Resume" }));
+    expect(await panel.findByText("Downloading")).toBeInTheDocument();
+  });
+
+  it("opens a finished file and its folder, and copies the link", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const openFile = vi.fn(() => Promise.resolve());
+    const showInFolder = vi.fn(() => Promise.resolve());
+    const store = createDownloadsStore({ ...backend, openFile, showInFolder });
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /^noto-fonts-2026\.11\.zip/ }));
+    const panel = within(screen.getByRole("complementary", { name: "noto-fonts-2026.11.zip" }));
+    const id = store.getState().selected;
+
+    await user.click(panel.getByRole("button", { name: "Open" }));
+    await user.click(panel.getByRole("button", { name: "Open folder" }));
+    expect(openFile).toHaveBeenCalledWith(id);
+    expect(showInFolder).toHaveBeenCalledWith(id);
+
+    await user.click(panel.getByRole("button", { name: "Copy link" }));
+    expect(await navigator.clipboard.readText()).toBe("https://fonts.example.org/noto-fonts-2026.11.zip");
+    expect(panel.getByRole("button", { name: "Copied" })).toBeInTheDocument();
+  });
+
+  it("says why a file couldn't open", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const store = createDownloadsStore({
+      ...backend,
+      openFile: () => Promise.reject(new BackendError("internal", "couldn't open it: no app for zip files")),
+    });
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /^noto-fonts-2026\.11\.zip/ }));
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't open it: no app for zip files");
+  });
+
+  it("closes with its button and with Escape", async () => {
+    const { user } = open();
+    const row = await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ });
+    await user.click(row);
+    await user.click(screen.getByRole("button", { name: "Close details" }));
+    expect(screen.queryByRole("complementary", { name: "fedora-kde-44-x86_64.iso" })).not.toBeInTheDocument();
+    await user.click(row);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("complementary", { name: "fedora-kde-44-x86_64.iso" })).not.toBeInTheDocument();
   });
 });

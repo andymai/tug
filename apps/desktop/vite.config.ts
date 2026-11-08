@@ -7,7 +7,7 @@ import { defineConfig } from "vitest/config";
 const scheme = (name: "light" | "dark") => ({
   browser: "chromium" as const,
   name,
-  provider: playwright({ contextOptions: { colorScheme: name } }),
+  provider: playwright({ contextOptions: { colorScheme: name, locale: "en-US", timezoneId: "UTC" } }),
 });
 
 export default defineConfig({
@@ -45,7 +45,7 @@ export default defineConfig({
             expect: {
               toMatchScreenshot: {
                 comparatorName: "pixelmatch",
-                comparatorOptions: { threshold: 0.1, allowedMismatchedPixelRatio: 0.002 },
+                comparatorOptions: { threshold: 0.03, allowedMismatchedPixels: 0 },
               },
             },
           },

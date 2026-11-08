@@ -7,11 +7,13 @@ const VARIANTS = {
   primary: "border-transparent bg-primary text-on-primary hover:bg-primary/88",
   secondary: "border-control-border bg-surface text-ink hover:bg-hover",
   ghost: "border-transparent text-ink hover:bg-hover",
+  quiet: "border-transparent text-ink-muted hover:bg-hover hover:text-ink",
 } as const;
 
 const SIZES = {
   md: "h-[30px] gap-1.5 px-3 text-body-strong",
   sm: "h-6 gap-1 px-2 text-small font-medium",
+  icon: "size-6",
 } as const;
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -27,7 +29,7 @@ export function Button({ variant = "secondary", size = "md", icon: Icon, classNa
       className={`inline-flex shrink-0 items-center justify-center rounded-sm border transition-colors duration-(--duration-fast) ease-(--ease-out) disabled:cursor-default disabled:border-line disabled:bg-surface disabled:text-ink-faint ${VARIANTS[variant]} ${SIZES[size]} ${className ?? ""}`}
       {...rest}
     >
-      {Icon && <Icon {...ICON} />}
+      {Icon && <Icon {...ICON} className="shrink-0" />}
       {children}
     </button>
   );

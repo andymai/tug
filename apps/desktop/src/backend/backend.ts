@@ -19,6 +19,8 @@ export interface Backend {
   pause(id: number): Promise<void>;
   resume(id: number): Promise<void>;
   remove(id: number, deleteFile: boolean): Promise<void>;
+  openFile(id: number): Promise<void>;
+  showInFolder(id: number): Promise<void>;
   settings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   onProgress(listener: (batch: ProgressBatch) => void): Promise<() => void>;

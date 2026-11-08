@@ -27,7 +27,11 @@ export interface DownloadsState {
   applyBatch: (batch: ProgressBatch) => void;
   setView: (view: View) => void;
   select: (id: number | null) => void;
-  retry: (id: number) => Promise<void>;
+  pause: (id: number) => Promise<void>;
+  resume: (id: number) => Promise<void>;
+  openFile: (id: number) => Promise<void>;
+  showInFolder: (id: number) => Promise<void>;
+  notify: (message: string) => void;
   dismissNotice: () => void;
   openAdd: (text?: string) => void;
   setAddText: (text: string) => void;
@@ -50,6 +54,14 @@ export type DownloadsStore = ReturnType<typeof createDownloadsStore>;
 
 export function createDownloadsStore(backend: Backend) {
   return createStore<DownloadsState>()((set, get) => {
+    const act = async (action: () => Promise<void>) => {
+      try {
+        await action();
+      } catch (error) {
+        set({ notice: BackendError.from(error).message });
+      }
+    };
+
     const loadFolder = async () => {
       try {
         set({ downloadDir: (await backend.settings()).downloadDir });
@@ -109,13 +121,24 @@ export function createDownloadsStore(backend: Backend) {
         set({ selected: id });
       },
 
-      retry: async (id) => {
-        try {
+      pause: (id) =>
+        act(async () => {
+          await backend.pause(id);
+          await get().reload();
+        }),
+
+      resume: (id) =>
+        act(async () => {
           await backend.resume(id);
           await get().reload();
-        } catch (error) {
-          set({ notice: BackendError.from(error).message });
-        }
+        }),
+
+      openFile: (id) => act(() => backend.openFile(id)),
+
+      showInFolder: (id) => act(() => backend.showInFolder(id)),
+
+      notify: (message) => {
+        set({ notice: message });
       },
 
       dismissNotice: () => {

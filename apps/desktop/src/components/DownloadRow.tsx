@@ -42,7 +42,7 @@ export interface DownloadRowProps {
 export const DownloadRow = memo(function DownloadRow({ download, selected }: DownloadRowProps) {
   const live = useDownloads((s) => s.live[download.id]);
   const select = useDownloads((s) => s.select);
-  const retry = useDownloads((s) => s.retry);
+  const resume = useDownloads((s) => s.resume);
   const fresh = useDownloads((s) => s.fresh.includes(download.id));
   const settleFresh = useDownloads((s) => s.settleFresh);
   const look = STATES[download.state];
@@ -102,7 +102,7 @@ export const DownloadRow = memo(function DownloadRow({ download, selected }: Dow
         <Button
           size="sm"
           aria-label={`Retry ${download.name}`}
-          onClick={() => void retry(download.id)}
+          onClick={() => void resume(download.id)}
           className="absolute top-1/2 right-3 -translate-y-1/2"
         >
           Retry

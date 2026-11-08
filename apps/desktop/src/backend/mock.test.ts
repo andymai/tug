@@ -85,6 +85,19 @@ describe("mock backend", () => {
     expect(batches).toHaveLength(1);
   });
 
+  it("opens only a finished file, and any download's folder", async () => {
+    const backend = createMockBackend({
+      seed: [
+        { url: "https://example.org/done.zip", state: "done" },
+        { url: "https://example.org/half.iso", state: "paused", progress: 0.5 },
+      ],
+    });
+    await expect(backend.openFile(1)).resolves.toBeUndefined();
+    await expect(backend.openFile(2)).rejects.toMatchObject({ kind: "invalid", message: "half.iso isn't finished yet" });
+    await expect(backend.showInFolder(2)).resolves.toBeUndefined();
+    await expect(backend.showInFolder(9)).rejects.toMatchObject({ kind: "notFound" });
+  });
+
   it("starts with the seed links", async () => {
     const backend = createMockBackend({ seed: ["https://example.org/one.zip", "https://example.org/two.zip"] });
     expect((await backend.list()).map((d) => d.name)).toEqual(["one.zip", "two.zip"]);

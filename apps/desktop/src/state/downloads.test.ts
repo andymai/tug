@@ -58,7 +58,7 @@ describe("downloads store", () => {
     const { store } = await ready();
     const failed = store.getState().items.find((d) => d.state === "failed");
     expect(failed).toBeDefined();
-    await store.getState().retry(failed?.id ?? -1);
+    await store.getState().resume(failed?.id ?? -1);
     expect(store.getState().items.find((d) => d.id === failed?.id)?.state).toBe("downloading");
   });
 
@@ -178,7 +178,7 @@ describe("downloads store", () => {
 
   it("records an error instead of throwing when the backend refuses", async () => {
     const { store } = await ready();
-    await store.getState().retry(999);
+    await store.getState().resume(999);
     expect(store.getState().notice).toMatch(/no download 999/);
   });
 });
