@@ -19,6 +19,7 @@ ashpd = {version = "0.13", default-features = false, features = [
 dirs = "6"
 futures-util = {version = "0.3", default-features = false}
 http = "1"
+ksni = "0.3"
 mdm-engine = {git = "https://github.com/anefzaoui/misterdownloadmanager", rev = "8d2c73fcc33534c002631466b7e10db52796738b"}
 mdm-labserver = {git = "https://github.com/anefzaoui/misterdownloadmanager", rev = "8d2c73fcc33534c002631466b7e10db52796738b"}
 rusqlite = {version = "0.41", features = ["bundled"]}
