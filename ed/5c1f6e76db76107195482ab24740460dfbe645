@@ -1,0 +1,34 @@
+apps/desktop/package.json
+  s_b050dc8a593981::t_2ee25626cae4c0 10,34,40,45
+  s_b050dc8a593981::t_10137d03f03dfc 11
+.gitignore
+  s_b050dc8a593981::t_087b5e89c99968 5
+CLAUDE.md
+  s_b050dc8a593981::t_3dd34316e78eb7 26,39-40
+apps/desktop/src/window.visual.tsx
+  s_b050dc8a593981::t_d43475f5e0a231 1-73
+apps/desktop/vite.config.ts
+  s_b050dc8a593981::t_510bc9d15be46a 2,7-12,24-54
+.github/dependabot.yml
+  s_b050dc8a593981::t_67cc3387da98e4 29-33
+.github/workflows/ci.yml
+  s_b050dc8a593981::t_15cb7be2bb3291 141-148
+pnpm-lock.yaml
+  s_b050dc8a593981::t_6946ba92160234 56,75-77,93-95,109-110,196-198,432-434,853-863,875-877,881-888,1289-1291,1745-1748,1823-1825,1833-1846,1976-1979,2042-2045,2053-2056,2261-2272,2447-2448,2691-2692,2874,2884,3023-3053,3063-3066,3069-3084,3576-3577,4002-4003,4084-4085,4090-4097,4266-4271,4343-4344,4351-4352,4449,4467-4468,4544-4545
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ed5c1f6e76db76107195482ab24740460dfbe645",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
