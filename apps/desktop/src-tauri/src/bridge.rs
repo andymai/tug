@@ -228,6 +228,17 @@ impl From<&Settings> for SettingsDto {
     }
 }
 
+impl SettingsDto {
+    pub fn apply(self, current: &Settings) -> Settings {
+        let unchanged = self.download_dir == current.download_dir.to_string_lossy();
+        let mut next = Settings::from(self);
+        if unchanged {
+            next.download_dir.clone_from(&current.download_dir);
+        }
+        next
+    }
+}
+
 impl From<SettingsDto> for Settings {
     fn from(s: SettingsDto) -> Self {
         Self {
@@ -404,7 +415,8 @@ pub fn update_settings(
     state: tauri::State<'_, AppState>,
     settings: SettingsDto,
 ) -> Result<(), CommandError> {
-    Ok(state.library.update_settings(Settings::from(settings))?)
+    let current = state.library.settings()?;
+    Ok(state.library.update_settings(settings.apply(&current))?)
 }
 
 #[tauri::command]
@@ -422,6 +434,51 @@ pub fn download_events(
         .iter()
         .map(EventDto::from)
         .collect())
+}
+
+pub fn folder_from_uri(uri: &str) -> Result<PathBuf, CommandError> {
+    Url::parse(uri)
+        .ok()
+        .filter(|url| url.scheme() == "file")
+        .and_then(|url| url.to_file_path().ok())
+        .ok_or_else(|| CommandError::invalid(format!("{uri} is not a local folder")))
+}
+
+#[tauri::command]
+pub async fn choose_download_folder(
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<SettingsDto>, CommandError> {
+    use ashpd::desktop::file_chooser::SelectedFiles;
+
+    let current = state.library.settings()?;
+    let portal = |e: ashpd::Error| CommandError {
+        kind: ErrorKind::Internal,
+        message: format!("the folder chooser failed: {e}"),
+    };
+    let request = SelectedFiles::open_file()
+        .title("Choose the download folder")
+        .accept_label("Choose")
+        .modal(true)
+        .directory(true)
+        .current_folder(&current.download_dir)
+        .map_err(portal)?
+        .send()
+        .await
+        .map_err(portal)?;
+    let files = match request.response() {
+        Ok(files) => files,
+        Err(ashpd::Error::Response(ashpd::desktop::ResponseError::Cancelled)) => return Ok(None),
+        Err(e) => return Err(portal(e)),
+    };
+    let Some(uri) = files.uris().first() else {
+        return Ok(None);
+    };
+    let next = Settings {
+        download_dir: folder_from_uri(uri.as_str())?,
+        ..current
+    };
+    state.library.update_settings(next.clone())?;
+    Ok(Some(SettingsDto::from(&next)))
 }
 
 pub fn finished_file(d: &Download) -> Result<&Path, CommandError> {
@@ -548,6 +605,47 @@ mod tests {
                 "detail": "the server closed the connection",
             })
         );
+    }
+
+    #[test]
+    fn a_portal_uri_becomes_the_folder_byte_for_byte() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        assert_eq!(
+            folder_from_uri("file:///home/u/caf%E9%20files").unwrap(),
+            Path::new(OsStr::from_bytes(b"/home/u/caf\xe9 files"))
+        );
+        assert_eq!(
+            folder_from_uri("https://example.org/x").unwrap_err().kind,
+            ErrorKind::Invalid
+        );
+        assert!(folder_from_uri("not a uri").is_err());
+    }
+
+    #[test]
+    fn saving_settings_keeps_a_folder_that_is_not_utf8() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        let current = Settings {
+            download_dir: PathBuf::from(OsStr::from_bytes(b"/home/u/caf\xe9")),
+            connections: 8,
+            speed_limit: None,
+        };
+        let dto = SettingsDto {
+            connections: 4,
+            ..SettingsDto::from(&current)
+        };
+        let next = dto.apply(&current);
+        assert_eq!(next.download_dir, current.download_dir);
+        assert_eq!(next.connections, 4);
+
+        let moved = SettingsDto {
+            download_dir: "/data".into(),
+            ..SettingsDto::from(&current)
+        };
+        assert_eq!(moved.apply(&current).download_dir, Path::new("/data"));
     }
 
     #[test]

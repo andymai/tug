@@ -8,6 +8,8 @@ import { createMockBackend } from "./backend/mock";
 import { SHOWCASE } from "./backend/showcase";
 import { createDownloadsStore } from "./state/downloads";
 
+const MB = 1 << 20;
+
 function open(seed = SHOWCASE) {
   const backend = createMockBackend({ seed });
   const store = createDownloadsStore(backend);
@@ -377,3 +379,69 @@ describe("command bar and keyboard", () => {
     expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument();
   });
 });
+
+describe("settings page", () => {
+  it("opens from the sidebar and from Ctrl+comma, and a view brings the list back", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: /^All/ })).not.toHaveAttribute("aria-current");
+
+    await user.click(screen.getByRole("button", { name: /^Done/ }));
+    expect(screen.getByRole("heading", { level: 1, name: "Done" })).toBeInTheDocument();
+    await user.keyboard("{Control>},{/Control}");
+    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("changes the folder through the chooser and the connections with the stepper", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE, folder: "/home/you/Media/ISO" });
+    const store = createDownloadsStore(backend);
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    expect(screen.getByText("New downloads save to Downloads.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Change folder" }));
+    expect(await screen.findByText("New downloads save to Media/ISO.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "More connections" }));
+    await user.click(screen.getByRole("button", { name: "More connections" }));
+    expect(screen.getByRole("group", { name: "Connections" })).toHaveTextContent("10");
+    expect((await backend.settings()).connections).toBe(10);
+  });
+
+  it("limits speed with a switch and a field that refuses zero", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    const limit = screen.getByRole("switch", { name: "Limit download speed" });
+    expect(limit).toHaveAttribute("aria-checked", "false");
+    await user.click(limit);
+    expect(limit).toHaveAttribute("aria-checked", "true");
+    expect((await backend.settings()).speedLimit).toBe(10 * MB);
+
+    const field = screen.getByRole("textbox", { name: "Speed limit" });
+    await user.clear(field);
+    await user.type(field, "2.5{Enter}");
+    expect((await backend.settings()).speedLimit).toBe(Math.round(2.5 * MB));
+    await user.clear(field);
+    await user.type(field, "0{Enter}");
+    expect(screen.getByText("Enter a speed above zero.")).toBeInTheDocument();
+    expect((await backend.settings()).speedLimit).toBe(Math.round(2.5 * MB));
+
+    await user.click(limit);
+    expect((await backend.settings()).speedLimit).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Speed limit" })).not.toBeInTheDocument();
+  });
+
+  it("keeps list shortcuts quiet on the settings page", async () => {
+    const { user, store } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.keyboard("{Control>},{/Control}");
+    await user.keyboard("{ArrowDown}");
+    expect(store.getState().selected).toBeNull();
+  });
+});
+

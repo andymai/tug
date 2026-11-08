@@ -28,6 +28,7 @@ describe("tauri backend", () => {
     await tauriBackend.settings();
     const settings = { downloadDir: "/d", connections: 8, speedLimit: null };
     await tauriBackend.updateSettings(settings);
+    await tauriBackend.chooseDownloadFolder();
 
     expect(invoke.mock.calls).toEqual([
       ["list_downloads", undefined],
@@ -41,6 +42,7 @@ describe("tauri backend", () => {
       ["download_events", { id: 3 }],
       ["get_settings", undefined],
       ["update_settings", { settings }],
+      ["choose_download_folder", undefined],
     ]);
   });
 

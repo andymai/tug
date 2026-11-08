@@ -1,4 +1,4 @@
-import { ArrowDown, Check, CircleAlert, Layers, type LucideIcon, Search } from "lucide-react";
+import { ArrowDown, Check, CircleAlert, Layers, type LucideIcon, Search, Settings } from "lucide-react";
 import { useShallow } from "zustand/shallow";
 
 import lockupDark from "../../../../brand/svg/lockup-dark.svg";
@@ -20,6 +20,8 @@ export function Sidebar() {
   const view = useDownloads((s) => s.view);
   const setView = useDownloads((s) => s.setView);
   const setOverlay = useDownloads((s) => s.setOverlay);
+  const page = useDownloads((s) => s.page);
+  const setPage = useDownloads((s) => s.setPage);
   const counts = useDownloads(useShallow((s) => VIEWS.map((v) => countFor(s.items, v.id))));
 
   return (
@@ -37,7 +39,7 @@ export function Sidebar() {
         <ul className="flex flex-col gap-0.5">
           {VIEWS.map((v, index) => {
             const Icon = VIEW_ICONS[v.id];
-            const current = v.id === view;
+            const current = page === "downloads" && v.id === view;
             return (
               <li key={v.id}>
                 <button
@@ -57,7 +59,18 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
-      <div className="mt-auto p-2">
+      <div className="mt-auto flex flex-col gap-0.5 p-2">
+        <button
+          type="button"
+          aria-current={page === "settings" ? "page" : undefined}
+          onClick={() => {
+            setPage("settings");
+          }}
+          className="group flex h-8 w-full items-center gap-2 rounded-sm px-2 text-body text-ink transition-colors duration-(--duration-fast) ease-(--ease-out) hover:bg-hover aria-[current=page]:bg-selection aria-[current=page]:font-medium"
+        >
+          <Settings {...ICON} className="text-ink-muted group-hover:text-ink group-aria-[current=page]:text-ink" />
+          <span className="flex-1 text-left">Settings</span>
+        </button>
         <button
           type="button"
           onClick={() => {

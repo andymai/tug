@@ -127,4 +127,15 @@ describe("main window", () => {
     });
     await capture(window, "shortcuts");
   });
+
+  it("shows the settings with a speed limit on", async () => {
+    const { store, window } = await open(SHOWCASE);
+    const settings = store.getState().settings;
+    if (settings === null) throw new Error("no settings");
+    await act(async () => {
+      await store.getState().saveSettings({ ...settings, speedLimit: 12 * 1024 * 1024 });
+      store.getState().setPage("settings");
+    });
+    await capture(window, "settings");
+  });
 });

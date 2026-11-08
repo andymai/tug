@@ -27,6 +27,7 @@ export interface Backend {
   events(id: number): Promise<DownloadEvent[]>;
   settings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
+  chooseDownloadFolder(): Promise<Settings | null>;
   onProgress(listener: (batch: ProgressBatch) => void): Promise<() => void>;
 }
 

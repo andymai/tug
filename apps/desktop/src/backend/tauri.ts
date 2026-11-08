@@ -24,6 +24,7 @@ export const tauriBackend: Backend = {
   events: (id) => call<DownloadEvent[]>("download_events", { id }),
   settings: () => call<Settings>("get_settings"),
   updateSettings: (settings) => call("update_settings", { settings }),
+  chooseDownloadFolder: () => call<Settings | null>("choose_download_folder"),
   onProgress: (listener) =>
     listen<ProgressBatch>(PROGRESS_EVENT, (event) => {
       listener(event.payload);
