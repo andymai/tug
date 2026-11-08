@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/andymai/tug/compare/v0.9.0...v0.9.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **desktop:** run a command bar option on a primary click only ([#34](https://github.com/andymai/tug/issues/34)) ([f43e420](https://github.com/andymai/tug/commit/f43e420c2f452021f2d30d2a9dc694c9ebdf9657))
+
 ## [0.9.0](https://github.com/andymai/tug/compare/v0.8.1...v0.9.0) (2026-11-08)
 
 
