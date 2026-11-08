@@ -136,4 +136,12 @@ describe("main window", () => {
     });
     await capture(window, "settings");
   });
+
+  it("stays dark when the person picks dark, whatever the system says", async () => {
+    const { store, window } = await showcase();
+    await act(async () => {
+      await store.getState().saveSettings({ appearance: "dark" });
+    });
+    await capture(window, "forced-dark");
+  });
 });

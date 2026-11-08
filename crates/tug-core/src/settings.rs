@@ -1,6 +1,7 @@
 use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use mdm_engine::download::MAX_CONNECTIONS;
 
@@ -11,12 +12,45 @@ pub const DEFAULT_CONNECTIONS: u32 = 8;
 const DOWNLOAD_DIR: &str = "download_dir";
 const CONNECTIONS: &str = "connections";
 const SPEED_LIMIT: &str = "speed_limit";
+const APPEARANCE: &str = "appearance";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Appearance {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl Appearance {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+}
+
+impl FromStr for Appearance {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "system" => Ok(Self::System),
+            "light" => Ok(Self::Light),
+            "dark" => Ok(Self::Dark),
+            other => Err(format!("unknown appearance {other:?}")),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
     pub download_dir: PathBuf,
     pub connections: u32,
     pub speed_limit: Option<u64>,
+    pub appearance: Appearance,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -35,6 +69,7 @@ impl Default for Settings {
             download_dir: default_download_dir(),
             connections: DEFAULT_CONNECTIONS,
             speed_limit: None,
+            appearance: Appearance::System,
         }
     }
 }
@@ -69,10 +104,15 @@ impl Settings {
             .setting(SPEED_LIMIT)?
             .and_then(|v| v.parse().ok())
             .filter(|&n: &u64| n > 0);
+        let appearance = store
+            .setting(APPEARANCE)?
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_default();
         Ok(Self {
             download_dir,
             connections,
             speed_limit,
+            appearance,
         })
     }
 
@@ -85,6 +125,7 @@ impl Settings {
                 store.remove_setting(SPEED_LIMIT)?;
             }
         }
+        store.set_setting(APPEARANCE, self.appearance.as_str())?;
         Ok(())
     }
 }
@@ -104,6 +145,7 @@ mod tests {
             download_dir: PathBuf::from("/home/u/Downloads"),
             connections: 8,
             speed_limit: None,
+            appearance: Appearance::System,
         }
     }
 
@@ -113,6 +155,16 @@ mod tests {
         assert_eq!(defaults.connections, DEFAULT_CONNECTIONS);
         assert_eq!(defaults.speed_limit, None);
         defaults.validate().unwrap();
+    }
+
+    #[test]
+    fn an_unknown_appearance_loads_as_system() {
+        let store = Store::open_in_memory().unwrap();
+        store.set_setting(APPEARANCE, "sepia").unwrap();
+        assert_eq!(
+            Settings::load(&store).unwrap().appearance,
+            Appearance::System
+        );
     }
 
     #[test]
@@ -130,6 +182,7 @@ mod tests {
             )),
             connections: 16,
             speed_limit: Some(2 << 20),
+            appearance: Appearance::Dark,
         };
         settings.save(&store).unwrap();
         assert_eq!(Settings::load(&store).unwrap(), settings);

@@ -481,3 +481,46 @@ describe("settings page", () => {
   });
 });
 
+describe("appearance", () => {
+  const theme = () => document.documentElement.dataset.theme;
+
+  it("follows the system's color scheme as it changes", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE, colorScheme: "dark" });
+    render(<App store={createDownloadsStore(backend)} />);
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    expect(theme()).toBe("dark");
+    act(() => {
+      backend.setColorScheme("light");
+    });
+    expect(theme()).toBe("light");
+    act(() => {
+      backend.setColorScheme(null);
+    });
+    expect(theme()).toBe("light");
+  });
+
+  it("keeps the theme the person picks, with the arrow keys too", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE, colorScheme: "light" });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    const group = within(screen.getByRole("radiogroup", { name: "Appearance" }));
+    expect(group.getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "true");
+
+    await user.click(group.getByRole("radio", { name: "Dark" }));
+    expect(theme()).toBe("dark");
+    expect((await backend.settings()).appearance).toBe("dark");
+    act(() => {
+      backend.setColorScheme("light");
+    });
+    expect(theme()).toBe("dark");
+
+    await user.keyboard("{ArrowRight}");
+    expect(group.getByRole("radio", { name: "System" })).toHaveFocus();
+    expect(theme()).toBe("light");
+    await user.keyboard("{ArrowRight}");
+    expect(group.getByRole("radio", { name: "Light" })).toHaveAttribute("aria-checked", "true");
+    expect((await backend.settings()).appearance).toBe("light");
+  });
+});
+

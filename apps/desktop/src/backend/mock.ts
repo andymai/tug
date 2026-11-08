@@ -3,6 +3,7 @@ import {
   type Backend,
   BackendError,
   type Download,
+  type ColorScheme,
   type DownloadEvent,
   type DownloadState,
   type ProgressBatch,
@@ -16,6 +17,7 @@ const RATE = 18.4 * MB;
 
 export interface MockBackend extends Backend {
   tick(): void;
+  setColorScheme(scheme: ColorScheme | null): void;
   dispose(): void;
 }
 
@@ -33,6 +35,7 @@ export interface MockOptions {
   seed?: readonly (string | SeedDownload)[];
   now?: () => number;
   folder?: string;
+  colorScheme?: ColorScheme | null;
 }
 
 function attempt<T>(action: () => T): Promise<T> {
@@ -57,7 +60,9 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
   };
   const listeners = new Set<(batch: ProgressBatch) => void>();
-  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null };
+  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system" };
+  let scheme = options.colorScheme ?? null;
+  const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
   let nextId = 1;
   let seq = 0;
 
@@ -205,6 +210,17 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         settings = { ...settings, downloadDir: options.folder ?? "/home/you/Media/Downloads" };
         return { ...settings };
       }),
+    systemColorScheme: () => Promise.resolve(scheme),
+    onColorScheme: (listener) => {
+      schemeListeners.add(listener);
+      return Promise.resolve(() => {
+        schemeListeners.delete(listener);
+      });
+    },
+    setColorScheme: (next) => {
+      scheme = next;
+      for (const listener of schemeListeners) listener(next);
+    },
     onProgress: (listener) => {
       listeners.add(listener);
       return Promise.resolve(() => {

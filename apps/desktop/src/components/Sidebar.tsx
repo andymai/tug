@@ -7,6 +7,7 @@ import { PALETTE_KEYS } from "../lib/commands";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { countFor, type View, VIEWS } from "../state/downloads";
+import { useTheme } from "../state/theme";
 import { Keys } from "./Kbd";
 
 const VIEW_ICONS: Record<View, LucideIcon> = {
@@ -21,16 +22,14 @@ export function Sidebar() {
   const setView = useDownloads((s) => s.setView);
   const setOverlay = useDownloads((s) => s.setOverlay);
   const page = useDownloads((s) => s.page);
+  const theme = useTheme();
   const setPage = useDownloads((s) => s.setPage);
   const counts = useDownloads(useShallow((s) => VIEWS.map((v) => countFor(s.items, v.id))));
 
   return (
     <aside className="flex w-(--sidebar-width) shrink-0 flex-col border-r border-line bg-bg">
       <div className="flex h-12 items-center px-4">
-        <picture>
-          <source srcSet={lockupDark} media="(prefers-color-scheme: dark)" />
-          <img src={lockup} alt="Tug" width={57} height={22} />
-        </picture>
+        <img src={theme === "dark" ? lockupDark : lockup} alt="Tug" width={57} height={22} />
       </div>
       <nav aria-labelledby="views-label" className="flex flex-col gap-1 px-2 pt-2">
         <h2 id="views-label" className="text-label px-2 pb-1 text-ink-muted">

@@ -26,9 +26,10 @@ describe("tauri backend", () => {
     await tauriBackend.showInFolder(3);
     await tauriBackend.events(3);
     await tauriBackend.settings();
-    const settings = { downloadDir: "/d", connections: 8, speedLimit: null };
+    const settings = { downloadDir: "/d", connections: 8, speedLimit: null, appearance: "system" as const };
     await tauriBackend.updateSettings(settings);
     await tauriBackend.chooseDownloadFolder();
+    await tauriBackend.systemColorScheme();
 
     expect(invoke.mock.calls).toEqual([
       ["list_downloads", undefined],
@@ -43,6 +44,7 @@ describe("tauri backend", () => {
       ["get_settings", undefined],
       ["update_settings", { settings }],
       ["choose_download_folder", undefined],
+      ["system_color_scheme", undefined],
     ]);
   });
 

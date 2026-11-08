@@ -3,6 +3,7 @@ import { createStore } from "zustand/vanilla";
 import {
   type Backend,
   BackendError,
+  type ColorScheme,
   type Download,
   type DownloadEvent,
   type DownloadState,
@@ -29,6 +30,7 @@ export interface DownloadsState {
   loadError: string | null;
   notice: string | null;
   settings: Settings | null;
+  systemScheme: ColorScheme | null;
   settingsError: string | null;
   page: Page;
   adding: Adding;
@@ -120,6 +122,7 @@ export function createDownloadsStore(backend: Backend) {
       loadError: null,
       notice: null,
       settings: null,
+      systemScheme: null,
       settingsError: null,
       page: "downloads",
       adding: CLOSED,
@@ -137,8 +140,25 @@ export function createDownloadsStore(backend: Backend) {
         } catch (error) {
           set({ notice: BackendError.from(error).message });
         }
-        await Promise.all([get().reload(), loadSettings()]);
-        return stop;
+        const unwatch = await backend
+          .onColorScheme((systemScheme) => {
+            set({ systemScheme });
+          })
+          .catch(() => () => undefined);
+        await Promise.all([
+          get().reload(),
+          loadSettings(),
+          backend.systemColorScheme().then(
+            (systemScheme) => {
+              set({ systemScheme });
+            },
+            () => undefined,
+          ),
+        ]);
+        return () => {
+          stop();
+          unwatch();
+        };
       },
 
       reload: async () => {

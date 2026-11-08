@@ -9,6 +9,7 @@ import { ShortcutsDialog } from "./components/ShortcutsDialog";
 import { SettingsPage } from "./components/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
 import { DownloadsContext, useDownloads } from "./state/context";
+import { useTheme } from "./state/theme";
 import type { DownloadsStore } from "./state/downloads";
 
 export function App({ store }: { store: DownloadsStore }) {
@@ -39,6 +40,7 @@ export function App({ store }: { store: DownloadsStore }) {
       <ShortcutsDialog />
       <LinkCapture />
       <KeyboardShortcuts />
+      <Theme />
     </DownloadsContext>
   );
 }
@@ -46,4 +48,15 @@ export function App({ store }: { store: DownloadsStore }) {
 function Page() {
   const page = useDownloads((s) => s.page);
   return page === "settings" ? <SettingsPage /> : <DownloadList />;
+}
+
+function Theme() {
+  const theme = useTheme();
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    return () => {
+      delete document.documentElement.dataset.theme;
+    };
+  }, [theme]);
+  return null;
 }
