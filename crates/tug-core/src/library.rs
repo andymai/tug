@@ -25,6 +25,12 @@ pub enum LibraryError {
     Poisoned,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Tick {
+    pub live: Vec<(DownloadId, Progress)>,
+    pub settled: Vec<DownloadId>,
+}
+
 struct Running {
     transfer: Transfer,
     file_recorded: bool,
@@ -115,7 +121,7 @@ impl Library {
         Ok(())
     }
 
-    pub async fn tick(&self) -> Result<Vec<(DownloadId, Progress)>, LibraryError> {
+    pub async fn tick(&self) -> Result<Tick, LibraryError> {
         let mut live = Vec::new();
         let mut ended = Vec::new();
         let mut running = self.running.lock().await;
@@ -138,11 +144,22 @@ impl Library {
             .filter_map(|id| running.remove(id).map(|r| (*id, r)))
             .collect();
         drop(running);
+        let mut settled = Vec::with_capacity(finished.len());
         for (id, entry) in finished {
             self.settle(id, entry.transfer, DownloadState::Failed)
                 .await?;
+            settled.push(id);
         }
-        Ok(live)
+        Ok(Tick { live, settled })
+    }
+
+    pub fn record_progress(&self, live: &[(DownloadId, Progress)]) -> Result<(), LibraryError> {
+        let store = self.store()?;
+        for (id, progress) in live {
+            store.set_progress(*id, progress.received, progress.total)?;
+        }
+        drop(store);
+        Ok(())
     }
 
     async fn launch(&self, download: &Download) -> Result<(), LibraryError> {
