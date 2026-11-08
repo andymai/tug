@@ -27,12 +27,12 @@ export function formatLeft(ms: number): string {
 
 export function formatPercent(received: number, total: number | null): string | null {
   if (total === null || total <= 0) return null;
-  return `${String(Math.min(100, Math.floor((received / total) * 100)))}%`;
+  return `${String(Math.min(100, Math.floor((received * 100) / total)))}%`;
 }
 
 export function percentOf(received: number, total: number | null): number {
   if (total === null || total <= 0) return 0;
-  return Math.min(100, (received / total) * 100);
+  return Math.min(100, (received * 100) / total);
 }
 
 export function shortDir(dir: string): string {

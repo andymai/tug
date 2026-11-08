@@ -62,6 +62,26 @@ describe("downloads store", () => {
     expect(store.getState().items.find((d) => d.id === failed?.id)?.state).toBe("downloading");
   });
 
+  it("loads the list even when progress can't be followed, and says why", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    const store = createDownloadsStore({
+      ...backend,
+      onProgress: () => Promise.reject(new Error("the event bus is closed")),
+    });
+    const stop = await store.getState().init();
+    expect(store.getState()).toMatchObject({ status: "ready", error: "the event bus is closed" });
+    expect(store.getState().items).toHaveLength(5);
+    expect(() => {
+      stop();
+    }).not.toThrow();
+  });
+
+  it("shows an error that arrives with a progress batch", async () => {
+    const { store } = await ready();
+    store.getState().applyBatch({ seq: 9, updates: [], settled: [], error: "couldn't save progress" });
+    expect(store.getState().error).toBe("couldn't save progress");
+  });
+
   it("records an error instead of throwing when the backend refuses", async () => {
     const { store } = await ready();
     await store.getState().retry(999);
