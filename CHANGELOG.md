@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/andymai/tug/compare/v0.4.0...v0.5.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** the main window with views, download rows and empty states ([#12](https://github.com/andymai/tug/issues/12)) ([b1d0069](https://github.com/andymai/tug/commit/b1d006997e0004bd5b7d966d007950635e2275b2))
+
 ## [0.4.0](https://github.com/andymai/tug/compare/v0.3.0...v0.4.0) (2026-11-08)
 
 
