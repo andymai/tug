@@ -11,6 +11,7 @@ rust-version = "1.95"
 version = "0.1.0"
 
 [workspace.dependencies]
+dirs = "6"
 http = "1"
 mdm-engine = {git = "https://github.com/anefzaoui/misterdownloadmanager", rev = "8d2c73fcc33534c002631466b7e10db52796738b"}
 mdm-labserver = {git = "https://github.com/anefzaoui/misterdownloadmanager", rev = "8d2c73fcc33534c002631466b7e10db52796738b"}

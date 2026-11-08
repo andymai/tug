@@ -4,7 +4,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer, content};
-use tug_core::{Phase, Transfer, USER_AGENT};
+use tug_core::{Phase, Transfer, TransferOptions, USER_AGENT};
 
 fn expected(seed: u64, len: usize) -> Vec<u8> {
     let mut buf = vec![0; len];
@@ -39,7 +39,7 @@ async fn downloads_over_several_connections_as_tug() {
         .parse()
         .unwrap();
 
-    let transfer = Transfer::start(url, dir.path(), 8);
+    let transfer = Transfer::start(url, dir.path(), &TransferOptions::new(8));
     wait_until(&transfer, |p| {
         p.phase == Phase::Downloading && p.connections > 1
     })
@@ -64,7 +64,7 @@ async fn a_stopped_download_resumes_to_an_intact_file() {
     let dir = tempfile::tempdir().unwrap();
     let url = lab.url("/gen/6M/talk.mp4?seed=11&rate=1M").parse().unwrap();
 
-    let first = Transfer::start(url, dir.path(), 4);
+    let first = Transfer::start(url, dir.path(), &TransferOptions::new(4));
     wait_until(&first, |p| p.received > 1 << 20).await;
     let file = first
         .progress()
@@ -80,7 +80,7 @@ async fn a_stopped_download_resumes_to_an_intact_file() {
         "nothing at the final path before it completes"
     );
 
-    let second = Transfer::resume(&file, 4).unwrap();
+    let second = Transfer::resume(&file, &TransferOptions::new(4)).unwrap();
     let path = second.finish().await.unwrap().path;
 
     assert_eq!(path, file);
@@ -96,7 +96,7 @@ async fn dropped_connections_are_retried_to_an_intact_file() {
         .parse()
         .unwrap();
 
-    let path = Transfer::start(url, dir.path(), 6)
+    let path = Transfer::start(url, dir.path(), &TransferOptions::new(6))
         .finish()
         .await
         .unwrap()

@@ -11,7 +11,7 @@ async fn the_stream_reports_smoothed_progress_and_the_settled_download() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();
     let library = Arc::new(
-        Library::open(Store::open_in_memory().unwrap(), 4)
+        Library::open(Store::open_in_memory().unwrap())
             .await
             .unwrap(),
     );
@@ -77,7 +77,7 @@ async fn the_stream_reports_smoothed_progress_and_the_settled_download() {
 #[tokio::test(flavor = "multi_thread")]
 async fn intervals_below_the_floor_are_raised_to_it() {
     let library = Arc::new(
-        Library::open(Store::open_in_memory().unwrap(), 4)
+        Library::open(Store::open_in_memory().unwrap())
             .await
             .unwrap(),
     );

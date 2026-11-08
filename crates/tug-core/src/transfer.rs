@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use http::HeaderMap;
 use mdm_engine::download::State;
+use mdm_engine::limiter::Limiter;
 use mdm_engine::{Destination, Download, Error, Options, Request};
 use url::Url;
 
@@ -41,25 +43,40 @@ pub struct Progress {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct TransferOptions {
+    pub connections: u32,
+    pub limiter: Option<Arc<Limiter>>,
+}
+
+impl TransferOptions {
+    pub const fn new(connections: u32) -> Self {
+        Self {
+            connections,
+            limiter: None,
+        }
+    }
+}
+
 pub struct Transfer {
     download: Download,
 }
 
 impl Transfer {
-    pub fn start(url: Url, dir: &Path, connections: u32) -> Self {
+    pub fn start(url: Url, dir: &Path, options: &TransferOptions) -> Self {
         let request = Request {
             url,
             headers: HeaderMap::new(),
             dest: Destination::Dir(dir.to_owned()),
         };
         Self {
-            download: Download::start(request, options(connections)),
+            download: Download::start(request, engine_options(options)),
         }
     }
 
-    pub fn resume(file: &Path, connections: u32) -> Result<Self, Error> {
+    pub fn resume(file: &Path, options: &TransferOptions) -> Result<Self, Error> {
         let state = mdm_engine::state::state_path(file);
-        let download = Download::resume(state, HeaderMap::new(), options(connections))?;
+        let download = Download::resume(state, HeaderMap::new(), engine_options(options))?;
         Ok(Self { download })
     }
 
@@ -94,10 +111,11 @@ pub struct Finished {
     pub size: u64,
 }
 
-fn options(connections: u32) -> Options {
+fn engine_options(options: &TransferOptions) -> Options {
     Options {
-        max_connections: connections,
+        max_connections: options.connections,
         user_agent: USER_AGENT.to_owned(),
+        global: options.limiter.clone(),
         ..Options::default()
     }
 }

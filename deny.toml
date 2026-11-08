@@ -9,12 +9,14 @@ unmaintained = "workspace"
 yanked = "warn"
 
 [licenses]
+# MPL-2.0 enters through dirs' option-ext (the default download folder), as in hush.
 allow = [
   "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
   "BSD-3-Clause",
   "ISC",
   "MIT",
+  "MPL-2.0",
   "Unicode-3.0",
   "Unlicense",
   "Zlib",

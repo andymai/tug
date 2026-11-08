@@ -6,8 +6,6 @@ use std::time::{Duration, Instant};
 use mdm_labserver::{Config, LabServer, content};
 use tug_core::{Download, DownloadId, DownloadState, Library, LibraryError, Store};
 
-const CONNECTIONS: u32 = 4;
-
 fn assert_intact(path: &Path, seed: u64, len: usize) {
     let mut want = vec![0; len];
     content::fill(seed, 0, &mut want);
@@ -48,7 +46,7 @@ async fn received_at_least(library: &Library, id: DownloadId, bytes: u64) {
 async fn adds_and_completes_a_download() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();
-    let library = Library::open(Store::open_in_memory().unwrap(), CONNECTIONS)
+    let library = Library::open(Store::open_in_memory().unwrap())
         .await
         .unwrap();
 
@@ -68,7 +66,7 @@ async fn adds_and_completes_a_download() {
 async fn a_paused_download_resumes_to_an_intact_file() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();
-    let library = Library::open(Store::open_in_memory().unwrap(), CONNECTIONS)
+    let library = Library::open(Store::open_in_memory().unwrap())
         .await
         .unwrap();
 
@@ -99,9 +97,7 @@ async fn downloads_running_at_shutdown_resume_when_the_library_opens() {
     std::fs::create_dir(&downloads).unwrap();
 
     let id = {
-        let library = Library::open(Store::open(&db).unwrap(), CONNECTIONS)
-            .await
-            .unwrap();
+        let library = Library::open(Store::open(&db).unwrap()).await.unwrap();
         let url = lab
             .url("/gen/6M/backup.tar?seed=17&rate=1M")
             .parse()
@@ -121,9 +117,7 @@ async fn downloads_running_at_shutdown_resume_when_the_library_opens() {
         )
         .unwrap();
 
-    let library = Library::open(Store::open(&db).unwrap(), CONNECTIONS)
-        .await
-        .unwrap();
+    let library = Library::open(Store::open(&db).unwrap()).await.unwrap();
     assert_eq!(state_of(&library, id), DownloadState::Downloading);
     tick_until(&library, |l| state_of(l, id) == DownloadState::Done).await;
     assert_intact(&library.get(id).unwrap().file.unwrap(), 17, 6 << 20);
@@ -133,7 +127,7 @@ async fn downloads_running_at_shutdown_resume_when_the_library_opens() {
 async fn removing_with_delete_clears_the_partial_files() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();
-    let library = Library::open(Store::open_in_memory().unwrap(), CONNECTIONS)
+    let library = Library::open(Store::open_in_memory().unwrap())
         .await
         .unwrap();
 
@@ -162,7 +156,7 @@ async fn removing_with_delete_clears_the_partial_files() {
 async fn a_missing_file_fails_with_the_reason() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();
-    let library = Library::open(Store::open_in_memory().unwrap(), CONNECTIONS)
+    let library = Library::open(Store::open_in_memory().unwrap())
         .await
         .unwrap();
 
@@ -182,7 +176,7 @@ async fn a_missing_file_fails_with_the_reason() {
 async fn actions_on_a_removed_download_report_it_unknown() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();
-    let library = Library::open(Store::open_in_memory().unwrap(), CONNECTIONS)
+    let library = Library::open(Store::open_in_memory().unwrap())
         .await
         .unwrap();
 
