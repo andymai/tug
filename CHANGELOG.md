@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/andymai/tug/compare/v0.10.0...v0.10.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **desktop:** keep quick settings changes, and go to a download from settings ([#38](https://github.com/andymai/tug/issues/38)) ([c85db39](https://github.com/andymai/tug/commit/c85db39a305393326ab5f7e2a59010e00fa01d35))
+
 ## [0.10.0](https://github.com/andymai/tug/compare/v0.9.1...v0.10.0) (2026-11-08)
 
 
