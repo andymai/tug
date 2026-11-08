@@ -35,6 +35,7 @@ pub enum LibraryError {
 pub struct Tick {
     pub live: Vec<(DownloadId, Progress)>,
     pub settled: Vec<DownloadId>,
+    pub error: Option<String>,
 }
 
 struct Running {
@@ -181,12 +182,18 @@ impl Library {
             .collect();
         drop(running);
         let mut settled = Vec::with_capacity(finished.len());
+        let mut error = None;
         for (id, entry) in finished {
-            self.settle(id, entry.transfer, DownloadState::Failed)
-                .await?;
+            if let Err(e) = self.settle(id, entry.transfer, DownloadState::Failed).await {
+                error.get_or_insert_with(|| e.to_string());
+            }
             settled.push(id);
         }
-        Ok(Tick { live, settled })
+        Ok(Tick {
+            live,
+            settled,
+            error,
+        })
     }
 
     pub fn record_progress(&self, live: &[(DownloadId, Progress)]) -> Result<(), LibraryError> {
@@ -290,5 +297,41 @@ const fn event(
         at,
         bytes,
         detail,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use std::time::{Duration, Instant};
+
+    use mdm_labserver::{Config, LabServer};
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_download_still_settles_when_its_history_cannot_be_written() {
+        let lab = LabServer::start(Config::default()).await.unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let library = Library::open(Store::open_in_memory().unwrap())
+            .await
+            .unwrap();
+        let url = lab.url("/gen/256K/a.bin?seed=5").parse().unwrap();
+        let id = library.add(url, dir.path()).await.unwrap();
+        library.store().unwrap().break_events();
+
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let tick = loop {
+            let tick = library.tick().await.unwrap();
+            if !tick.settled.is_empty() {
+                break tick;
+            }
+            assert!(Instant::now() < deadline, "the download never settled");
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        };
+        assert_eq!(tick.settled, [id]);
+        assert!(tick.error.is_some_and(|e| e.contains("events")));
+        assert_eq!(library.get(id).unwrap().state, DownloadState::Done);
     }
 }

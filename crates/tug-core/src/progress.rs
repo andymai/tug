@@ -102,7 +102,7 @@ async fn run(library: Arc<Library>, options: StreamOptions, tx: watch::Sender<Ar
                         }
                     })
                     .collect();
-                let error = if seq.is_multiple_of(persist_every) {
+                let persisted = if seq.is_multiple_of(persist_every) {
                     library
                         .record_progress(&tick.live)
                         .err()
@@ -110,6 +110,7 @@ async fn run(library: Arc<Library>, options: StreamOptions, tx: watch::Sender<Ar
                 } else {
                     None
                 };
+                let error = tick.error.or(persisted);
                 Batch {
                     seq,
                     updates,
