@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.2](https://github.com/andymai/tug/compare/v0.13.1...v0.13.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **desktop:** test the tray's check gate, and say why notices can't be followed ([#56](https://github.com/andymai/tug/issues/56)) ([faff68e](https://github.com/andymai/tug/commit/faff68e15f7db5dccc29e813c98fdedf22fb2ce3))
+
 ## [0.13.1](https://github.com/andymai/tug/compare/v0.13.0...v0.13.1) (2026-11-08)
 
 
