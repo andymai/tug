@@ -1,0 +1,48 @@
+crates/tug-core/src/settings.rs
+  s_b050dc8a593981::t_8017434f611707 1-127,131-150,155-160,166-169,175-177,183-187
+  s_b050dc8a593981::t_6c375b1fcbb831 128-130,151-154,161-165,170-174,178-182
+crates/tug-core/src/library.rs
+  s_b050dc8a593981::t_ce206b68ce34cd 4,7,12,14,22-23,46-47,51-52,54-55,82-97,193-196,198-199
+crates/tug-core/tests/library.rs
+  s_b050dc8a593981::t_ce206b68ce34cd 49,69,130,159,179
+  s_b050dc8a593981::t_6c375b1fcbb831 100,120
+deny.toml
+  s_b050dc8a593981::t_4fa2d2affc5075 12,19
+crates/tug-core/tests/progress.rs
+  s_b050dc8a593981::t_ce206b68ce34cd 14,80
+crates/tug-core/tests/settings.rs
+  s_b050dc8a593981::t_6c375b1fcbb831 12-16,44-46,63-65,77-80,87-89,108-111
+  s_b050dc8a593981::t_fce0b9f8fef2fe 1-11,17-43,47-62,66-76,81-86,90-107,112
+crates/tug-core/tests/engine.rs
+  s_b050dc8a593981::t_ac68d02fec110d 7,42,67,83,99
+crates/tug-core/src/store.rs
+  s_b050dc8a593981::t_6c375b1fcbb831 469-471
+  s_b050dc8a593981::t_ac68d02fec110d 221-245,466-468,472-479
+  s_b050dc8a593981::t_9932916a8fd618 480
+crates/tug-core/src/transfer.rs
+  s_b050dc8a593981::t_ac68d02fec110d 2,6,46-60,66,73,77,79,114,116,118
+Cargo.toml
+  s_b050dc8a593981::t_ce206b68ce34cd 14
+crates/tug-core/src/lib.rs
+  s_b050dc8a593981::t_ce206b68ce34cd 3,11,13
+crates/tug-core/Cargo.toml
+  s_b050dc8a593981::t_ce206b68ce34cd 11
+Cargo.lock
+  s_b050dc8a593981::t_80a0d7028d4632 510-530,1245-1253,1513-1518,1752-1761,2557
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "111eecb9aa0329473a663d71d675e2c381825ac7",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
