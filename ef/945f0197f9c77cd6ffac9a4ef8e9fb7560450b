@@ -1,0 +1,56 @@
+apps/desktop/src/lib/links.ts
+  s_b050dc8a593981::t_867312088eebe1 1-24,27-73
+  s_b050dc8a593981::t_41be3055c3a7ff 25-26
+apps/desktop/src/App.test.tsx
+  s_b050dc8a593981::t_f946c19cf66c5d 1,119-192
+  s_b050dc8a593981::t_f158bab817e86e 193
+apps/desktop/src/test-setup.ts
+  s_b050dc8a593981::t_46418531c3f0dd 5-16
+apps/desktop/src/backend/mock.ts
+  s_b050dc8a593981::t_d3d026fdd0f663 1
+apps/desktop/src-tauri/tauri.conf.json
+  s_b050dc8a593981::t_46418531c3f0dd 18-19
+apps/desktop/src/lib/links.test.ts
+  s_b050dc8a593981::t_51132dba6d8147 1-27,32-74,76-86
+  s_b050dc8a593981::t_41be3055c3a7ff 28-31,75
+apps/desktop/src/components/Button.tsx
+  s_b050dc8a593981::t_e08bc078c5587b 1-34
+apps/desktop/src/App.tsx
+  s_b050dc8a593981::t_46418531c3f0dd 3,5,33-34
+apps/desktop/src/components/AddDialog.tsx
+  s_b050dc8a593981::t_7be0904e001372 2,45
+  s_b050dc8a593981::t_636f3c4a81a1b9 1,3-44,46-154
+apps/desktop/src/state/downloads.ts
+  s_b050dc8a593981::t_eae3d790e00ff1 22-24,32-36,39-47,51-52,54,58-60,112,115,117,177-178
+  s_b050dc8a593981::t_7dcb15fb48358b 61-111,113-114,116,118-170,172,174-176
+apps/desktop/src/components/DownloadList.tsx
+  s_b050dc8a593981::t_46418531c3f0dd 1,10,77,90,102,108-119
+apps/desktop/src/styles/app.css
+  s_b050dc8a593981::t_46418531c3f0dd 9-22
+apps/desktop/src/window.visual.tsx
+  s_b050dc8a593981::t_cf9edb7204d6b1 73-99
+apps/desktop/src/components/DownloadRow.tsx
+  s_b050dc8a593981::t_46418531c3f0dd 7,46-47,64-74,102-103,106,109
+apps/desktop/src/components/LinkCapture.tsx
+  s_b050dc8a593981::t_f1414c2b372a24 1-19,21-29,42-48,51-56,62,68-80
+  s_b050dc8a593981::t_b31928e1a76ed6 57-61,63-67
+  s_b050dc8a593981::t_6e65f7ac8a8652 20,30-41,49-50
+apps/desktop/src/state/downloads.test.ts
+  s_b050dc8a593981::t_aeb112a1bdfd4a 103-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ef945f0197f9c77cd6ffac9a4ef8e9fb7560450b",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
