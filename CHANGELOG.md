@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/andymai/tug/compare/v0.9.1...v0.10.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** the settings page with the portal folder chooser ([#36](https://github.com/andymai/tug/issues/36)) ([77118be](https://github.com/andymai/tug/commit/77118be55c1d634c38c69ab12b6dde542a43b3de))
+
 ## [0.9.1](https://github.com/andymai/tug/compare/v0.9.0...v0.9.1) (2026-11-08)
 
 
