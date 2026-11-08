@@ -1,9 +1,10 @@
 import { Check, Copy, ExternalLink, FolderOpen, Pause, Play, RotateCw, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
-import type { Download } from "../backend/backend";
+import type { Download, DownloadEvent } from "../backend/backend";
 import {
   formatBytes,
+  formatClock,
   formatDate,
   formatDuration,
   formatPercent,
@@ -24,7 +25,61 @@ interface Fact {
 }
 
 function focusRow(id: number) {
-  document.querySelector<HTMLElement>(`[data-download="${String(id)}"]`)?.focus();
+  const row = document.querySelector<HTMLElement>(`[data-download="${String(id)}"]`);
+  (row ?? document.getElementById("list-title"))?.focus();
+}
+
+function describeEvent(event: DownloadEvent): { text: string; bytes: string | null; detail: string | null } {
+  const bytes = event.bytes === null ? null : formatBytes(event.bytes);
+  switch (event.kind) {
+    case "added":
+      return { text: "Added", bytes: null, detail: null };
+    case "started":
+      return { text: "Started", bytes: null, detail: null };
+    case "resumed":
+      return { text: bytes === null ? "Resumed" : "Resumed at", bytes, detail: null };
+    case "paused":
+      return { text: bytes === null ? "Paused" : "Paused at", bytes, detail: null };
+    case "finished":
+      return { text: "Finished", bytes, detail: null };
+    case "failed":
+      return { text: "Failed", bytes: null, detail: event.detail === null ? null : sentence(event.detail) };
+  }
+}
+
+function History({ id, state, revision }: { id: number; state: Download["state"]; revision: string }) {
+  const history = useDownloads((s) => (s.history?.id === id ? s.history.events : null));
+  const loadHistory = useDownloads((s) => s.loadHistory);
+
+  useEffect(() => {
+    void loadHistory(id);
+  }, [id, state, revision, loadHistory]);
+
+  if (history === null || history.length === 0) return null;
+  return (
+    <section aria-labelledby={`history-${String(id)}`} className="border-t border-line px-4 py-4">
+      <h3 id={`history-${String(id)}`} className="pb-2 text-label text-ink-muted">
+        History
+      </h3>
+      <ol className="flex flex-col gap-1.5 text-small">
+        {history.map((event, index) => {
+          const { text, bytes, detail } = describeEvent(event);
+          return (
+            <li key={`${String(index)}-${event.kind}`} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-3">
+              <time dateTime={new Date(event.atMs).toISOString()} title={formatDate(event.atMs)} className="text-mono text-ink-muted">
+                {formatClock(event.atMs)}
+              </time>
+              <span className="min-w-0 text-ink">
+                {text}
+                {bytes !== null && <span className="text-mono"> {bytes}</span>}
+                {detail !== null && <span className="text-ink-muted"> · {detail}</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
 }
 
 function hostOf(link: string): string {
@@ -182,6 +237,11 @@ function Panel({ download }: { download: Download }) {
           </div>
         ))}
       </dl>
+      <History
+        id={download.id}
+        state={download.state}
+        revision={`${String(download.finishedMs)}:${download.error ?? ""}`}
+      />
     </aside>
   );
 }

@@ -1,6 +1,14 @@
 import { createStore } from "zustand/vanilla";
 
-import { type Backend, BackendError, type Download, type DownloadState, type ProgressBatch, type ProgressUpdate } from "../backend/backend";
+import {
+  type Backend,
+  BackendError,
+  type Download,
+  type DownloadEvent,
+  type DownloadState,
+  type ProgressBatch,
+  type ProgressUpdate,
+} from "../backend/backend";
 
 export type View = "all" | "active" | "done" | "failed";
 
@@ -22,6 +30,7 @@ export interface DownloadsState {
   downloadDir: string | null;
   adding: Adding;
   fresh: number[];
+  history: { id: number; events: DownloadEvent[] } | null;
   init: () => Promise<() => void>;
   reload: () => Promise<void>;
   applyBatch: (batch: ProgressBatch) => void;
@@ -31,6 +40,7 @@ export interface DownloadsState {
   resume: (id: number) => Promise<void>;
   openFile: (id: number) => Promise<void>;
   showInFolder: (id: number) => Promise<void>;
+  loadHistory: (id: number) => Promise<void>;
   notify: (message: string) => void;
   dismissNotice: () => void;
   openAdd: (text?: string) => void;
@@ -81,6 +91,7 @@ export function createDownloadsStore(backend: Backend) {
       downloadDir: null,
       adding: CLOSED,
       fresh: [],
+      history: null,
 
       init: async () => {
         let stop: () => void = () => undefined;
@@ -136,6 +147,12 @@ export function createDownloadsStore(backend: Backend) {
       openFile: (id) => act(() => backend.openFile(id)),
 
       showInFolder: (id) => act(() => backend.showInFolder(id)),
+
+      loadHistory: (id) =>
+        act(async () => {
+          const events = await backend.events(id);
+          if (get().selected === id) set({ history: { id, events } });
+        }),
 
       notify: (message) => {
         set({ notice: message });

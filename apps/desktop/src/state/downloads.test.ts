@@ -176,6 +176,21 @@ describe("downloads store", () => {
     expect(store.getState().items.map((d) => d.name)).toEqual(["slow.iso"]);
   });
 
+  it("loads the history of the selected download only", async () => {
+    const { store } = await ready();
+    const fedora = store.getState().items.find((d) => d.name === "fedora.iso");
+    store.getState().select(fedora?.id ?? null);
+    await store.getState().loadHistory(fedora?.id ?? -1);
+    expect(store.getState().history?.events.map((e) => e.kind)).toEqual(["added", "started"]);
+
+    store.getState().select(null);
+    await store.getState().loadHistory(fedora?.id ?? -1);
+    expect(store.getState().history?.id).toBe(fedora?.id);
+    store.getState().select(2);
+    await store.getState().loadHistory(fedora?.id ?? -1);
+    expect(store.getState().history?.id).toBe(fedora?.id);
+  });
+
   it("records an error instead of throwing when the backend refuses", async () => {
     const { store } = await ready();
     await store.getState().resume(999);

@@ -98,6 +98,25 @@ describe("mock backend", () => {
     await expect(backend.showInFolder(9)).rejects.toMatchObject({ kind: "notFound" });
   });
 
+  it("keeps each download's history", async () => {
+    let clock = 1000;
+    const backend = createMockBackend({ now: () => clock, seed: [{ url: "https://example.org/x.zip", state: "failed", progress: 0.5, size: 100, error: "refused" }] });
+    expect((await backend.events(1)).map((e) => e.kind)).toEqual(["added", "started", "failed"]);
+    expect((await backend.events(1))[2]).toMatchObject({ bytes: 50, detail: "refused" });
+
+    const { id } = await backend.add("https://example.org/a.bin");
+    backend.tick();
+    clock = 2000;
+    await backend.pause(id);
+    await backend.resume(id);
+    for (let i = 0; i < 1000 && (await backend.list()).find((d) => d.id === id)?.state !== "done"; i++) backend.tick();
+    const events = await backend.events(id);
+    expect(events.map((e) => e.kind)).toEqual(["added", "started", "paused", "resumed", "finished"]);
+    expect(events[2]).toMatchObject({ atMs: 2000 });
+    await backend.remove(id, false);
+    await expect(backend.events(id)).rejects.toMatchObject({ kind: "notFound" });
+  });
+
   it("starts with the seed links", async () => {
     const backend = createMockBackend({ seed: ["https://example.org/one.zip", "https://example.org/two.zip"] });
     expect((await backend.list()).map((d) => d.name)).toEqual(["one.zip", "two.zip"]);

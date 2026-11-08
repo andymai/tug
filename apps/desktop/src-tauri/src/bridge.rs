@@ -7,8 +7,8 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
-    Batch, Download, DownloadId, DownloadState, Library, LibraryError, Phase, ProgressStream,
-    Settings, Store, StreamOptions, Update,
+    Batch, Download, DownloadId, DownloadState, Event, EventKind, Library, LibraryError, Phase,
+    ProgressStream, Settings, Store, StreamOptions, Update,
 };
 use url::Url;
 
@@ -57,6 +57,54 @@ pub struct DownloadDto {
     pub added_ms: u64,
     #[ts(type = "number | null")]
     pub finished_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, rename = "EventKind")]
+pub enum EventKindDto {
+    Added,
+    Started,
+    Resumed,
+    Paused,
+    Finished,
+    Failed,
+}
+
+impl From<EventKind> for EventKindDto {
+    fn from(kind: EventKind) -> Self {
+        match kind {
+            EventKind::Added => Self::Added,
+            EventKind::Started => Self::Started,
+            EventKind::Resumed => Self::Resumed,
+            EventKind::Paused => Self::Paused,
+            EventKind::Finished => Self::Finished,
+            EventKind::Failed => Self::Failed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "DownloadEvent")]
+pub struct EventDto {
+    pub kind: EventKindDto,
+    #[ts(type = "number")]
+    pub at_ms: u64,
+    #[ts(type = "number | null")]
+    pub bytes: Option<u64>,
+    pub detail: Option<String>,
+}
+
+impl From<&Event> for EventDto {
+    fn from(e: &Event) -> Self {
+        Self {
+            kind: e.kind.into(),
+            at_ms: unix_ms(e.at),
+            bytes: e.bytes,
+            detail: e.detail.clone(),
+        }
+    }
 }
 
 impl From<&Download> for DownloadDto {
@@ -359,6 +407,23 @@ pub fn update_settings(
     Ok(state.library.update_settings(Settings::from(settings))?)
 }
 
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects State by value"
+)]
+pub fn download_events(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<Vec<EventDto>, CommandError> {
+    Ok(state
+        .library
+        .events(DownloadId::from(id))?
+        .iter()
+        .map(EventDto::from)
+        .collect())
+}
+
 pub fn finished_file(d: &Download) -> Result<&Path, CommandError> {
     match (&d.file, d.state) {
         (Some(file), DownloadState::Done) => Ok(file),
@@ -464,6 +529,25 @@ mod tests {
             added: UNIX_EPOCH + Duration::from_millis(1_762_600_000_123),
             finished: None,
         }
+    }
+
+    #[test]
+    fn an_event_crosses_the_bridge_in_camel_case() {
+        let event = Event {
+            kind: EventKind::Failed,
+            at: UNIX_EPOCH + Duration::from_millis(1_762_600_000_123),
+            bytes: Some(1024),
+            detail: Some("the server closed the connection".into()),
+        };
+        assert_eq!(
+            serde_json::to_value(EventDto::from(&event)).unwrap(),
+            serde_json::json!({
+                "kind": "failed",
+                "atMs": 1_762_600_000_123_u64,
+                "bytes": 1024,
+                "detail": "the server closed the connection",
+            })
+        );
     }
 
     #[test]

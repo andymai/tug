@@ -266,6 +266,32 @@ describe("detail panel", () => {
     expect(row).toHaveFocus();
   });
 
+  it("shows the download's history and adds to it", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: /^conference-talk-1080p\.mp4/ }));
+    const panel = within(screen.getByRole("complementary", { name: "conference-talk-1080p.mp4" }));
+    const history = within(await panel.findByRole("region", { name: "History" }));
+    expect(history.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      expect.stringMatching(/Added$/),
+      expect.stringMatching(/Started$/),
+      expect.stringMatching(/Paused at 623 MB$/),
+    ]);
+
+    await user.click(panel.getByRole("button", { name: "Resume" }));
+    expect(await history.findByText("Resumed at")).toBeInTheDocument();
+  });
+
+  it("gives focus to the list's title when the row has left the view", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: /^Failed/ }));
+    await user.click(screen.getByRole("button", { name: /^dataset-shard-07\.parquet/ }));
+    const panel = within(screen.getByRole("complementary", { name: "dataset-shard-07.parquet" }));
+    await user.click(panel.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("heading", { name: "Nothing failed" })).toBeInTheDocument();
+    await user.click(panel.getByRole("button", { name: "Close details" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Failed" })).toHaveFocus();
+  });
+
   it("closes with its button and with Escape", async () => {
     const { user } = open();
     const row = await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ });

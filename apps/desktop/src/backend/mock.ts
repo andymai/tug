@@ -3,6 +3,7 @@ import {
   type Backend,
   BackendError,
   type Download,
+  type DownloadEvent,
   type DownloadState,
   type ProgressBatch,
   type ProgressUpdate,
@@ -50,6 +51,10 @@ function sizeOf(url: URL): number {
 export function createMockBackend(options: MockOptions = {}): MockBackend {
   const now = options.now ?? (() => Date.now());
   const downloads = new Map<number, Download>();
+  const history = new Map<number, DownloadEvent[]>();
+  const log = (id: number, kind: DownloadEvent["kind"], atMs: number, bytes: number | null = null, detail: string | null = null) => {
+    history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
+  };
   const listeners = new Set<(batch: ProgressBatch) => void>();
   let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null };
   let nextId = 1;
@@ -85,6 +90,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       finishedMs: null,
     };
     downloads.set(download.id, download);
+    log(download.id, "added", download.addedMs);
+    log(download.id, "started", download.addedMs);
     return download;
   };
 
@@ -101,6 +108,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       if (download.received >= download.size) {
         download.state = "done";
         download.finishedMs = now();
+        log(download.id, "finished", download.finishedMs, download.size);
         settled.push(download.id);
       } else {
         updates.push({
@@ -130,6 +138,14 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     if (download.received > 0) download.file = `${download.dir}/${download.name}`;
     if (state === "done") download.finishedMs = download.addedMs + 30_000;
     if (state === "failed") download.error = spec.error ?? "the server closed the connection";
+    const start = download.addedMs;
+    history.set(download.id, []);
+    log(download.id, "added", start);
+    if (state === "queued") return;
+    log(download.id, "started", start);
+    if (state === "paused") log(download.id, "paused", start + 20_000, download.received);
+    if (state === "done") log(download.id, "finished", start + 30_000, size);
+    if (state === "failed") log(download.id, "failed", start + 20_000, download.received, download.error);
   });
   const timer = options.autoTick ? setInterval(tick, TICK_MS) : undefined;
 
@@ -139,7 +155,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     pause: (id) =>
       attempt(() => {
         const download = find(id);
-        if (download.state === "downloading") download.state = "paused";
+        if (download.state === "downloading") {
+          download.state = "paused";
+          log(id, "paused", now(), download.received);
+        }
       }),
     resume: (id) =>
       attempt(() => {
@@ -147,17 +166,25 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         if (download.state === "paused" || download.state === "failed") {
           download.state = "downloading";
           download.error = null;
+          if (download.received > 0) log(id, "resumed", now(), download.received);
+          else log(id, "started", now());
         }
       }),
     remove: (id) =>
       attempt(() => {
         find(id);
         downloads.delete(id);
+        history.delete(id);
       }),
     openFile: (id) =>
       attempt(() => {
         const download = find(id);
         if (download.state !== "done") throw new BackendError("invalid", `${download.name} isn't finished yet`);
+      }),
+    events: (id) =>
+      attempt(() => {
+        find(id);
+        return (history.get(id) ?? []).map((event) => ({ ...event }));
       }),
     showInFolder: (id) =>
       attempt(() => {

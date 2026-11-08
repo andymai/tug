@@ -35,6 +35,12 @@ export function formatDate(ms: number): string {
   return DATE.format(ms);
 }
 
+const CLOCK = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
+
+export function formatClock(ms: number): string {
+  return CLOCK.format(ms);
+}
+
 export function formatPercent(received: number, total: number | null): string | null {
   if (total === null || total <= 0) return null;
   return `${String(Math.min(100, Math.floor((received * 100) / total)))}%`;
