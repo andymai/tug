@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 
+import { AddDialog } from "./components/AddDialog";
 import { DownloadList } from "./components/DownloadList";
+import { LinkCapture } from "./components/LinkCapture";
 import { Sidebar } from "./components/Sidebar";
 import { DownloadsContext } from "./state/context";
 import type { DownloadsStore } from "./state/downloads";
@@ -28,6 +30,8 @@ export function App({ store }: { store: DownloadsStore }) {
         <Sidebar />
         <DownloadList />
       </div>
+      <AddDialog />
+      <LinkCapture />
     </DownloadsContext>
   );
 }

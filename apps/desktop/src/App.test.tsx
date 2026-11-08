@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -114,5 +114,80 @@ describe("main window", () => {
     fail = false;
     await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("fedora-kde-44-x86_64.iso")).toBeInTheDocument();
+  });
+});
+
+describe("adding links", () => {
+  it("checks each link as it is typed and adds the good ones", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: "Add" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Add downloads" }));
+    await user.type(
+      dialog.getByRole("textbox", { name: "Links" }),
+      "https://example.org/a.iso{Enter}mailto:me@example.org{Enter}nope{Enter}https://example.org/b.iso",
+    );
+    const found = within(dialog.getByRole("list", { name: "Links found" }));
+    expect(found.getByText("Tug can't download mailto links", { exact: false })).toBeInTheDocument();
+    expect(found.getByText("Not a link", { exact: false })).toBeInTheDocument();
+    expect(dialog.getByText("Saves to Downloads")).toBeInTheDocument();
+
+    await user.click(dialog.getByRole("button", { name: "Add 2 links" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText("a.iso")).toBeInTheDocument();
+    expect(screen.getByText("b.iso")).toBeInTheDocument();
+  });
+
+  it("skips a link already in the list unless asked to download it again", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("button", { name: "Add" }));
+    const dialog = within(screen.getByRole("dialog"));
+    await user.type(dialog.getByRole("textbox", { name: "Links" }), "https://fonts.example.org/noto-fonts-2026.11.zip");
+    expect(dialog.getByText("Already in your list · Done", { exact: false })).toBeInTheDocument();
+    const add = dialog.getByRole("button", { name: "Add" });
+    expect(add).toBeDisabled();
+
+    await user.click(dialog.getByRole("checkbox", { name: "Download it again" }));
+    await user.click(add);
+    expect(await screen.findAllByText("noto-fonts-2026.11.zip")).toHaveLength(2);
+  });
+
+  it("closes on Cancel without adding", async () => {
+    const { user, store } = open();
+    await user.click(await screen.findByRole("button", { name: "Add" }));
+    await user.type(screen.getByRole("textbox", { name: "Links" }), "https://example.org/a.iso");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(store.getState().items).toHaveLength(5);
+  });
+
+  it("opens with the links pasted anywhere in the window", async () => {
+    open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    fireEvent.paste(document.body, {
+      clipboardData: { getData: () => "Grab https://example.org/c.iso, please" },
+    });
+    expect(await screen.findByRole("textbox", { name: "Links" })).toHaveValue("https://example.org/c.iso");
+  });
+
+  it("ignores a paste of plain words", async () => {
+    open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    fireEvent.paste(document.body, { clipboardData: { getData: () => "just words" } });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens with a link dropped on the window", async () => {
+    open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const dataTransfer = {
+      types: ["text/uri-list"],
+      getData: (type: string) => (type === "text/uri-list" ? "https://example.org/d.iso" : ""),
+      dropEffect: "none",
+    };
+    fireEvent.dragEnter(document.body, { dataTransfer });
+    expect(await screen.findByText("Drop to add")).toBeInTheDocument();
+    fireEvent.drop(document.body, { dataTransfer });
+    expect(screen.queryByText("Drop to add")).not.toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: "Links" })).toHaveValue("https://example.org/d.iso");
   });
 });

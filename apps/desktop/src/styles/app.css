@@ -6,6 +6,20 @@
 @import "@fontsource/geist-mono/500.css";
 @import "./tokens.css";
 
+@theme {
+  --animate-tug: tug var(--duration-tug) var(--ease-tug);
+
+  @keyframes tug {
+    from,
+    to {
+      transform: translateY(0);
+    }
+    30% {
+      transform: translateY(2px);
+    }
+  }
+}
+
 @layer base {
   html,
   body,

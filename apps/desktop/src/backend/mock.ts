@@ -1,3 +1,4 @@
+import { nameOf, SCHEMES } from "../lib/links";
 import {
   type Backend,
   BackendError,
@@ -11,7 +12,6 @@ import {
 const MB = 1 << 20;
 const TICK_MS = 100;
 const RATE = 18.4 * MB;
-const SCHEMES = new Set(["http:", "https:", "ftp:", "ftps:"]);
 
 export interface MockBackend extends Backend {
   tick(): void;
@@ -39,11 +39,6 @@ function attempt<T>(action: () => T): Promise<T> {
   } catch (error) {
     return Promise.reject(BackendError.from(error));
   }
-}
-
-function nameOf(url: URL): string {
-  const segment = url.pathname.split("/").filter(Boolean).at(-1);
-  return segment ? decodeURIComponent(segment) : url.hostname;
 }
 
 function sizeOf(url: URL): number {

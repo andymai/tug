@@ -70,4 +70,31 @@ describe("main window", () => {
     });
     await capture(window, "load-error");
   });
+
+  it("checks links in the add dialog", async () => {
+    const { store, window } = await open(SHOWCASE);
+    act(() => {
+      store
+        .getState()
+        .openAdd(
+          [
+            "https://download.example.org/kde-neon-user-20261105.iso",
+            "https://fonts.example.org/noto-fonts-2026.11.zip",
+            "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056",
+            "download.example.org",
+          ].join("\n"),
+        );
+    });
+    await capture(window, "add-dialog");
+  });
+
+  it("shows where to drop a link", async () => {
+    const { window } = await open(SHOWCASE);
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData("text/uri-list", "https://example.org/a.iso");
+    act(() => {
+      document.body.dispatchEvent(new DragEvent("dragenter", { dataTransfer, bubbles: true }));
+    });
+    await capture(window, "drop");
+  });
 });
