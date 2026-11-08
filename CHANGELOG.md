@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/andymai/tug/compare/v0.12.1...v0.13.0) (2026-11-08)
+
+
+### Features
+
+* **desktop:** a progress ring, a tooltip, and Pause all and Resume all in the tray ([#51](https://github.com/andymai/tug/issues/51)) ([cb40d59](https://github.com/andymai/tug/commit/cb40d599a2f2444d13f52cbd7af23ca863ef6078))
+
 ## [0.12.1](https://github.com/andymai/tug/compare/v0.12.0...v0.12.1) (2026-11-08)
 
 
