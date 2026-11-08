@@ -315,6 +315,13 @@ impl Store {
         .collect()
     }
 
+    #[cfg(test)]
+    pub(crate) fn break_events(&self) {
+        if let Err(e) = self.conn.execute_batch("DROP TABLE events") {
+            panic!("could not drop the events table: {e}");
+        }
+    }
+
     pub fn setting(&self, key: &str) -> Result<Option<String>, StoreError> {
         Ok(self
             .conn

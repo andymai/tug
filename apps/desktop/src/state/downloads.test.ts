@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { DownloadEvent } from "../backend/backend";
 import { createMockBackend } from "../backend/mock";
 import { countFor, createDownloadsStore, visibleItems } from "./downloads";
 
@@ -189,6 +190,27 @@ describe("downloads store", () => {
     store.getState().select(2);
     await store.getState().loadHistory(fedora?.id ?? -1);
     expect(store.getState().history?.id).toBe(fedora?.id);
+  });
+
+  it("keeps the newest history when an older answer arrives last", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    const answers: ((events: DownloadEvent[]) => void)[] = [];
+    const store = createDownloadsStore({
+      ...backend,
+      events: () =>
+        new Promise<DownloadEvent[]>((resolve) => {
+          answers.push(resolve);
+        }),
+    });
+    store.getState().select(1);
+    const older = store.getState().loadHistory(1);
+    const newer = store.getState().loadHistory(1);
+    const event = (kind: DownloadEvent["kind"]): DownloadEvent => ({ kind, atMs: 0, bytes: null, detail: null });
+    answers[1]?.([event("added"), event("paused")]);
+    await newer;
+    answers[0]?.([event("added")]);
+    await older;
+    expect(store.getState().history?.events.map((e) => e.kind)).toEqual(["added", "paused"]);
   });
 
   it("records an error instead of throwing when the backend refuses", async () => {

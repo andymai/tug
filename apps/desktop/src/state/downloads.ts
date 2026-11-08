@@ -64,6 +64,8 @@ export type DownloadsStore = ReturnType<typeof createDownloadsStore>;
 
 export function createDownloadsStore(backend: Backend) {
   return createStore<DownloadsState>()((set, get) => {
+    let historyRequest = 0;
+
     const act = async (action: () => Promise<void>) => {
       try {
         await action();
@@ -150,8 +152,9 @@ export function createDownloadsStore(backend: Backend) {
 
       loadHistory: (id) =>
         act(async () => {
+          const request = ++historyRequest;
           const events = await backend.events(id);
-          if (get().selected === id) set({ history: { id, events } });
+          if (request === historyRequest && get().selected === id) set({ history: { id, events } });
         }),
 
       notify: (message) => {
