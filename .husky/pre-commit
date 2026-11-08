@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+[ -n "${BASH_VERSION:-}" ] || exec bash "$0" "$@"
+set -uo pipefail
+
+# Fast checks in parallel; the test suite runs in CI. Cargo needs the dev
+# container's toolchain and libraries, so commit from inside `distrobox enter dev`.
+pids=()
+names=()
+run() {
+  "$@" &
+  pids+=($!)
+  names+=("$*")
+}
+
+run cargo fmt --all -- --check
+run cargo clippy --workspace --all-targets -- -D warnings
+run python3 scripts/check-deps.py
+command -v taplo >/dev/null && run taplo fmt --check
+command -v cargo-machete >/dev/null && run cargo machete
+
+failed=0
+for i in "${!pids[@]}"; do
+  if ! wait "${pids[$i]}"; then
+    echo "pre-commit: '${names[$i]}' failed"
+    failed=1
+  fi
+done
+exit $failed

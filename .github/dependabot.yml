@@ -1,0 +1,44 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # MDM's crates move together, on purpose, after the engine tests pass
+      # (scripts/check-deps.py holds them to one rev).
+      - dependency-name: "mdm-*"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      npm:
+        patterns: ["*"]
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    ignore:
+      # The @version tag specifies the Rust version to install, not the
+      # action version. Dependabot incorrectly treats it as a version bump.
+      - dependency-name: dtolnay/rust-toolchain
+    open-pull-requests-limit: 5
