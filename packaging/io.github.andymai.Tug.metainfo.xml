@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.andymai.Tug</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Tug</name>
+  <summary>Fast, resumable downloads</summary>
+  <developer id="io.github.andymai">
+    <name>Andy Aragon</name>
+  </developer>
+  <description>
+    <p>Tug pulls every file over many connections and picks up exactly where it stopped, after a pause, a crash or a dropped connection.</p>
+    <p>It is a download manager made for KDE Plasma first, with a quiet, keyboard-first interface that shows exactly what every download is doing.</p>
+  </description>
+  <launchable type="desktop-id">io.github.andymai.Tug.desktop</launchable>
+  <url type="homepage">https://github.com/andymai/tug</url>
+  <url type="bugtracker">https://github.com/andymai/tug/issues</url>
+  <url type="vcs-browser">https://github.com/andymai/tug</url>
+  <categories>
+    <category>Network</category>
+    <category>FileTransfer</category>
+  </categories>
+  <provides>
+    <binary>tug</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <branding>
+    <color type="primary" scheme_preference="light">#E3EAF6</color>
+    <color type="primary" scheme_preference="dark">#142645</color>
+  </branding>
+  <releases>
+    <release version="0.12.1" date="2026-11-08"/><!-- x-release-please-version -->
+  </releases>
+</component>

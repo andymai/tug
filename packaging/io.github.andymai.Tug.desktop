@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Tug
+GenericName=Download Manager
+Comment=Fast, resumable downloads
+Exec=tug
+Icon=io.github.andymai.Tug
+Terminal=false
+Categories=Network;FileTransfer;
+Keywords=download;downloader;resume;transfer;
+StartupNotify=true
+StartupWMClass=tug
+SingleMainWindow=true
