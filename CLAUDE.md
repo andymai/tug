@@ -21,15 +21,16 @@ Plan and decisions: Obsidian vault `Projects/tug`. Design system (tokens, brand 
 - MDM's crates are declared once, in the root `[workspace.dependencies]`, at one git rev. Move the rev on purpose, in its own PR, after the engine tests pass; `check-deps.py` fails a split or stale pin.
 - `unsafe_code` is forbidden. `unwrap`, `expect`, `panic`, `todo`, `dbg!` and printing are denied outside tests.
 - No comments or docstrings unless the why is not obvious from the code.
+- The UI talks to Rust only through `apps/desktop/src/backend` (`Backend`: the Tauri commands and the `progress` event, or the in-memory mock in a plain browser and in tests). Its types are generated from `src-tauri/src/bridge.rs` by ts-rs into `src/backend/bindings` on every `cargo test`; never edit them by hand. Errors reach the UI as `BackendError` with a `kind`.
 - Change tokens in `design/tokens.json` and regenerate; never edit `tokens.css`. Style with the token utilities (`bg-surface`, `text-ink-muted`, `rounded-md`) and the `.text-*` type styles, not raw colors or sizes.
 - UI work follows the design system: orange never colors text, every download state shows an icon and a word, and every screen is checked in screenshots, light and dark, before it is done.
 
 ## Commands
 
-Cargo runs in the `dev` distrobox (the host lacks the build libraries), and so do commits, because the pre-commit hook runs cargo:
+Cargo runs in the `dev` distrobox (the host lacks the build libraries), and so do commits, because the pre-commit hook runs cargo. Always set `RUSTFLAGS=""` there: the global mold flags export the bundled SQLite's symbols to WebKitGTK, and the hook sets the same so the cache stays warm:
 
 ```sh
-distrobox enter dev -- bash -lc 'cd ~/Git/tug && PKG_CONFIG=/usr/bin/pkg-config CARGO_BUILD_JOBS=8 cargo nextest run --workspace'
+distrobox enter dev -- bash -lc 'cd ~/Git/tug && PKG_CONFIG=/usr/bin/pkg-config CARGO_BUILD_JOBS=8 RUSTFLAGS="" cargo nextest run --workspace'
 ```
 
 - `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`

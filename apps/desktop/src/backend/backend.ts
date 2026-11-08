@@ -1,0 +1,51 @@
+import type { CommandError } from "./bindings/CommandError";
+import type { ErrorKind } from "./bindings/ErrorKind";
+import type { Download } from "./bindings/Download";
+import type { ProgressBatch } from "./bindings/ProgressBatch";
+import type { Settings } from "./bindings/Settings";
+
+export type { CommandError } from "./bindings/CommandError";
+export type { Download } from "./bindings/Download";
+export type { DownloadState } from "./bindings/DownloadState";
+export type { ErrorKind } from "./bindings/ErrorKind";
+export type { Phase } from "./bindings/Phase";
+export type { ProgressBatch } from "./bindings/ProgressBatch";
+export type { ProgressUpdate } from "./bindings/ProgressUpdate";
+export type { Settings } from "./bindings/Settings";
+
+export interface Backend {
+  list(): Promise<Download[]>;
+  add(url: string, dir?: string): Promise<Download>;
+  pause(id: number): Promise<void>;
+  resume(id: number): Promise<void>;
+  remove(id: number, deleteFile: boolean): Promise<void>;
+  settings(): Promise<Settings>;
+  updateSettings(settings: Settings): Promise<void>;
+  onProgress(listener: (batch: ProgressBatch) => void): Promise<() => void>;
+}
+
+export function isCommandError(error: unknown): error is CommandError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "kind" in error &&
+    "message" in error &&
+    typeof error.message === "string"
+  );
+}
+
+export class BackendError extends Error {
+  readonly kind: ErrorKind;
+
+  constructor(kind: ErrorKind, message: string) {
+    super(message);
+    this.name = "BackendError";
+    this.kind = kind;
+  }
+
+  static from(error: unknown): BackendError {
+    if (error instanceof BackendError) return error;
+    if (isCommandError(error)) return new BackendError(error.kind, error.message);
+    return new BackendError("internal", error instanceof Error ? error.message : String(error));
+  }
+}

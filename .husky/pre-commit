@@ -2,6 +2,9 @@
 [ -n "${BASH_VERSION:-}" ] || exec bash "$0" "$@"
 set -uo pipefail
 
+# The global mold flags export a bundled SQLite's symbols to WebKitGTK; build with the default linker.
+export RUSTFLAGS=""
+
 # Fast checks in parallel; the test suite runs in CI. Cargo needs the dev
 # container's toolchain and libraries, so commit from inside `distrobox enter dev`.
 pids=()

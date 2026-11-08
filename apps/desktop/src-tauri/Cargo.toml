@@ -15,7 +15,15 @@ path = "src/main.rs"
 tauri-build.workspace = true
 
 [dependencies]
+serde.workspace = true
 tauri.workspace = true
+ts-rs.workspace = true
+tug-core.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true
