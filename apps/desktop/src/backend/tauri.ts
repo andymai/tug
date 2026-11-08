@@ -13,6 +13,7 @@ import {
 
 export const PROGRESS_EVENT = "progress";
 export const COLOR_SCHEME_EVENT = "color-scheme";
+export const NOTICE_EVENT = "notice";
 
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   try {
@@ -37,6 +38,10 @@ export const tauriBackend: Backend = {
   systemColorScheme: () => call<ColorScheme | null>("system_color_scheme"),
   onColorScheme: (listener) =>
     listen<ColorScheme | null>(COLOR_SCHEME_EVENT, (event) => {
+      listener(event.payload);
+    }),
+  onNotice: (listener) =>
+    listen<string>(NOTICE_EVENT, (event) => {
       listener(event.payload);
     }),
   onProgress: (listener) =>

@@ -361,6 +361,16 @@ describe("downloads store", () => {
     expect(store.getState().systemScheme).toBe("dark");
   });
 
+  it("shows a notice the backend sends, until it stops listening", async () => {
+    const { backend, store, stop } = await ready();
+    backend.notice("couldn't resume a download: the server refused");
+    expect(store.getState().notice).toBe("couldn't resume a download: the server refused");
+    store.getState().dismissNotice();
+    stop();
+    backend.notice("another");
+    expect(store.getState().notice).toBeNull();
+  });
+
   it("records an error instead of throwing when the backend refuses", async () => {
     const { store } = await ready();
     await store.getState().resume(999);

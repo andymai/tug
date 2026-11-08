@@ -18,6 +18,7 @@ const RATE = 18.4 * MB;
 export interface MockBackend extends Backend {
   tick(): void;
   setColorScheme(scheme: ColorScheme | null): void;
+  notice(message: string): void;
   dispose(): void;
 }
 
@@ -63,6 +64,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system" };
   let scheme = options.colorScheme ?? null;
   const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
+  const noticeListeners = new Set<(message: string) => void>();
   let nextId = 1;
   let seq = 0;
 
@@ -217,6 +219,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         schemeListeners.delete(listener);
       });
     },
+    onNotice: (listener) => {
+      noticeListeners.add(listener);
+      return Promise.resolve(() => {
+        noticeListeners.delete(listener);
+      });
+    },
+    notice: (message) => {
+      for (const listener of noticeListeners) listener(message);
+    },
     setColorScheme: (next) => {
       scheme = next;
       for (const listener of schemeListeners) listener(next);
@@ -232,6 +243,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       if (timer !== undefined) clearInterval(timer);
       listeners.clear();
       schemeListeners.clear();
+      noticeListeners.clear();
     },
   };
 }
