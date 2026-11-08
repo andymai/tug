@@ -56,6 +56,7 @@ describe("shortDir and sentence", () => {
 describe("percent", () => {
   it("rounds down and needs a size", () => {
     expect(formatPercent(38.9, 100)).toBe("38%");
+    expect(formatPercent(2_900_000, 10_000_000)).toBe("29%");
     expect(formatPercent(5, null)).toBeNull();
     expect(percentOf(50, 200)).toBe(25);
     expect(percentOf(10, null)).toBe(0);

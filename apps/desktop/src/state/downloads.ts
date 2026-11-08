@@ -38,10 +38,17 @@ export function createDownloadsStore(backend: Backend) {
     error: null,
 
     init: async () => {
-      const stop = await backend.onProgress((batch) => {
-        get().applyBatch(batch);
-      });
+      let stop: () => void = () => undefined;
+      let failure: string | null = null;
+      try {
+        stop = await backend.onProgress((batch) => {
+          get().applyBatch(batch);
+        });
+      } catch (error) {
+        failure = BackendError.from(error).message;
+      }
       await get().reload();
+      if (failure !== null) set({ error: failure });
       return stop;
     },
 
@@ -56,7 +63,7 @@ export function createDownloadsStore(backend: Backend) {
 
     applyBatch: (batch) => {
       const live = Object.fromEntries(batch.updates.map((update) => [update.id, update]));
-      set({ live });
+      set(batch.error === null ? { live } : { live, error: batch.error });
       const known = new Set(get().items.map((item) => item.id));
       if (batch.settled.length > 0 || batch.updates.some((update) => !known.has(update.id))) {
         void get().reload();
