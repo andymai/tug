@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/andymai/tug/compare/v0.7.0...v0.7.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **desktop:** open paths byte for byte, and give focus back to the row ([#26](https://github.com/andymai/tug/issues/26)) ([054ea49](https://github.com/andymai/tug/commit/054ea490bf4a1d49000764f44872737d238eef3f))
+
 ## [0.7.0](https://github.com/andymai/tug/compare/v0.6.1...v0.7.0) (2026-11-08)
 
 
