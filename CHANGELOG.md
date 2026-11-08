@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/andymai/tug/compare/v0.13.0...v0.13.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **desktop:** report tray failures, read the library once a second, fix a check race ([#53](https://github.com/andymai/tug/issues/53)) ([961ad22](https://github.com/andymai/tug/commit/961ad229c806888893a6a2e12adfd6553ff69b21))
+
 ## [0.13.0](https://github.com/andymai/tug/compare/v0.12.1...v0.13.0) (2026-11-08)
 
 
