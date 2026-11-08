@@ -218,6 +218,31 @@ impl Store {
             .optional()?)
     }
 
+    pub fn setting_bytes(&self, key: &str) -> Result<Option<Vec<u8>>, StoreError> {
+        Ok(self
+            .conn
+            .query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
+                row.get(0)
+            })
+            .optional()?)
+    }
+
+    pub fn set_setting_bytes(&self, key: &str, value: &[u8]) -> Result<(), StoreError> {
+        self.conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?1, ?2)
+             ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_setting(&self, key: &str) -> Result<bool, StoreError> {
+        Ok(self
+            .conn
+            .execute("DELETE FROM settings WHERE key = ?1", [key])?
+            > 0)
+    }
+
     pub fn set_setting(&self, key: &str, value: &str) -> Result<(), StoreError> {
         self.conn.execute(
             "INSERT INTO settings (key, value) VALUES (?1, ?2)
@@ -436,6 +461,21 @@ mod tests {
         store.set_setting("connections", "8").unwrap();
         store.set_setting("connections", "16").unwrap();
         assert_eq!(store.setting("connections").unwrap().as_deref(), Some("16"));
+    }
+
+    #[test]
+    fn byte_settings_round_trip_and_settings_can_be_removed() {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .set_setting_bytes("download_dir", b"/home/u/caf\xe9")
+            .unwrap();
+        assert_eq!(
+            store.setting_bytes("download_dir").unwrap().as_deref(),
+            Some(&b"/home/u/caf\xe9"[..])
+        );
+        assert!(store.remove_setting("download_dir").unwrap());
+        assert!(!store.remove_setting("download_dir").unwrap());
+        assert_eq!(store.setting_bytes("download_dir").unwrap(), None);
     }
 
     #[test]

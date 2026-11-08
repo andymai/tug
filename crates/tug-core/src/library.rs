@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::SystemTime;
 
+use mdm_engine::limiter::Limiter;
 use mdm_engine::naming::part_path;
 use mdm_engine::state::state_path;
 use url::Url;
 
+use crate::settings::{Settings, SettingsError};
 use crate::store::{Download, DownloadId, DownloadState, NewDownload, Store, StoreError};
-use crate::transfer::{Finished, Phase, Progress, Transfer};
+use crate::transfer::{Finished, Phase, Progress, Transfer, TransferOptions};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -17,6 +19,8 @@ pub enum LibraryError {
     Store(#[from] StoreError),
     #[error(transparent)]
     Engine(#[from] mdm_engine::Error),
+    #[error(transparent)]
+    Settings(#[from] SettingsError),
     #[error("there is no download {0}")]
     Unknown(i64),
     #[error("could not delete {}: {source}", path.display())]
@@ -39,15 +43,18 @@ struct Running {
 pub struct Library {
     store: Mutex<Store>,
     running: tokio::sync::Mutex<HashMap<DownloadId, Running>>,
-    connections: u32,
+    settings: Mutex<Settings>,
+    limiter: Arc<Limiter>,
 }
 
 impl Library {
-    pub async fn open(store: Store, connections: u32) -> Result<Self, LibraryError> {
+    pub async fn open(store: Store) -> Result<Self, LibraryError> {
+        let settings = Settings::load(&store)?;
         let library = Self {
+            limiter: Arc::new(Limiter::new(settings.speed_limit)),
+            settings: Mutex::new(settings),
             store: Mutex::new(store),
             running: tokio::sync::Mutex::default(),
-            connections,
         };
         let interrupted: Vec<Download> = library
             .store()?
@@ -70,6 +77,22 @@ impl Library {
         let download = self.get(id)?;
         self.launch(&download).await?;
         Ok(id)
+    }
+
+    pub fn settings(&self) -> Result<Settings, LibraryError> {
+        Ok(self
+            .settings
+            .lock()
+            .map_err(|_| LibraryError::Poisoned)?
+            .clone())
+    }
+
+    pub fn update_settings(&self, settings: Settings) -> Result<(), LibraryError> {
+        settings.validate()?;
+        settings.save(&*self.store()?)?;
+        self.limiter.set(settings.speed_limit);
+        *self.settings.lock().map_err(|_| LibraryError::Poisoned)? = settings;
+        Ok(())
     }
 
     pub fn get(&self, id: DownloadId) -> Result<Download, LibraryError> {
@@ -167,9 +190,13 @@ impl Library {
             .file
             .as_deref()
             .filter(|file| state_path(file).exists());
+        let options = TransferOptions {
+            connections: self.settings()?.connections,
+            limiter: Some(Arc::clone(&self.limiter)),
+        };
         let transfer = match resumable {
-            Some(file) => Transfer::resume(file, self.connections)?,
-            None => Transfer::start(download.url.clone(), &download.dir, self.connections),
+            Some(file) => Transfer::resume(file, &options)?,
+            None => Transfer::start(download.url.clone(), &download.dir, &options),
         };
         self.store()?.set_state(
             download.id,
