@@ -1,0 +1,70 @@
+apps/extension/src/api.ts
+  s_b050dc8a593981::t_03c72d8df3622b 1-54
+apps/extension/src/main.ts
+  s_b050dc8a593981::t_f3c5f80e5d7f01 1-6
+apps/extension/scripts/capture.ts
+  s_b050dc8a593981::t_317168f4c1cf2b 1-5,8-59
+  s_b050dc8a593981::t_dda1b8697393ee 6-7
+apps/extension/tsconfig.build.json
+  s_b050dc8a593981::t_8714e55c42afd6 1-11,15-16
+  s_b050dc8a593981::t_83bafcd9c5940f 12-14
+apps/extension/src/capture.ts
+  s_b050dc8a593981::t_2f9eaf3d47bb9f 1-59
+scripts/tray/slow_server.py
+  s_b050dc8a593981::t_daf725f41e8c6b 57-64
+.github/workflows/ci.yml
+  s_b050dc8a593981::t_ae1775a6accea5 150-153
+.gitignore
+  s_b050dc8a593981::t_4ab43c6470e657 6
+apps/extension/test/capture.test.ts
+  s_b050dc8a593981::t_3020805aa293bc 1-158
+release-please-config.json
+  s_b050dc8a593981::t_4ab43c6470e657 20-24
+apps/extension/tsconfig.json
+  s_b050dc8a593981::t_8714e55c42afd6 1-31
+apps/extension/eslint.config.js
+  s_b050dc8a593981::t_8714e55c42afd6 1-19
+apps/extension/src/background.ts
+  s_b050dc8a593981::t_76c6c9cc41f579 1-20
+apps/extension/src/rules.ts
+  s_b050dc8a593981::t_4b03338162243d 1-20
+apps/extension/test/fake.ts
+  s_b050dc8a593981::t_4f1fc72bd60edb 1-81
+apps/extension/src/tug.ts
+  s_b050dc8a593981::t_2a5c8789341b50 1-29
+apps/extension/test/manifest.test.ts
+  s_b050dc8a593981::t_cc8ee1cd52232b 17
+  s_b050dc8a593981::t_fdb0527f4f8490 1-16,18-58
+apps/extension/src/manifest.ts
+  s_b050dc8a593981::t_c3d195349dbedd 1-41
+apps/extension/package.json
+  s_b050dc8a593981::t_dda1b8697393ee 17
+  s_b050dc8a593981::t_8714e55c42afd6 1-16,18-22
+apps/extension/src/origin.ts
+  s_b050dc8a593981::t_da02c3bc8a1d7f 1-31
+apps/extension/scripts/build.ts
+  s_b050dc8a593981::t_c3d195349dbedd 1-22
+scripts/extension/check.sh
+  s_b050dc8a593981::t_dda1b8697393ee 1-47
+CLAUDE.md
+  s_b050dc8a593981::t_ae1775a6accea5 15,44,51
+  s_b050dc8a593981::t_3e957275b04170 52
+pnpm-lock.yaml
+  s_b050dc8a593981::t_f5a47584a81d7e 112-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1818eeab4632baba574f9b31ee8e35abe8a49492",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
