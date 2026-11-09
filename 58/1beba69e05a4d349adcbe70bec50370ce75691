@@ -1,0 +1,20 @@
+apps/desktop/src-tauri/src/cli.rs
+  s_b050dc8a593981::t_ed6951029f2c87 44-55,71-75,123,127-132,185,224-238
+  s_b050dc8a593981::t_3455f1d3129790 239-240
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "581beba69e05a4d349adcbe70bec50370ce75691",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
