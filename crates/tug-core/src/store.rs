@@ -80,6 +80,9 @@ const MIGRATIONS: &[&str] = &[
     r"
     ALTER TABLE downloads ADD COLUMN name TEXT;
 ",
+    r"
+    ALTER TABLE torrents ADD COLUMN files TEXT;
+",
 ];
 
 // The search table's names come from Rust, so it fills the table when it adds it.
@@ -660,6 +663,41 @@ impl Store {
         Ok(())
     }
 
+    // The chosen files' indexes, as in the .torrent's list; None takes them all.
+    pub fn torrent_files(&self, id: DownloadId) -> Result<Option<Vec<usize>>, StoreError> {
+        let text: Option<Option<String>> = self
+            .conn
+            .query_row(
+                "SELECT files FROM torrents WHERE download_id = ?1",
+                [id.0],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(text.flatten().map(|text| {
+            text.split(',')
+                .filter_map(|index| index.parse().ok())
+                .collect()
+        }))
+    }
+
+    pub fn set_torrent_files(
+        &self,
+        id: DownloadId,
+        files: Option<&[usize]>,
+    ) -> Result<bool, StoreError> {
+        let text = files.map(|files| {
+            files
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",")
+        });
+        Ok(self.conn.execute(
+            "UPDATE torrents SET files = ?2 WHERE download_id = ?1",
+            params![id.0, text],
+        )? > 0)
+    }
+
     pub fn torrent(&self, id: DownloadId) -> Result<Option<(String, Vec<u8>)>, StoreError> {
         Ok(self
             .conn
@@ -911,7 +949,7 @@ mod tests {
     #[test]
     fn migrates_a_fresh_database_to_the_latest_schema() {
         let store = Store::open_in_memory().unwrap();
-        assert_eq!(store.schema_version().unwrap(), 8);
+        assert_eq!(store.schema_version().unwrap(), 9);
         assert!(store.list().unwrap().is_empty());
     }
 
@@ -924,7 +962,7 @@ mod tests {
             .insert(&new("https://example.org/a.iso", "/home/u/Downloads"))
             .unwrap();
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 8);
+        assert_eq!(store.schema_version().unwrap(), 9);
         assert_eq!(
             store.get(id).unwrap().unwrap().url.as_str(),
             "https://example.org/a.iso"
@@ -984,7 +1022,7 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 8);
+        assert_eq!(store.schema_version().unwrap(), 9);
         let id = store
             .insert(&new("https://example.org/a.iso", "/d"))
             .unwrap();
@@ -1187,7 +1225,7 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 8);
+        assert_eq!(store.schema_version().unwrap(), 9);
         assert_eq!(store.search("backup").unwrap().len(), 1);
     }
 

@@ -104,6 +104,8 @@ pub struct TorrentJob {
     pub magnet: String,
     pub torrent: Option<(String, Vec<u8>)>,
     pub dir: PathBuf,
+    // The chosen files' indexes; None takes them all.
+    pub files: Option<Vec<usize>>,
 }
 
 type Learned = Arc<Mutex<Option<(String, Vec<u8>)>>>;
@@ -332,7 +334,7 @@ async fn run_torrent(
             let mut peers = swarm.options.peers.clone();
             peers.extend(meta.peers.iter().copied());
             session
-                .add(&meta.torrent, &folder, None, peers, false)
+                .add(&meta.torrent, &folder, job.files.clone(), peers, false)
                 .await?;
         }
         loop {

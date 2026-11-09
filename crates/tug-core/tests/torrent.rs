@@ -158,6 +158,65 @@ async fn a_torrent_file_downloads_its_files_from_a_seeder() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_torrent_downloads_only_the_files_chosen_for_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    // Whole pieces each (16 KiB), so no piece spans both files.
+    let seeder = seeder(
+        tmp.path(),
+        vec![
+            ("a.bin", bytes(64 * 1024, 251)),
+            ("b.bin", bytes(64 * 1024, 13)),
+        ],
+    )
+    .await;
+    let library = leecher(tmp.path(), Some(&seeder)).await;
+    let got = tmp.path().join("got");
+    let id = library
+        .add_torrent_paused(TorrentSource::File(seeder.torrent.clone()), &got)
+        .await
+        .unwrap();
+
+    let view = library.torrent_view(id).await.unwrap().unwrap();
+    let file = |view: &tug_core::TorrentView, name: &str| {
+        view.files
+            .iter()
+            .find(|f| f.path == std::path::Path::new(name))
+            .cloned()
+            .unwrap()
+    };
+    assert_eq!(view.files.len(), 2, "{view:?}");
+    assert!(view.files.iter().all(|f| f.chosen && f.done == 0));
+    let a = file(&view, "a.bin").index;
+    assert!(matches!(
+        library.choose_files(id, &[]).await,
+        Err(LibraryError::BadFiles)
+    ));
+    assert!(matches!(
+        library.choose_files(id, &[99]).await,
+        Err(LibraryError::BadFiles)
+    ));
+    library.choose_files(id, &[a]).await.unwrap();
+    let chosen = library.torrent_view(id).await.unwrap().unwrap();
+    assert!(file(&chosen, "a.bin").chosen && !file(&chosen, "b.bin").chosen);
+
+    library.resume(id).await.unwrap();
+    tick_until(&library, id, DownloadState::Done).await;
+    let done = library.get(id).unwrap();
+    assert_eq!(done.size, Some(64 * 1024), "only the chosen file counts");
+    assert_eq!(
+        std::fs::read(got.join("set").join("a.bin")).unwrap(),
+        seeder.files[0].1
+    );
+    let after = library.torrent_view(id).await.unwrap().unwrap();
+    assert_eq!(file(&after, "a.bin").done, 64 * 1024);
+    assert!(!file(&after, "b.bin").chosen);
+    assert!(matches!(
+        library.choose_files(id, &[a]).await,
+        Err(LibraryError::TorrentDone)
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_finished_torrent_takes_its_empty_folder_along() {
     let tmp = tempfile::tempdir().unwrap();
     let seeder = seeder(

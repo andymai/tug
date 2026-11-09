@@ -26,7 +26,9 @@ pub use settings::{
 pub use store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Place, Store, StoreError,
 };
-pub use torrent::{LOOKUP_WAIT, TorrentOptions, TorrentSource};
+pub use torrent::{
+    LOOKUP_WAIT, TorrentFile, TorrentOptions, TorrentPeer, TorrentSource, TorrentView,
+};
 pub use transfer::{
     Finished, Phase, Progress, Transfer, TransferError, TransferOptions, USER_AGENT,
 };

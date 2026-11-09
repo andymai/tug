@@ -16,7 +16,7 @@ use crate::settings::{Settings, SettingsError, check_own};
 use crate::store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Place, Store, StoreError,
 };
-use crate::torrent::{Swarm, TorrentOptions, TorrentSource};
+use crate::torrent::{Swarm, TorrentOptions, TorrentSource, TorrentView};
 
 const LIST_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
 use crate::transfer::{
@@ -57,6 +57,12 @@ pub enum LibraryError {
     NoHeaders,
     #[error(transparent)]
     Origin(#[from] OriginError),
+    #[error("Tug knows this torrent's files once its peers send them")]
+    NoFileList,
+    #[error("choose at least one of the torrent's files")]
+    BadFiles,
+    #[error("a finished torrent's files are there already")]
+    TorrentDone,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -254,6 +260,101 @@ impl Library {
         drop(store);
         self.changed(id);
         Ok(origin)
+    }
+
+    // From the session while it holds the torrent (running or paused), else from
+    // the .torrent Tug keeps; a magnet link has nothing until its peers answer.
+    pub async fn torrent_view(&self, id: DownloadId) -> Result<Option<TorrentView>, LibraryError> {
+        let download = self.get(id)?;
+        let (Some(swarm), true) = (&self.swarm, download.is_torrent()) else {
+            return Ok(None);
+        };
+        let Some((hash, bytes)) = self.store()?.torrent(id)? else {
+            return Ok(None);
+        };
+        let chosen = self.store()?.torrent_files(id)?;
+        let session = swarm.session().await?;
+        if let Some((entries, only, _)) = session.files(&hash) {
+            let stats = session.stats(&hash).ok();
+            let done = |index: usize| {
+                stats
+                    .as_ref()
+                    .and_then(|s| s.file_done.get(index).copied())
+                    .unwrap_or(0)
+            };
+            return Ok(Some(TorrentView {
+                files: crate::torrent::files_of(&entries, only.as_deref(), done),
+                peers: session
+                    .peers(&hash)
+                    .into_iter()
+                    .map(crate::torrent::peer_of)
+                    .collect(),
+                uploaded: stats.as_ref().map_or(0, |s| s.uploaded),
+                peers_live: stats.as_ref().map_or(0, |s| s.peers_live),
+                peers_seen: stats.as_ref().map_or(0, |s| s.peers_seen),
+            }));
+        }
+        let meta = session
+            .metadata(&mdm_torrent::Source::File(bytes), LIST_WAIT, None)
+            .await?;
+        let finished = download.state == DownloadState::Done;
+        let sizes: Vec<u64> = meta.files.iter().map(|f| f.size).collect();
+        let done = |index: usize| {
+            if finished {
+                sizes.get(index).copied().unwrap_or(0)
+            } else {
+                0
+            }
+        };
+        Ok(Some(TorrentView {
+            files: crate::torrent::files_of(&meta.files, chosen.as_deref(), done),
+            peers: Vec::new(),
+            uploaded: 0,
+            peers_live: 0,
+            peers_seen: 0,
+        }))
+    }
+
+    // Live while the session holds it, and for its next start.
+    pub async fn choose_files(&self, id: DownloadId, files: &[usize]) -> Result<(), LibraryError> {
+        let running = self.running.lock().await;
+        let download = self.get(id)?;
+        if !download.is_torrent() {
+            return Err(LibraryError::NotATorrent);
+        }
+        if download.state == DownloadState::Done {
+            return Err(LibraryError::TorrentDone);
+        }
+        let swarm = self.swarm.as_ref().ok_or(LibraryError::NoTorrents)?;
+        let (hash, bytes) = self.store()?.torrent(id)?.ok_or(LibraryError::NoFileList)?;
+        let session = swarm.session().await?;
+        let entries = match session.files(&hash) {
+            Some((entries, _, _)) => entries,
+            None => {
+                session
+                    .metadata(&mdm_torrent::Source::File(bytes), LIST_WAIT, None)
+                    .await?
+                    .files
+            }
+        };
+        let mut chosen: Vec<usize> = files.to_vec();
+        chosen.sort_unstable();
+        chosen.dedup();
+        let real = |index: &usize| entries.get(*index).is_some_and(|e| !e.padding);
+        if chosen.is_empty() || !chosen.iter().all(real) {
+            return Err(LibraryError::BadFiles);
+        }
+        let all = entries.iter().filter(|e| !e.padding).count() == chosen.len();
+        self.store()?
+            .set_torrent_files(id, (!all).then_some(chosen.as_slice()))?;
+        if session.has(&hash) {
+            session
+                .choose(&hash, &chosen.iter().copied().collect())
+                .await?;
+        }
+        drop(running);
+        self.changed(id);
+        Ok(())
     }
 
     // The connections take effect at the next start; the speed limit at once.
@@ -836,6 +937,7 @@ impl Library {
                 magnet: download.url.to_string(),
                 torrent,
                 dir: download.dir.clone(),
+                files: self.store()?.torrent_files(download.id)?,
             },
             Arc::clone(&self.limiter),
         );
