@@ -168,7 +168,6 @@ impl Settings {
         Ok(())
     }
 
-    // In the slow hours the lower of the two limits holds.
     pub fn speed_limit_at(&self, weekday: u8, minute: u16) -> Option<u64> {
         match self.slow_hours {
             Some(slow) if slow.hours.is_open(weekday, minute) => Some(

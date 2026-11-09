@@ -128,7 +128,6 @@ function AppearanceChoice({ value, onChange }: { value: Appearance; onChange: (v
   );
 }
 
-// A speed in MB/s, saved when the field loses focus or on Enter.
 function LimitRow({ label, description, bytes, onChange }: { label: string; description: string; bytes: number; onChange: (bytes: number) => void }) {
   const fieldId = useId();
   const [draft, setDraft] = useState(formatLimit(bytes));
