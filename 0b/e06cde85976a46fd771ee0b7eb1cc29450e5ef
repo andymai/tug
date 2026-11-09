@@ -1,0 +1,25 @@
+apps/desktop/src/lib/options.test.ts
+  s_b321718d129a1e::t_5ef4b7cac4adef 1-21
+apps/desktop/src/App.test.tsx
+  s_b321718d129a1e::t_5ef4b7cac4adef 443-477
+apps/desktop/src/components/DetailPanel.tsx
+  s_b321718d129a1e::t_5ef4b7cac4adef 18,88-90,97,100-101,109-110,116,142,160
+apps/desktop/src/lib/options.ts
+  s_b321718d129a1e::t_5ef4b7cac4adef 27,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0be06cde85976a46fd771ee0b7eb1cc29450e5ef",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
