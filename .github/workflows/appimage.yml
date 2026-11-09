@@ -1,0 +1,63 @@
+name: AppImage
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release tag to build and upload to
+        type: string
+        required: true
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/appimage.yml
+      - apps/desktop/src-tauri/tauri.conf.json
+      - packaging/**
+
+permissions: {}
+
+jobs:
+  appimage:
+    name: AppImage
+    # The oldest supported Ubuntu, so the AppImage needs only an older glibc.
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: ./.github/actions/setup
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build the AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: pnpm --filter @tug/desktop tauri build --bundles appimage
+      - name: Check the AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends desktop-file-utils xvfb
+          image=$(ls target/release/bundle/appimage/*.AppImage)
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+          (cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/$image" --appimage-extract > /dev/null)
+          desktop-file-validate "$RUNNER_TEMP"/squashfs-root/*.desktop
+          # The app must still be running when timeout stops it (exit 124).
+          status=0
+          XDG_CONFIG_HOME="$RUNNER_TEMP/config" XDG_DATA_HOME="$RUNNER_TEMP/data" XDG_CACHE_HOME="$RUNNER_TEMP/cache" \
+            xvfb-run -a dbus-run-session -- timeout 15 "$image" || status=$?
+          [ "$status" -eq 124 ] || { echo "::error::the AppImage exited early with $status"; exit 1; }
+          test -f "$RUNNER_TEMP/data/io.github.andymai.Tug/tug.db"
+      - name: Upload to the release
+        if: inputs.tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" "$IMAGE" --clobber --repo "$GITHUB_REPOSITORY"

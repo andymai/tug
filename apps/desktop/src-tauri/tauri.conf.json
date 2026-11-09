@@ -24,12 +24,23 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": [
+      "appimage"
+    ],
+    "shortDescription": "Fast, resumable downloads",
+    "longDescription": "Tug pulls every file over many connections and picks up exactly where it stopped, after a pause, a crash or a dropped connection.",
+    "license": "GPL-3.0-or-later",
     "icon": [
       "../../../brand/png/tug-32.png",
       "../../../brand/png/tug-128.png",
       "../../../brand/png/tug-256.png",
       "../../../brand/png/tug-512.png"
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "desktopTemplate": "../../../packaging/appimage.desktop.hbs"
+      }
+    }
   }
 }
