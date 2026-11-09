@@ -1,0 +1,25 @@
+.github/workflows/appimage.yml
+  s_b050dc8a593981::t_052448156faf1e 15-16,18,61-75
+CLAUDE.md
+  s_b050dc8a593981::t_8509d2556887e2 50,58
+apps/desktop/src-tauri/src/browsers.rs
+  s_b050dc8a593981::t_0d71fba9d157f7 68,80-81,131,137-138,140-167,290,307,521-542
+apps/desktop/src-tauri/tauri.conf.json
+  s_b050dc8a593981::t_b4e877d656b99d 8,44-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd13f8cecc28ae4d66c941aadfeb96c8730f11e1",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
