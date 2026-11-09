@@ -65,6 +65,7 @@ pub struct Report {
 pub struct Places {
     pub home: PathBuf,
     pub config: PathBuf,
+    pub data: PathBuf,
 }
 
 impl Places {
@@ -76,7 +77,8 @@ impl Places {
         };
         let home = absolute("HOME")?;
         let config = absolute("XDG_CONFIG_HOME").unwrap_or_else(|| home.join(".config"));
-        Some(Self { home, config })
+        let data = absolute("XDG_DATA_HOME").unwrap_or_else(|| home.join(".local").join("share"));
+        Some(Self { home, config, data })
     }
 }
 
@@ -126,17 +128,43 @@ fn targets(places: &Places) -> Vec<Target> {
     all
 }
 
-pub fn host_path() -> Result<PathBuf, String> {
+pub fn host_path(places: &Places) -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| format!("couldn't find tug: {e}"))?;
     let host = exe
         .parent()
         .ok_or("couldn't find tug's folder")?
         .join("tug-host");
-    if host.is_file() {
-        Ok(host)
-    } else {
-        Err(format!("tug-host isn't next to tug at {}", host.display()))
+    if !host.is_file() {
+        return Err(format!("tug-host isn't next to tug at {}", host.display()));
     }
+    match std::env::var_os("APPIMAGE")
+        .map(PathBuf::from)
+        .filter(|image| image.is_absolute())
+    {
+        Some(image) => settle(
+            &host,
+            &image,
+            &places.data.join(tug_ipc::APP_ID).join("host"),
+        ),
+        None => Ok(host),
+    }
+}
+
+// An AppImage's files exist only while it runs, so the host moves out, beside a
+// `tug` that starts the AppImage for tug-host to launch.
+fn settle(host: &Path, image: &Path, dir: &Path) -> Result<PathBuf, String> {
+    let Some(image) = image.to_str() else {
+        return Err(format!("{} isn't valid UTF-8", image.display()));
+    };
+    let bytes = fs::read(host).map_err(|e| format!("couldn't read {}: {e}", host.display()))?;
+    let settled = dir.join("tug-host");
+    let tug = dir.join("tug");
+    let launcher = format!("#!/bin/sh\nexec {} \"$@\"\n", quoted(image));
+    for (path, contents) in [(&settled, bytes.as_slice()), (&tug, launcher.as_bytes())] {
+        write_file(path, contents, 0o755)
+            .map_err(|e| format!("couldn't write {}: {e}", path.display()))?;
+    }
+    Ok(settled)
 }
 
 pub fn flatpak_permission(app: &str) -> Option<bool> {
@@ -259,7 +287,7 @@ fn write_file(path: &Path, bytes: &[u8], mode: u32) -> io::Result<()> {
 
 pub fn register_everywhere() -> Result<Vec<Report>, String> {
     let places = Places::from_env().ok_or("HOME is not set")?;
-    let host = host_path()?;
+    let host = host_path(&places)?;
     Ok(register(&places, &host, &flatpak_permission))
 }
 
@@ -276,6 +304,7 @@ mod tests {
         let places = Places {
             home: dir.path().join("home"),
             config: dir.path().join("home").join(".config"),
+            data: dir.path().join("home").join(".local").join("share"),
         };
         (dir, places)
     }
@@ -487,6 +516,28 @@ mod tests {
                 .with_file_name("io.github.andymai.tug.json.new")
                 .exists()
         );
+    }
+
+    #[test]
+    fn an_appimage_host_moves_out_beside_a_tug_that_starts_the_image() {
+        let dir = tempfile::tempdir().unwrap();
+        let mounted = dir.path().join("mount").join("tug-host");
+        fs::create_dir_all(mounted.parent().unwrap()).unwrap();
+        fs::write(&mounted, b"\x7fELF host").unwrap();
+        let image = dir.path().join("Tug's 1.0.AppImage");
+        fs::write(&image, "#!/bin/sh\nprintf '%s,' \"$@\"\n").unwrap();
+        fs::set_permissions(&image, Permissions::from_mode(0o755)).unwrap();
+        let out = dir.path().join("data").join("host");
+
+        let settled = settle(&mounted, &image, &out).unwrap();
+        assert_eq!(settled, out.join("tug-host"));
+        assert_eq!(fs::read(&settled).unwrap(), b"\x7fELF host");
+        assert_eq!(fs::metadata(&settled).unwrap().mode() & 0o777, 0o755);
+        let started = Command::new(out.join("tug"))
+            .args(["add", "a b"])
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8(started.stdout).unwrap(), "add,a b,");
     }
 
     #[test]

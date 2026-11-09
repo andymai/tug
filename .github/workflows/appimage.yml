@@ -12,7 +12,10 @@ on:
     paths:
       - .github/workflows/appimage.yml
       - apps/desktop/src-tauri/tauri.conf.json
+      - apps/desktop/src-tauri/src/browsers.rs
+      - crates/tug-host/**
       - packaging/**
+      - scripts/host/**
 
 permissions: {}
 
@@ -55,6 +58,21 @@ jobs:
             xvfb-run -a dbus-run-session -- timeout 15 "$image" || status=$?
           [ "$status" -eq 124 ] || { echo "::error::the AppImage exited early with $status"; exit 1; }
           test -f "$RUNNER_TEMP/data/io.github.andymai.Tug/tug.db"
+          # The browser host lives in the AppImage's mount, which goes away when
+          # it stops, so `tug browsers` must move it out and name the copy.
+          home="$RUNNER_TEMP/home"
+          mkdir -p "$home/.config/google-chrome"
+          touch "$home/.config/google-chrome/Local State"
+          mkdir -m 700 "$RUNNER_TEMP/runtime"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/runtime"
+          HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$RUNNER_TEMP/data" "$image" browsers
+          host=$(jq -r .path "$home/.config/google-chrome/NativeMessagingHosts/io.github.andymai.tug.json")
+          test "$host" = "$RUNNER_TEMP/data/io.github.andymai.Tug/host/tug-host"
+          python3 scripts/host/talk.py "$host" '{"id":1,"type":"ping"}' | tee /dev/stderr | grep -q '"running": false'
+          # A show starts the AppImage through the `tug` beside the host.
+          XDG_CONFIG_HOME="$RUNNER_TEMP/config" XDG_DATA_HOME="$RUNNER_TEMP/data" XDG_CACHE_HOME="$RUNNER_TEMP/cache" \
+            xvfb-run -a dbus-run-session -- python3 scripts/host/talk.py "$host" '{"id":2,"type":"show"}' \
+            | tee /dev/stderr | grep -q '"type": "shown"'
       - name: Upload to the release
         if: inputs.tag
         env:
