@@ -11,7 +11,8 @@ Design tokens: `design/tokens.json`. Brand sources: `brand/`.
 | `crates/tug-core` | The app layer: transfers, the library, queues, settings, SQLite persistence | `mdm-*` crates, std, crates.io |
 | `apps/desktop` | React 19 UI (Vite, Tailwind 4, TypeScript) | the design tokens |
 | `apps/desktop/src-tauri` | Tauri 2 shell, crate `tug-desktop`, binary `tug` | `tug-core`, never `mdm-*` |
-| `crates/tug-host` (planned) | Browser native messaging host | `tug-core` |
+| `crates/tug-ipc` | The local socket: one Tug per session, `tug add` and `tug list`, the browser host. JSON lines over a Unix socket in `$XDG_RUNTIME_DIR/app/io.github.andymai.Tug/` (`…Tug.Devel/` for debug builds) with a 0600 token | std, serde, tokio |
+| `crates/tug-host` (planned) | Browser native messaging host | `tug-ipc` |
 | `design/tokens.json` | The design system's tokens; `scripts/gen-tokens.py` writes `apps/desktop/src/styles/tokens.css` (CSS variables, Tailwind `@theme`, `.text-*` type styles) | nothing |
 | `brand/` | Mark, icons, wordmark: `build.py` draws every SVG, `export.sh` renders PNGs | nothing |
 
@@ -41,6 +42,8 @@ distrobox enter dev -- bash -lc 'cd ~/Git/tug && PKG_CONFIG=/usr/bin/pkg-config 
 - Visual tests: Vitest browser mode drives Playwright's Chromium in a `light` and a `dark` instance, and compares each shot with `src/__screenshots__`. Make or update references in the container, which matches CI's Ubuntu 24.04, then look at every changed PNG before you commit it: `distrobox enter dev -- bash -lc 'cd ~/Git/tug/apps/desktop && ./node_modules/.bin/vitest run --project visual --update'`. A failed comparison leaves the actual image and a diff in `.vitest/attachments` (CI uploads them as `visual-diffs`). Bump `playwright` by hand, with fresh references: a new version brings a new Chromium.
 
 Screenshots of the real app, off the screen: run `pnpm --filter @tug/desktop dev` on the host, then in the container run `target/debug/tug` under `dbus-run-session -- xvfb-run` with `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` unset, `GDK_BACKEND=x11` and `GSETTINGS_BACKEND=memory`, and capture with `import -window root`. Light needs an empty `XDG_CONFIG_HOME`; dark needs one whose `gtk-3.0/settings.ini` sets `gtk-application-prefer-dark-theme=1`. Without these the window opens on the real screen or inherits the desktop's theme.
+
+The CLI and single instance, off the screen: with the dev server running, run `scripts/cli/check.sh` in the container. It checks `tug add` (which starts Tug), `tug list`, the socket's permissions, a second `tug` handing off, and a stale socket after a crash.
 
 The tray, off the screen: with the dev server running, run `scripts/tray/check.sh` in the container. It starts the app on a private session bus with a stand-in StatusNotifierWatcher (`scripts/tray/watcher.py`), reads the item and its menu with `busctl`, closes the window with `WM_DELETE_WINDOW` (`scripts/tray/close.py`), and expects Tug to keep running, to show again on Activate, and to exit on **Quit Tug**. It also stops the stand-in host (the window must come back, and closing must quit), and seeds a queued download from a local server that paces every connection to 1 MB/s (`scripts/tray/slow_server.py`) to check the ring icon, the tooltip, and **Pause all** and **Resume all**.
 
