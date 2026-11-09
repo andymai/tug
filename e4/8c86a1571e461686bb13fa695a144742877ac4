@@ -1,0 +1,25 @@
+apps/extension/src/capture.ts
+  s_b050dc8a593981::t_d80a03a59ce5c3 26,42-47,54
+apps/extension/test/capture.test.ts
+  s_b050dc8a593981::t_c19a43eecc6f45 123
+  s_b050dc8a593981::t_d80a03a59ce5c3 121-122,124-136
+apps/extension/test/fake.ts
+  s_b050dc8a593981::t_c19a43eecc6f45 22,71-75,79
+  s_b050dc8a593981::t_c06c74f3beac7e 76-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e48c86a1571e461686bb13fa695a144742877ac4",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
