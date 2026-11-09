@@ -82,8 +82,9 @@ function History({ id, state, revision }: { id: number; state: Download["state"]
   );
 }
 
-// Enter renames, Escape or a click elsewhere keeps the name. The stem is
-// selected first, as file managers do.
+// Enter renames and closes the editor at once, so no answer can drop a newer
+// draft; a refused name says why, and F2 opens the editor again. Escape or a
+// click elsewhere keeps the name. The stem is selected first, as file managers do.
 function NameEditor({ download }: { download: Download }) {
   const startRename = useDownloads((s) => s.startRename);
   const rename = useDownloads((s) => s.rename);
@@ -101,8 +102,8 @@ function NameEditor({ download }: { download: Download }) {
       className="min-w-0 flex-1"
       onSubmit={(event) => {
         event.preventDefault();
-        if (draft.trim() === download.name) startRename(null);
-        else void rename(download.id, draft);
+        startRename(null);
+        if (draft.trim() !== download.name) void rename(download.id, draft);
       }}
     >
       <input

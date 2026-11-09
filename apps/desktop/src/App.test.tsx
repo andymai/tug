@@ -515,6 +515,8 @@ describe("detail panel", () => {
     await user.keyboard("{F2}");
     await user.keyboard("a/b{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent(/Couldn't rename it/);
+    expect(panel.queryByRole("textbox", { name: "Name" }), "Enter closes the editor").not.toBeInTheDocument();
+    await user.keyboard("{F2}");
     await user.clear(panel.getByRole("textbox", { name: "Name" }));
     await user.type(panel.getByRole("textbox", { name: "Name" }), "fonts.zip{Enter}");
     expect(rename).toHaveBeenLastCalledWith(expect.any(Number), "fonts.zip");
@@ -546,6 +548,9 @@ describe("detail panel", () => {
     await user.click(await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
     await user.keyboard("{F2}");
     await user.keyboard("fonts{Enter}");
+    await user.keyboard("{F2}");
+    expect(screen.getByRole("textbox", { name: "Name" }), "a new draft while the answer is on its way").toHaveFocus();
+    await user.keyboard("{Escape}");
     await user.click(screen.getByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }));
     await user.keyboard("{F2}");
     const blender = within(screen.getByRole("complementary", { name: "blender-5.1-linux-x64.tar.xz" }));
