@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/andymai/tug/compare/v0.13.2...v0.14.0) (2026-11-09)
+
+
+### Features
+
+* **core:** one Tug per session over a token-protected socket, with tug add and tug list ([#61](https://github.com/andymai/tug/issues/61)) ([1bab8bd](https://github.com/andymai/tug/commit/1bab8bdf1edaa50748af318fa6c3941b6d676a70))
+
 ## [0.13.2](https://github.com/andymai/tug/compare/v0.13.1...v0.13.2) (2026-11-08)
 
 
