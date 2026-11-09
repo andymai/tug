@@ -1,0 +1,52 @@
+crates/tug-core/src/store.rs
+  s_b050dc8a593981::t_ea92ed0762ded2 216-221,316-319,323-326,665-675,689-714
+  s_b050dc8a593981::t_ec10615dccc1a5 715-716
+apps/extension/dist/chromium/api.js
+  s_b050dc8a593981::t_b2e9fe239496a3 1
+apps/extension/dist/chromium/background.js
+  s_b050dc8a593981::t_5b56993a44506c 1-18
+apps/extension/dist/chromium/capture.js
+  s_b050dc8a593981::t_8d17a68a6dba8f 1-53
+apps/extension/dist/chromium/main.js
+  s_b050dc8a593981::t_b81b46d67d7ae4 1-5
+apps/extension/dist/chromium/manifest.json
+  s_b050dc8a593981::t_ff286fc0a2b7c7 1-27
+apps/extension/dist/chromium/origin.js
+  s_b050dc8a593981::t_4f2c5670f775b5 1-16
+apps/extension/dist/chromium/rules.js
+  s_b050dc8a593981::t_33c6b493315a81 1-20
+apps/extension/dist/chromium/tug.js
+  s_b050dc8a593981::t_a91e7a3c809d97 1-22
+apps/extension/dist/firefox/api.js
+  s_b050dc8a593981::t_34fecdbd8279b7 1
+apps/extension/dist/firefox/background.js
+  s_b050dc8a593981::t_9041abbfd500a5 1-18
+apps/extension/dist/firefox/capture.js
+  s_b050dc8a593981::t_2b1177cfd7730f 1-53
+apps/extension/dist/firefox/main.js
+  s_b050dc8a593981::t_9a65b05bdbd7ff 1-5
+apps/extension/dist/firefox/manifest.json
+  s_b050dc8a593981::t_7a5022f02065b2 1-38
+apps/extension/dist/firefox/origin.js
+  s_b050dc8a593981::t_b77246c21357df 1-16
+apps/extension/dist/firefox/rules.js
+  s_b050dc8a593981::t_2b70569bc07f38 1-20
+apps/extension/dist/firefox/tug.js
+  s_b050dc8a593981::t_19fce84f0403d3 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "929a3449a222d92c1f963a3fde7737cc8936d933",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
