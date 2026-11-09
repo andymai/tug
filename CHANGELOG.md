@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.21.0](https://github.com/andymai/tug/compare/v0.20.0...v0.21.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** show download progress on the Plasma task manager ([#89](https://github.com/andymai/tug/issues/89)) ([ff16959](https://github.com/andymai/tug/commit/ff16959199a381df279728860a08d8b12d4a3543))
+
+
+### Bug Fixes
+
+* **desktop:** start captures paused in one write, and stop asking about started ones ([#90](https://github.com/andymai/tug/issues/90)) ([d73526e](https://github.com/andymai/tug/commit/d73526e230b7d3a91936d1334dbe7883f0abdad0))
+
 ## [0.20.0](https://github.com/andymai/tug/compare/v0.19.1...v0.20.0) (2026-11-09)
 
 
