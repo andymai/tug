@@ -65,7 +65,20 @@ jobs:
           touch "$home/.config/google-chrome/Local State"
           mkdir -m 700 "$RUNNER_TEMP/runtime"
           export XDG_RUNTIME_DIR="$RUNNER_TEMP/runtime"
-          HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$RUNNER_TEMP/data" "$image" browsers
+          # A stand-in flatpak that grants Flatpak Chrome flatpak-spawn and writes down the
+          # environment it got: the AppImage's own libraries must not reach host programs.
+          mkdir -p "$home/.var/app/com.google.Chrome/config/google-chrome" "$RUNNER_TEMP/bin"
+          touch "$home/.var/app/com.google.Chrome/config/google-chrome/Local State"
+          printf '#!/bin/sh\nenv > "%s"\necho org.freedesktop.Flatpak=talk\n' "$RUNNER_TEMP/flatpak.env" > "$RUNNER_TEMP/bin/flatpak"
+          chmod +x "$RUNNER_TEMP/bin/flatpak"
+          HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$RUNNER_TEMP/data" PATH="$RUNNER_TEMP/bin:$PATH" \
+            "$image" browsers | tee "$RUNNER_TEMP/browsers.txt"
+          grep -q "^Google Chrome (Flatpak) *Registered$" "$RUNNER_TEMP/browsers.txt"
+          appdir=$(sed -n "s/^APPDIR=//p" "$RUNNER_TEMP/flatpak.env")
+          if [ -n "$appdir" ] && grep -q "^LD_LIBRARY_PATH=.*$appdir" "$RUNNER_TEMP/flatpak.env"; then
+            echo "::error::flatpak got the AppImage's libraries: $(grep ^LD_LIBRARY_PATH= "$RUNNER_TEMP/flatpak.env")"
+            exit 1
+          fi
           host=$(jq -r .path "$home/.config/google-chrome/NativeMessagingHosts/io.github.andymai.tug.json")
           test "$host" = "$RUNNER_TEMP/data/io.github.andymai.Tug/host/tug-host"
           python3 scripts/host/talk.py "$host" '{"id":1,"type":"ping"}' | tee /dev/stderr | grep -q '"running": false'
