@@ -15,6 +15,7 @@ const CONNECTIONS: &str = "connections";
 const SPEED_LIMIT: &str = "speed_limit";
 const APPEARANCE: &str = "appearance";
 const EXCLUDED_SITES: &str = "excluded_sites";
+const CONFIRM_CAPTURES: &str = "confirm_captures";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Appearance {
@@ -54,6 +55,7 @@ pub struct Settings {
     pub speed_limit: Option<u64>,
     pub appearance: Appearance,
     pub excluded_sites: Vec<String>,
+    pub confirm_captures: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -94,6 +96,7 @@ impl Default for Settings {
             speed_limit: None,
             appearance: Appearance::System,
             excluded_sites: Vec::new(),
+            confirm_captures: true,
         }
     }
 }
@@ -166,12 +169,17 @@ impl Settings {
                 excluded_sites.push(entry.to_owned());
             }
         }
+        let confirm_captures = store
+            .setting(CONFIRM_CAPTURES)?
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(defaults.confirm_captures);
         Ok(Self {
             download_dir,
             connections,
             speed_limit,
             appearance,
             excluded_sites,
+            confirm_captures,
         })
     }
 
@@ -190,6 +198,7 @@ impl Settings {
         } else {
             store.set_setting(EXCLUDED_SITES, &self.excluded_sites.join("\n"))?;
         }
+        store.set_setting(CONFIRM_CAPTURES, &self.confirm_captures.to_string())?;
         Ok(())
     }
 }
@@ -211,6 +220,7 @@ mod tests {
             speed_limit: None,
             appearance: Appearance::System,
             excluded_sites: Vec::new(),
+            confirm_captures: true,
         }
     }
 
@@ -341,6 +351,7 @@ mod tests {
             speed_limit: Some(2 << 20),
             appearance: Appearance::Dark,
             excluded_sites: vec!["example.org".into(), "mail.example.net".into()],
+            confirm_captures: false,
         };
         settings.save(&store).unwrap();
         assert_eq!(Settings::load(&store).unwrap(), settings);
@@ -362,8 +373,10 @@ mod tests {
         store
             .set_setting(EXCLUDED_SITES, "example.org\nNot A Site\nexample.org")
             .unwrap();
+        store.set_setting(CONFIRM_CAPTURES, "sometimes").unwrap();
         let loaded = Settings::load(&store).unwrap();
         assert_eq!(loaded.excluded_sites, vec!["example.org".to_owned()]);
+        assert!(loaded.confirm_captures);
         assert_eq!(
             (loaded.connections, loaded.speed_limit),
             (DEFAULT_CONNECTIONS, None)

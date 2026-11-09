@@ -1,3 +1,4 @@
+import type { CaptureAnswer } from "./bindings/CaptureAnswer";
 import type { ColorScheme } from "./bindings/ColorScheme";
 import type { CommandError } from "./bindings/CommandError";
 import type { ErrorKind } from "./bindings/ErrorKind";
@@ -7,6 +8,7 @@ import type { ProgressBatch } from "./bindings/ProgressBatch";
 import type { Settings } from "./bindings/Settings";
 
 export type { Appearance } from "./bindings/Appearance";
+export type { CaptureAnswer } from "./bindings/CaptureAnswer";
 export type { ColorScheme } from "./bindings/ColorScheme";
 export type { CommandError } from "./bindings/CommandError";
 export type { Download } from "./bindings/Download";
@@ -35,6 +37,9 @@ export interface Backend {
   onColorScheme(listener: (scheme: ColorScheme | null) => void): Promise<() => void>;
   onNotice(listener: (message: string) => void): Promise<() => void>;
   onProgress(listener: (batch: ProgressBatch) => void): Promise<() => void>;
+  pendingCaptures(): Promise<Download[]>;
+  answerCapture(id: number, answer: CaptureAnswer): Promise<void>;
+  onCaptures(listener: (captures: Download[]) => void): Promise<() => void>;
 }
 
 export function isCommandError(error: unknown): error is CommandError {

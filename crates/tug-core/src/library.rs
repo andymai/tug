@@ -82,22 +82,43 @@ impl Library {
         dir: &Path,
         origin: &Origin,
     ) -> Result<DownloadId, LibraryError> {
-        let added = SystemTime::now();
-        let id = {
-            let store = self.store()?;
-            let id = store.insert_from(
-                &NewDownload {
-                    url,
-                    dir: dir.to_owned(),
-                    added,
-                },
-                origin,
-            )?;
-            store.add_event(id, &event(EventKind::Added, added, None, None))?;
-            id
-        };
+        let id = self.insert(url, dir, origin, false)?;
         let download = self.get(id)?;
         self.launch(&download).await?;
+        Ok(id)
+    }
+
+    pub fn add_paused(
+        &self,
+        url: Url,
+        dir: &Path,
+        origin: &Origin,
+    ) -> Result<DownloadId, LibraryError> {
+        self.insert(url, dir, origin, true)
+    }
+
+    fn insert(
+        &self,
+        url: Url,
+        dir: &Path,
+        origin: &Origin,
+        paused: bool,
+    ) -> Result<DownloadId, LibraryError> {
+        let added = SystemTime::now();
+        let store = self.store()?;
+        let id = store.insert_from(
+            &NewDownload {
+                url,
+                dir: dir.to_owned(),
+                added,
+            },
+            origin,
+        )?;
+        if paused {
+            store.set_state(id, DownloadState::Paused, None, added)?;
+        }
+        store.add_event(id, &event(EventKind::Added, added, None, None))?;
+        drop(store);
         Ok(id)
     }
 

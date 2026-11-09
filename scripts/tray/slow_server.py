@@ -1,5 +1,7 @@
+import html
 import http.server
 import os
+import urllib.parse
 import re
 import sys
 import threading
@@ -25,7 +27,7 @@ def pace(n):
 class Slow(http.server.BaseHTTPRequestHandler):
     def send_range(self, body):
         if LOG:
-            fields = [self.path] + [self.headers.get(h, "") for h in ("Cookie", "Referer", "User-Agent")]
+            fields = [self.path] + [self.headers.get(h, "") for h in ("Cookie", "Referer", "User-Agent", "Sec-Fetch-Mode")]
             with lock, open(LOG, "a") as log:
                 log.write("\t".join(fields) + "\n")
         start, end = 0, SIZE - 1
@@ -54,8 +56,10 @@ class Slow(http.server.BaseHTTPRequestHandler):
         self.send_range(False)
 
     def do_GET(self):
-        if self.path.endswith(".html"):
-            body = b'<!doctype html><a id="file" href="/captured.bin">captured.bin</a>'
+        page = urllib.parse.urlsplit(self.path)
+        if page.path.endswith(".html"):
+            name = urllib.parse.parse_qs(page.query).get("file", ["captured.bin"])[0]
+            body = f'<!doctype html><a id="file" href="/{html.escape(name)}">{html.escape(name)}</a>'.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.send_header("Content-Length", str(len(body)))

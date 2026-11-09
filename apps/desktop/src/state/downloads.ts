@@ -3,6 +3,7 @@ import { createStore } from "zustand/vanilla";
 import {
   type Backend,
   BackendError,
+  type CaptureAnswer,
   type ColorScheme,
   type Download,
   type DownloadEvent,
@@ -38,6 +39,7 @@ export interface DownloadsState {
   history: { id: number; events: DownloadEvent[] } | null;
   overlay: Overlay;
   focusRequest: number | null;
+  captures: Download[];
   init: () => Promise<() => void>;
   reload: () => Promise<void>;
   applyBatch: (batch: ProgressBatch) => void;
@@ -61,6 +63,7 @@ export interface DownloadsState {
   closeAdd: () => void;
   addLinks: (hrefs: readonly string[]) => Promise<void>;
   settleFresh: (id: number) => void;
+  answerCapture: (id: number, answer: CaptureAnswer) => Promise<void>;
 }
 
 export type Overlay = "commands" | "shortcuts" | null;
@@ -131,6 +134,7 @@ export function createDownloadsStore(backend: Backend) {
       history: null,
       overlay: null,
       focusRequest: null,
+      captures: [],
 
       init: async () => {
         let stop: () => void = () => undefined;
@@ -149,6 +153,14 @@ export function createDownloadsStore(backend: Backend) {
             set({ notice: BackendError.from(error).message });
             return () => undefined;
           });
+        let capturesEvent = false;
+        const uncapture = await backend
+          .onCaptures((captures) => {
+            capturesEvent = true;
+            set({ captures });
+            void get().reload();
+          })
+          .catch(() => () => undefined);
         let schemeEvent = false;
         const unwatch = await backend
           .onColorScheme((systemScheme) => {
@@ -165,11 +177,18 @@ export function createDownloadsStore(backend: Backend) {
             },
             () => undefined,
           ),
+          backend.pendingCaptures().then(
+            (captures) => {
+              if (!capturesEvent) set({ captures });
+            },
+            () => undefined,
+          ),
         ]);
         return () => {
           stop();
           unwatch();
           unnotice();
+          uncapture();
         };
       },
 
@@ -345,6 +364,14 @@ export function createDownloadsStore(backend: Backend) {
       settleFresh: (id) => {
         set({ fresh: get().fresh.filter((item) => item !== id) });
       },
+
+      answerCapture: (id, answer) => {
+        set({ captures: get().captures.filter((capture) => capture.id !== id) });
+        return act(async () => {
+          await backend.answerCapture(id, answer);
+          await get().reload();
+        });
+      },
     };
   });
 }
@@ -361,6 +388,6 @@ export function countFor(items: readonly Download[], view: View): number {
   return items.filter((item) => inView(view, item)).length;
 }
 
-export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay">): boolean {
-  return state.adding.open || state.overlay !== null;
+export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay" | "captures">): boolean {
+  return state.adding.open || state.overlay !== null || state.captures.length > 0;
 }

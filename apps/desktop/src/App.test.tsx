@@ -306,6 +306,82 @@ describe("detail panel", () => {
   });
 });
 
+describe("capture sheet", () => {
+  const REPORT = "https://cdn.example.org/files/report-2026.pdf";
+  const TALK = "https://media.example.net/talk.mp4";
+
+  it("asks before a browser download and starts it on Download", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await act(async () => {
+      await backend.capture(REPORT);
+    });
+
+    const sheet = await screen.findByRole("dialog", { name: "Download this file?" });
+    expect(within(sheet).getByText("report-2026.pdf")).toBeInTheDocument();
+    expect(within(sheet).getByText(/^cdn\.example\.org/)).toBeInTheDocument();
+    expect(within(sheet).queryByText(/of \d/)).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Download" })).toHaveFocus();
+    expect((await backend.list()).find((d) => d.url === REPORT)?.state).toBe("paused");
+
+    await user.click(within(sheet).getByRole("button", { name: "Download" }));
+    expect(screen.queryByRole("dialog", { name: "Download this file?" })).not.toBeInTheDocument();
+    expect((await backend.list()).find((d) => d.url === REPORT)?.state).toBe("downloading");
+    expect(await backend.pendingCaptures()).toEqual([]);
+  });
+
+  it("takes several in order: Cancel removes one, Escape leaves one paused", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE, captures: [REPORT, TALK] });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+
+    const sheet = await screen.findByRole("dialog", { name: "Download this file?" });
+    expect(within(sheet).getByText("1 of 2")).toBeInTheDocument();
+    await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
+    expect((await backend.list()).some((d) => d.url === REPORT)).toBe(false);
+
+    expect(await within(sheet).findByText("talk.mp4")).toBeInTheDocument();
+    expect(within(sheet).queryByText("1 of 2")).not.toBeInTheDocument();
+    fireEvent(sheet, new Event("cancel", { cancelable: true }));
+    expect(await backend.pendingCaptures()).toEqual([]);
+    expect(screen.queryByRole("dialog", { name: "Download this file?" })).not.toBeInTheDocument();
+    expect((await backend.list()).find((d) => d.url === TALK)?.state).toBe("paused");
+  });
+
+  it("stops asking from the sheet or from settings", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE, captures: [REPORT] });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+
+    const sheet = await screen.findByRole("dialog", { name: "Download this file?" });
+    await user.click(within(sheet).getByRole("checkbox", { name: "Ask before each browser download" }));
+    expect((await backend.settings()).confirmCaptures).toBe(false);
+    await user.click(within(sheet).getByRole("button", { name: "Download" }));
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    const ask = screen.getByRole("switch", { name: "Ask before each browser download" });
+    expect(ask).toHaveAttribute("aria-checked", "false");
+    await user.click(ask);
+    expect((await backend.settings()).confirmCaptures).toBe(true);
+  });
+
+  it("keeps Escape for the sheet while it is open", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const store = createDownloadsStore(backend);
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    await act(async () => {
+      await backend.capture(REPORT);
+    });
+    await screen.findByRole("dialog", { name: "Download this file?" });
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" })).toBeInTheDocument();
+  });
+});
+
 describe("command bar and keyboard", () => {
   it("opens on Ctrl+K and runs the chosen command", async () => {
     const { user } = open();

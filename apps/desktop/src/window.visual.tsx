@@ -4,7 +4,7 @@ import { page } from "vitest/browser";
 
 import { App } from "./App";
 import type { Backend } from "./backend/backend";
-import { createMockBackend, type SeedDownload } from "./backend/mock";
+import { createMockBackend, type SeedDownload, type MockOptions } from "./backend/mock";
 import { SHOWCASE } from "./backend/showcase";
 import { createDownloadsStore } from "./state/downloads";
 import "./styles/app.css";
@@ -12,8 +12,8 @@ import "./styles/app.css";
 const NOW = Date.UTC(2026, 10, 8, 13, 5);
 const scheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 
-async function open(seed: readonly SeedDownload[], overrides: Partial<Backend> = {}) {
-  const backend = createMockBackend({ seed, now: () => NOW });
+async function open(seed: readonly SeedDownload[], overrides: Partial<Backend> = {}, options: MockOptions = {}) {
+  const backend = createMockBackend({ ...options, seed, now: () => NOW });
   const store = createDownloadsStore({ ...backend, ...overrides });
   const root = document.createElement("div");
   root.id = "root";
@@ -145,6 +145,15 @@ describe("main window", () => {
     });
     document.getElementById("settings-browsers")?.scrollIntoView({ block: "start" });
     await capture(window, "settings-sites");
+  });
+
+  it("asks before a download from the browser", async () => {
+    const { window } = await open(
+      SHOWCASE,
+      {},
+      { captures: ["https://cdn.example.org/files/fedora-workstation-44-x86_64.iso", "https://media.example.net/talk.mp4"] },
+    );
+    await capture(window, "capture-sheet");
   });
 
   it("stays dark when the person picks dark, whatever the system says", async () => {

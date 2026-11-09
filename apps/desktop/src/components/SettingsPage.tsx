@@ -325,6 +325,19 @@ export function SettingsPage() {
               <h2 id="settings-browsers" className="pb-1 text-label text-ink-muted">
                 Browsers
               </h2>
+              <Row
+                label="Ask before each browser download"
+                description="When this is off, downloads from the browser start right away."
+                control={
+                  <Switch
+                    label="Ask before each browser download"
+                    checked={settings.confirmCaptures}
+                    onChange={(confirmCaptures) => {
+                      save({ confirmCaptures });
+                    }}
+                  />
+                }
+              />
               <ExcludedSites sites={settings.excludedSites} save={save} />
             </section>
             <section aria-labelledby="settings-appearance">

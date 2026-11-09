@@ -34,14 +34,27 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     trap "kill \$(ours) $server 2>/dev/null || true" EXIT
     sleep 0.5
 
-    node apps/extension/scripts/capture.ts http://127.0.0.1:8767 "$tug" "$XDG_CONFIG_HOME/chromium"
+    server_url=http://127.0.0.1:8767
+    profile="$XDG_CONFIG_HOME/chromium"
+    node apps/extension/scripts/capture.ts "$server_url" "$tug" "$profile" asked.bin
+    sleep 1
+    grep -q "^Paused .* asked.bin$" <<<"$($tug list)" || fail "asked.bin should wait, paused: $($tug list)"
+    # Browsers send Sec-Fetch-Mode and Tug does not; the log also holds the first request of the browser.
+    [ -z "$(awk -F "\t" "\$1 == \"/asked.bin\" && \$5 == \"\"" "$requests")" ] || fail "Tug fetched asked.bin before the answer"
+    echo "ok: Tug asks first: asked.bin waits, paused, and nothing fetched it"
+
+    kill $(ours)
+    for _ in $(seq 1 20); do [ -z "$(ours)" ] && break; sleep 0.5; done
+    sqlite3 "$XDG_DATA_HOME/io.github.andymai.Tug/tug.db" \
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('"'"'confirm_captures'"'"', '"'"'false'"'"')"
+    node apps/extension/scripts/capture.ts "$server_url" "$tug" "$profile" captured.bin
 
     sleep 1
-    sent=$(awk -F "\t" "\$1 == \"/captured.bin\"" "$requests")
-    [ "$(wc -l <<<"$sent")" -ge 2 ] || fail "Tug never fetched captured.bin: $sent"
-    while IFS=$(printf "\t") read -r _ cookie referrer agent; do
+    sent=$(awk -F "\t" "\$1 == \"/captured.bin\" && \$5 == \"\"" "$requests")
+    [ -n "$sent" ] || fail "Tug never fetched captured.bin: $(cat "$requests")"
+    while IFS=$(printf "\t") read -r _ cookie referrer agent _; do
       [ "$cookie" = "session=abc123" ] || fail "cookie: $cookie"
-      [ "$referrer" = "http://127.0.0.1:8767/page.html" ] || fail "referrer: $referrer"
+      [ "$referrer" = "http://127.0.0.1:8767/page.html?file=captured.bin" ] || fail "referrer: $referrer"
       case "$agent" in *Chrome/*) ;; *) fail "user agent: $agent";; esac
     done <<<"$sent"
     echo "ok: Tug fetches with the page as referrer, the cookie and the browser'"'"'s User-Agent"
