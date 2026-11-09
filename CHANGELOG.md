@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1](https://github.com/andymai/tug/compare/v0.22.0...v0.22.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **core:** the progress stream reports what changed outside a tick, and the mock keeps the queue ([#102](https://github.com/andymai/tug/issues/102)) ([c215ee5](https://github.com/andymai/tug/commit/c215ee5de467d27c4f88e7e6da63e93148d84db6))
+
 ## [0.22.0](https://github.com/andymai/tug/compare/v0.21.3...v0.22.0) (2026-11-09)
 
 
