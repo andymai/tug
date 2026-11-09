@@ -17,6 +17,8 @@ const done: Download = {
   addedMs: 0,
   finishedMs: 1,
   position: 4,
+  connections: null,
+  speedLimit: null,
 };
 
 function transfer(types: Record<string, string>): DataTransfer {

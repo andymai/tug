@@ -2,4 +2,4 @@
 import type { Category } from "./Category";
 import type { DownloadState } from "./DownloadState";
 
-export type Download = { id: number, url: string, name: string, category: Category, dir: string, file: string | null, state: DownloadState, size: number | null, received: number, error: string | null, addedMs: number, finishedMs: number | null, position: number, };
+export type Download = { id: number, url: string, name: string, category: Category, dir: string, file: string | null, state: DownloadState, size: number | null, received: number, error: string | null, addedMs: number, finishedMs: number | null, position: number, connections: number | null, speedLimit: number | null, };

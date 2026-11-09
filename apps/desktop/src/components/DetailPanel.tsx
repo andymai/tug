@@ -1,5 +1,5 @@
 import { Check, Copy, ExternalLink, FolderOpen, ListStart, Pause, Play, RotateCw, Trash2, X } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { type KeyboardEvent as KeyEvent, useEffect, useId, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 
 import type { Download, DownloadEvent } from "../backend/backend";
@@ -15,6 +15,7 @@ import {
   shortDir,
 } from "../lib/format";
 import { focusRow } from "../lib/dom";
+import { limitText, parseConnections, parseLimit } from "../lib/options";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
 import { chosen, modalOpen, single } from "../state/downloads";
@@ -77,6 +78,92 @@ function History({ id, state, revision }: { id: number; state: Download["state"]
           );
         })}
       </ol>
+    </section>
+  );
+}
+
+const countText = (count: number | null) => (count === null ? "" : String(count));
+
+// A field commits on Enter or when it loses the focus, as Settings does. A field
+// takes a new stored value only when that value changes, so a commit of one
+// leaves the other's draft and the focus alone.
+function OwnOptions({ download }: { download: Download }) {
+  const tug = useDownloads((s) => s.settings?.connections ?? null);
+  const setOptions = useDownloads((s) => s.setOptions);
+  const [connections, setConnections] = useState(countText(download.connections));
+  const [limit, setLimit] = useState(limitText(download.speedLimit));
+  const [stored, setStored] = useState({ connections: download.connections, speedLimit: download.speedLimit });
+  const [problem, setProblem] = useState<string | null>(null);
+  if (stored.connections !== download.connections || stored.speedLimit !== download.speedLimit) {
+    if (stored.connections !== download.connections) setConnections(countText(download.connections));
+    if (stored.speedLimit !== download.speedLimit) setLimit(limitText(download.speedLimit));
+    setStored({ connections: download.connections, speedLimit: download.speedLimit });
+  }
+  const headingId = useId();
+  const connectionsId = useId();
+  const limitId = useId();
+
+  const commit = () => {
+    const own = parseConnections(connections);
+    const cap = parseLimit(limit);
+    if (!own.ok || !cap.ok) {
+      setProblem(own.ok ? (cap.ok ? null : cap.problem) : own.problem);
+      return;
+    }
+    setProblem(null);
+    if (own.value === download.connections && cap.value === download.speedLimit) return;
+    void setOptions(download.id, own.value, cap.value);
+  };
+  const field = "h-7 w-16 rounded-sm border border-control-border bg-surface px-2 text-right text-mono text-ink placeholder:text-ink-faint aria-invalid:border-state-error";
+  const keys = (event: KeyEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") commit();
+  };
+
+  return (
+    <section aria-labelledby={headingId} className="border-t border-line px-4 py-4">
+      <h3 id={headingId} className="pb-2 text-label text-ink-muted">
+        Options
+      </h3>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 text-small">
+        <label htmlFor={connectionsId} className="text-ink-muted">
+          Connections
+        </label>
+        <input
+          id={connectionsId}
+          inputMode="numeric"
+          value={connections}
+          placeholder={tug === null ? "" : String(tug)}
+          aria-invalid={problem !== null && !parseConnections(connections).ok}
+          onChange={(event) => {
+            setConnections(event.target.value);
+          }}
+          onBlur={commit}
+          onKeyDown={keys}
+          className={field}
+        />
+        <label htmlFor={limitId} className="text-ink-muted">
+          Speed limit
+        </label>
+        <span className="flex items-center gap-2">
+          <input
+            id={limitId}
+            inputMode="decimal"
+            value={limit}
+            placeholder="None"
+            aria-invalid={problem !== null && !parseLimit(limit).ok}
+            onChange={(event) => {
+              setLimit(event.target.value);
+            }}
+            onBlur={commit}
+            onKeyDown={keys}
+            className={field}
+          />
+          <span className="text-mono text-ink-muted">MB/s</span>
+        </span>
+      </div>
+      <p role={problem === null ? undefined : "alert"} className="pt-2 text-small text-ink-muted">
+        {problem ?? (download.state === "downloading" ? "A new limit holds at once; connections change at the next start." : "Empty takes Tug's setting.")}
+      </p>
     </section>
   );
 }
@@ -249,6 +336,7 @@ function Panel({ download }: { download: Download }) {
                 </div>
               ))}
             </dl>
+            {download.state !== "done" && !download.url.startsWith("magnet:") && <OwnOptions download={download} />}
             <History
               id={download.id}
               state={download.state}

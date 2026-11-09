@@ -9,6 +9,7 @@ import {
   type Download,
   type DownloadEvent,
   type DownloadState,
+  type AddOptions,
   type Inspection,
   type Place,
   type ProgressBatch,
@@ -128,7 +129,9 @@ export interface DownloadsState {
   openAdd: (text?: string) => void;
   setAddText: (text: string) => void;
   closeAdd: () => void;
-  addLinks: (hrefs: readonly string[]) => Promise<void>;
+  addLinks: (hrefs: readonly string[], options?: { dir?: string; add?: AddOptions }) => Promise<void>;
+  setOptions: (id: number, connections: number | null, speedLimit: number | null) => Promise<boolean>;
+  pickFolder: (from?: string) => Promise<string | null>;
   settleFresh: (id: number) => void;
   answerCapture: (id: number, answer: CaptureAnswer) => Promise<void>;
   minimizeWindow: () => void;
@@ -720,7 +723,7 @@ export function createDownloadsStore(backend: Backend) {
         set({ adding: { ...CLOSED, session: get().adding.session } });
       },
 
-      addLinks: async (hrefs) => {
+      addLinks: async (hrefs, options = {}) => {
         const { session } = get().adding;
         const ours = () => get().adding.open && get().adding.session === session;
         set({ adding: { ...get().adding, busy: true, error: null } });
@@ -728,7 +731,7 @@ export function createDownloadsStore(backend: Backend) {
         const failed: { href: string; message: string }[] = [];
         for (const href of hrefs) {
           try {
-            added.push((await backend.add(href)).id);
+            added.push((await backend.add(href, options.dir, options.add)).id);
           } catch (error) {
             failed.push({ href, message: BackendError.from(error).message });
           }
@@ -753,6 +756,26 @@ export function createDownloadsStore(backend: Backend) {
           ...(reason === null ? {} : { notice: reason }),
         });
         await get().reload();
+      },
+
+      setOptions: async (id, connections, speedLimit) => {
+        try {
+          await backend.setOptions(id, connections, speedLimit);
+          await get().reload();
+          return true;
+        } catch (error) {
+          set({ notice: `couldn't change the download: ${BackendError.from(error).message}` });
+          return false;
+        }
+      },
+
+      pickFolder: async (from) => {
+        try {
+          return await backend.chooseFolder(from);
+        } catch (error) {
+          set({ notice: BackendError.from(error).message });
+          return null;
+        }
       },
 
       settleFresh: (id) => {

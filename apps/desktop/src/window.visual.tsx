@@ -1,4 +1,4 @@
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -114,6 +114,20 @@ describe("main window", () => {
         );
     });
     await capture(window, "add-dialog");
+  });
+
+  it("sets a folder, connections, a limit and the start for the links it adds", async () => {
+    const { store, window } = await open(SHOWCASE);
+    act(() => {
+      store.getState().openAdd("https://download.example.org/kde-neon-user-20261105.iso");
+    });
+    // Typing would put Chromium in keyboard mode and give later shots focus rings.
+    const dialog = within(document.body);
+    fireEvent.click(dialog.getByRole("button", { name: "Options" }));
+    fireEvent.change(dialog.getByRole("textbox", { name: "Connections" }), { target: { value: "16" } });
+    fireEvent.change(dialog.getByRole("textbox", { name: "Speed limit" }), { target: { value: "4" } });
+    fireEvent.click(dialog.getByRole("checkbox", { name: "First in the queue" }));
+    await capture(window, "add-options");
   });
 
   it("shows where to drop a link", async () => {
