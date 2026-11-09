@@ -1,0 +1,59 @@
+apps/desktop/src/backend/tauri.ts
+  s_b321718d129a1e::t_a1d01bf9a215f4 12,37-38
+apps/desktop/src/backend/tauri.test.ts
+  s_b321718d129a1e::t_a1d01bf9a215f4 24,27-28,49,52-53
+apps/desktop/src/backend/bindings/AddOptions.ts
+  s_b321718d129a1e::t_e8d406d3e7fd0d 3
+apps/desktop/src/backend/bindings/CookiesChange.ts
+  s_b321718d129a1e::t_e8d406d3e7fd0d 1-3
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_7ae9403f61ca93 56-57,214-229
+  s_b321718d129a1e::t_b6674583f0e708 230-231
+crates/tug-core/tests/library.rs
+  s_b321718d129a1e::t_5f2c8920739d4f 779-822
+  s_b321718d129a1e::t_836039af88d5e9 778
+apps/desktop/src-tauri/src/main.rs
+  s_b321718d129a1e::t_57b4d2394cb258 87-88
+apps/desktop/src/backend/mock.ts
+  s_b321718d129a1e::t_9372bf67d21f1f 12,100-112,302,384-387,425-442
+apps/desktop/src/App.test.tsx
+  s_b321718d129a1e::t_e2498857986794 184-186
+  s_b321718d129a1e::t_2b7142bbe853bd 215-232,587-610
+  s_b321718d129a1e::t_5d1a55a5340d90 611
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_9372bf67d21f1f 13-14,140-142,178,267,784-802,804-805
+  s_b321718d129a1e::t_afa59e914467fa 803,806
+apps/desktop/src/backend/bindings/Headers.ts
+  s_b321718d129a1e::t_e8d406d3e7fd0d 1-3
+apps/desktop/src/backend/backend.ts
+  s_b321718d129a1e::t_a1d01bf9a215f4 3-4,18-19,62-64
+apps/desktop/src-tauri/src/bridge.rs
+  s_b321718d129a1e::t_e8d406d3e7fd0d 1739-1775
+  s_b321718d129a1e::t_57b4d2394cb258 146-188,722-723,939-940,945-946,951-987
+  s_b321718d129a1e::t_51a34624e7feb0 988
+crates/tug-core/src/store.rs
+  s_b321718d129a1e::t_7ae9403f61ca93 399-417
+apps/desktop/src/components/AddDialog.tsx
+  s_b321718d129a1e::t_a1d01bf9a215f4 85-86
+  s_b321718d129a1e::t_9372bf67d21f1f 46-51,236-275
+apps/desktop/src/components/DetailPanel.tsx
+  s_b321718d129a1e::t_7880799cb311d1 5,132-264,539-544
+apps/desktop/src/backend/mock.test.ts
+  s_b321718d129a1e::t_6cf912ff84a476 222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3cf1ee79f10b2d3d1e8f007f2c4c51591786dfa8",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
