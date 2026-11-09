@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.36.0](https://github.com/andymai/tug/compare/v0.35.0...v0.36.0) (2026-11-09)
+
+
+### Features
+
+* **core:** rename a download before it starts or after it finishes ([#143](https://github.com/andymai/tug/issues/143)) ([ad531d7](https://github.com/andymai/tug/commit/ad531d70a9c2688632fd117cb757d7368ad95308))
+* **core:** set the referrer, cookies and User-Agent a download sends ([#145](https://github.com/andymai/tug/issues/145)) ([9ee45d0](https://github.com/andymai/tug/commit/9ee45d01b74b920b613ba71f6a525f7f98484b13))
+
 ## [0.35.0](https://github.com/andymai/tug/compare/v0.34.0...v0.35.0) (2026-11-09)
 
 
