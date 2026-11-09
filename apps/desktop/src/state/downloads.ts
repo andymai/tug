@@ -112,18 +112,26 @@ export function createDownloadsStore(backend: Backend) {
 
     let revision: number | null = null;
     let searches = 0;
+    let answered = 0;
     // Answers can arrive out of order, so only the newest search may set the matches.
     const find = async (text: string) => {
       const asked = ++searches;
       if (text.trim() === "") {
+        answered = asked;
         set({ matches: null });
         return;
       }
       try {
         const matches = await backend.search(text);
-        if (asked === searches) set({ matches });
+        if (asked === searches) {
+          answered = asked;
+          set({ matches });
+        }
       } catch (error) {
-        if (asked === searches) set({ notice: BackendError.from(error).message });
+        if (asked === searches) {
+          answered = asked;
+          set({ notice: BackendError.from(error).message });
+        }
       }
     };
     let confirmed: Settings | null = null;
@@ -356,7 +364,8 @@ export function createDownloadsStore(backend: Backend) {
         if (item === undefined) return;
         if (!inView(state.view, item)) state.setView("all");
         else state.setPage("downloads");
-        if (state.matches?.includes(id) === false) state.setSearch("");
+        const shown = answered === searches && (state.matches?.includes(id) ?? true);
+        if (!shown) state.setSearch("");
         state.select(id);
         state.requestFocus(id);
       },
