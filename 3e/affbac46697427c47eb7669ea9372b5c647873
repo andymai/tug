@@ -1,0 +1,203 @@
+apps/desktop/src-tauri/src/tray.rs
+  s_b321718d129a1e::t_549c2d589085df 319-320
+  s_b321718d129a1e::t_4782fa9c074d11 348,351-353
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_d9840027584687 400
+  s_b321718d129a1e::t_af9e4af8ddab4d 343-344,381-383,416-417,420-421,432-434,439-440,450-456,544
+  s_b321718d129a1e::t_37219fca72f76d 13,545
+  s_b321718d129a1e::t_bf4d03aa558ecb 546-547
+  s_b321718d129a1e::t_b455f9539362fe 643-676
+  s_b321718d129a1e::t_07b2d250af9b1d 72,156,340-342,418-419
+  s_b321718d129a1e::t_79d06b0d892e64 63-65,77,188-189,258-261,427-431,441-449,470-473,677,699,703-705,713,716,717
+  s_b321718d129a1e::t_7c7b8a01e18501 733
+  s_b321718d129a1e::t_2ac4b4aa232cac 171-174
+apps/desktop/src/state/downloads.test.ts
+  s_b321718d129a1e::t_700e083265a90e 82-86,88-91,168
+  s_b321718d129a1e::t_95bc593f0229a5 94-104
+  s_b321718d129a1e::t_50c96362b49e3a 92-93
+  s_b321718d129a1e::t_56f0e78830ea22 107-128
+  s_b321718d129a1e::t_e7bde240cbb059 40-48
+apps/desktop/src/backend/bindings/ProgressBatch.ts
+  s_b321718d129a1e::t_95bc593f0229a5 4
+crates/tug-core/tests/progress.rs
+  s_b321718d129a1e::t_edf8268683ddb0 7,154-186
+  s_b321718d129a1e::t_234a777774c9cc 187
+apps/desktop/src-tauri/src/bridge.rs
+  s_b321718d129a1e::t_d9840027584687 261-262,272,1150,1166
+  s_b321718d129a1e::t_3fc0052f20b1af 324-352,392,406,437
+  s_b321718d129a1e::t_0bcd136a33228e 1039,1183-1187
+  s_b321718d129a1e::t_53eb71702e87b6 1040,1188-1194
+  s_b321718d129a1e::t_0ce24d5a406d10 11-12,353-379,393,407,438
+  s_b321718d129a1e::t_1bf54e80a3d34d 1195
+  s_b321718d129a1e::t_8afdd175dba4c4 628-643
+  s_b321718d129a1e::t_2ac4b4aa232cac 178,863
+  s_b321718d129a1e::t_738ad67468ca6c 627
+  s_b321718d129a1e::t_423cd254943866 10,73-101,110,179
+  s_b321718d129a1e::t_9cae5cb64c9c89 1108-1111,1114
+crates/tug-core/src/progress.rs
+  s_b321718d129a1e::t_d9840027584687 32-35,98
+  s_b321718d129a1e::t_4782fa9c074d11 134-135,139,146
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_e607bc42df475f 112,280-282
+  s_b321718d129a1e::t_19735a83a0d4bf 45-47,62-63,113-127,168-170,270,350-358,489-493
+  s_b321718d129a1e::t_b3582904b7ec6c 7
+  s_b321718d129a1e::t_c77eb42ed7f50f 18-19,21,447,485-486
+apps/desktop/src/backend/tauri.test.ts
+  s_b321718d129a1e::t_700e083265a90e 58-59
+  s_b321718d129a1e::t_f0767ee1db046c 30
+  s_b321718d129a1e::t_78f53cf7653e5c 20,37
+apps/desktop/src/backend/mock.ts
+  s_b321718d129a1e::t_95bc593f0229a5 117,239-240,466
+  s_b321718d129a1e::t_a7bfe96c229885 359-361
+  s_b321718d129a1e::t_07b9e58b716784 2,160
+  s_b321718d129a1e::t_7f6c5019dd8419 362
+  s_b321718d129a1e::t_0e6583e386d593 100,355-358
+  s_b321718d129a1e::t_f0767ee1db046c 187-192,212
+  s_b321718d129a1e::t_57992f27febf27 194-209,211
+  s_b321718d129a1e::t_5d27ae09a30f69 193
+  s_b321718d129a1e::t_19735a83a0d4bf 59-67,286-294
+  s_b321718d129a1e::t_cf828e56a3b85e 7,70-82,84-85,139
+  s_b321718d129a1e::t_6e1c9816193c61 68-69,83
+apps/desktop/src/backend/bindings/Schedule.ts
+  s_b321718d129a1e::t_3fc0052f20b1af 1-3
+crates/tug-core/tests/settings.rs
+  s_b321718d129a1e::t_0bcd136a33228e 38,84,113
+  s_b321718d129a1e::t_0ce24d5a406d10 8-9,134-166
+  s_b321718d129a1e::t_53eb71702e87b6 39,85,114
+  s_b321718d129a1e::t_2c903be1ec111e 167-168
+crates/tug-core/src/lib.rs
+  s_b321718d129a1e::t_627f665b8f2d99 5
+  s_b321718d129a1e::t_0ce24d5a406d10 18-19
+  s_b321718d129a1e::t_07b2d250af9b1d 16
+  s_b321718d129a1e::t_922fce9bfe6d80 1,10
+apps/desktop/src/lib/schedule.ts
+  s_b321718d129a1e::t_07b9e58b716784 6
+  s_b321718d129a1e::t_afa0da547b36d8 1-5,7-10
+crates/tug-core/Cargo.toml
+  s_b321718d129a1e::t_627f665b8f2d99 13
+apps/desktop/src/App.test.tsx
+  s_b321718d129a1e::t_07b9e58b716784 571,596-605
+  s_b321718d129a1e::t_c4e2ebbf9ab448 537-570,606-607
+  s_b321718d129a1e::t_e0e40856013986 572-595
+  s_b321718d129a1e::t_56f0e78830ea22 631-657
+  s_b321718d129a1e::t_bfae6421306894 619-621
+  s_b321718d129a1e::t_d2d4a19a6e7e5e 608-618,622-630
+crates/tug-core/src/schedule.rs
+  s_b321718d129a1e::t_da12a23e403214 48,50-51,53-54,56
+  s_b321718d129a1e::t_0daa8dd15c765a 1-29,31-45,47,49,52,57-58,61-64,72-131,136,145-156,164-195
+  s_b321718d129a1e::t_364a615ae4d9e0 132-135,137-144,157-163
+  s_b321718d129a1e::t_61051d541afe81 30,46,55,59
+  s_b321718d129a1e::t_07b2d250af9b1d 60,65-69
+  s_b321718d129a1e::t_55c79e189d9820 70-71
+apps/desktop/src/lib/format.test.ts
+  s_b321718d129a1e::t_649d34fbdc4f20 92-93
+  s_b321718d129a1e::t_25bf1d832d8230 4,11,83-91
+apps/desktop/src/lib/format.ts
+  s_b321718d129a1e::t_8d8007df665686 63-74
+apps/desktop/src/lib/schedule.test.ts
+  s_b321718d129a1e::t_afa0da547b36d8 1-25
+apps/desktop/src/window.visual.tsx
+  s_b321718d129a1e::t_477968fce4a4e0 174-183
+  s_b321718d129a1e::t_dff4a1bae289fb 184-196
+  s_b321718d129a1e::t_d84467e8eab466 112-122
+  s_b321718d129a1e::t_210a1b3ba58b28 104-111
+Cargo.toml
+  s_b321718d129a1e::t_627f665b8f2d99 22
+apps/desktop/src/backend/backend.ts
+  s_b321718d129a1e::t_a7bfe96c229885 25
+  s_b321718d129a1e::t_19735a83a0d4bf 41
+  s_b321718d129a1e::t_c77eb42ed7f50f 18
+apps/desktop/src/backend/bindings/Settings.ts
+  s_b321718d129a1e::t_3fc0052f20b1af 3
+  s_b321718d129a1e::t_cb672efbe6e8f7 4,6
+crates/tug-core/tests/library.rs
+  s_b321718d129a1e::t_364a615ae4d9e0 8-9,280-332
+  s_b321718d129a1e::t_430d524b229705 333
+apps/desktop/src/components/SettingsPage.tsx
+  s_b321718d129a1e::t_8d8007df665686 5
+  s_b321718d129a1e::t_649d34fbdc4f20 535
+  s_b321718d129a1e::t_a7bfe96c229885 4,208-209,212-221,231,233-235,236-247,249-250,252-253,255-270,318-327,328-333,364,372,379-385,530-534
+  s_b321718d129a1e::t_0e6583e386d593 131,133,137,147,150-178,187,194-195,197-201,210-211,222-230,232,248,251,254,271-317,334-363,365-371,373-378,528
+apps/desktop/src/components/DownloadList.tsx
+  s_b321718d129a1e::t_afa0da547b36d8 9,34,37,41,45-47
+  s_b321718d129a1e::t_ce3e4f5efdf1af 1-2,61-88,90-105,162,171,191-195
+  s_b321718d129a1e::t_625296ae9f80da 89
+  s_b321718d129a1e::t_b3582904b7ec6c 12,19,26,108,110-111,168,197
+  s_b321718d129a1e::t_393e97e2bd74cf 8,106-107,109,113
+crates/tug-core/src/settings.rs
+  s_b321718d129a1e::t_61051d541afe81 145
+  s_b321718d129a1e::t_627f665b8f2d99 523,540
+  s_b321718d129a1e::t_bae0918cd175c3 23,83,101-102,131,146-147,241,253,275-280
+  s_b321718d129a1e::t_0bcd136a33228e 312,503-507
+  s_b321718d129a1e::t_07b2d250af9b1d 9,24,57-73,84,132,148-153,171-185,242-244,254,281,285-286,288,449
+  s_b321718d129a1e::t_cb672efbe6e8f7 283
+  s_b321718d129a1e::t_0ce24d5a406d10 282,284,287,414-447,541,543
+  s_b321718d129a1e::t_53eb71702e87b6 313,508-515,524
+  s_b321718d129a1e::t_7770a523510313 448,450
+Cargo.lock
+  s_b321718d129a1e::t_6cac1a8e1557ac 5322
+apps/desktop/src/backend/bindings/SlowHours.ts
+  s_b321718d129a1e::t_cb672efbe6e8f7 1-4
+apps/desktop/src/backend/mock.test.ts
+  s_b321718d129a1e::t_e0e40856013986 95-108
+  s_b321718d129a1e::t_f0767ee1db046c 69
+  s_b321718d129a1e::t_57992f27febf27 75-94
+  s_b321718d129a1e::t_56f0e78830ea22 109-117
+  s_b321718d129a1e::t_d2d4a19a6e7e5e 1-3,6-18,118-126
+  s_b321718d129a1e::t_2e8aece99c6047 127-128
+apps/desktop/src-tauri/src/ipc.rs
+  s_b321718d129a1e::t_2ac4b4aa232cac 22
+apps/desktop/src/lib/commands.ts
+  s_b321718d129a1e::t_ce3e4f5efdf1af 15,64-71
+  s_b321718d129a1e::t_d8823336a4dc25 205
+  s_b321718d129a1e::t_c684a24a34d74b 72-73
+  s_b321718d129a1e::t_cf828e56a3b85e 22-23,44,86-93
+  s_b321718d129a1e::t_0665b99f913150 94-96
+apps/desktop/src/backend/tauri.ts
+  s_b321718d129a1e::t_19735a83a0d4bf 33
+apps/desktop/src/lib/commands.test.ts
+  s_b321718d129a1e::t_c065e50d50632f 3-6,47-58
+  s_b321718d129a1e::t_088328bdcfdf8a 59-60
+apps/desktop/src-tauri/src/notify.rs
+  s_b321718d129a1e::t_2ac4b4aa232cac 66
+apps/desktop/src-tauri/src/main.rs
+  s_b321718d129a1e::t_8afdd175dba4c4 68
+crates/tug-core/src/store.rs
+  s_b321718d129a1e::t_1635f78647d25c 62-66,70-72,218-221,226-239,306-309,465-466,470-476,480-499,628-630,637-648,651-658,729,742,802
+  s_b321718d129a1e::t_8afdd175dba4c4 649-650
+  s_b321718d129a1e::t_2ac4b4aa232cac 942,944-992
+  s_b321718d129a1e::t_36dcab4f69997f 61,943
+  s_b321718d129a1e::t_922fce9bfe6d80 13,222-224
+  s_b321718d129a1e::t_b303ab6964f6ac 225
+crates/tug-core/src/category.rs
+  s_b321718d129a1e::t_62411ba0c9f5ad 1-112
+apps/desktop/src/backend/bindings/Category.ts
+  s_b321718d129a1e::t_423cd254943866 1-3
+apps/desktop/src/backend/bindings/Download.ts
+  s_b321718d129a1e::t_423cd254943866 2,5
+apps/desktop/src/lib/links.test.ts
+  s_b321718d129a1e::t_cf828e56a3b85e 10
+apps/desktop/src/lib/categories.ts
+  s_b321718d129a1e::t_c77eb42ed7f50f 1-18
+apps/desktop/src/components/Sidebar.tsx
+  s_b321718d129a1e::t_2fe3c724035eb0 21,30,46,54,74-75
+  s_b321718d129a1e::t_4b7bbecc864909 53,55-56,59-70,73,76-97
+  s_b321718d129a1e::t_cf828e56a3b85e 6,22-29,31-37,57-58,71-72
+  s_b321718d129a1e::t_393e97e2bd74cf 10,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3eaffbac46697427c47eb7669ea9372b5c647873",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
