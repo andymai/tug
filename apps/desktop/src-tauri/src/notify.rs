@@ -129,7 +129,7 @@ async fn send(proxy: &NotificationsProxy<'_>, notice: &Notice) -> zbus::Result<u
         .await
 }
 
-fn answer<R: Runtime>(app: &AppHandle<R>, download: &Download, act: Act) {
+async fn answer<R: Runtime>(app: &AppHandle<R>, download: &Download, act: Act) {
     let result = match act {
         Act::Show => {
             if let Some(window) = app.get_webview_window("main") {
@@ -138,8 +138,8 @@ fn answer<R: Runtime>(app: &AppHandle<R>, download: &Download, act: Act) {
             let _sent = app.emit(FOCUS_EVENT, download.id.get());
             Ok(())
         }
-        Act::Open => bridge::open_download(app, download),
-        Act::Folder => bridge::reveal_download(app, download),
+        Act::Open => bridge::open_download(app, download).await,
+        Act::Folder => bridge::reveal_download(app, download).await,
     };
     if let Err(e) = result {
         let _sent = app.emit(tray::NOTICE_EVENT, e.message);
@@ -190,7 +190,7 @@ pub fn spawn<R: Runtime>(
                         continue;
                     };
                     if let (Some(act), Ok(download)) = (act(&args.action_key), library.get(id)) {
-                        answer(&app, &download, act);
+                        answer(&app, &download, act).await;
                     }
                 }
             });

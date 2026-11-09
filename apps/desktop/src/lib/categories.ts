@@ -1,8 +1,16 @@
 import { Archive, Disc, File, FileText, Film, Image, type LucideIcon, Music, Package } from "lucide-react";
 
 import type { Category } from "../backend/backend";
+import { covering } from "./covering";
 
-export const CATEGORIES: readonly { id: Category; label: string; command: string; icon: LucideIcon }[] = [
+interface CategoryEntry {
+  id: Category;
+  label: string;
+  command: string;
+  icon: LucideIcon;
+}
+
+export const CATEGORIES: readonly CategoryEntry[] = covering<Category>().by<"id">()([
   { id: "video", label: "Videos", command: "Show videos", icon: Film },
   { id: "audio", label: "Audio", command: "Show audio", icon: Music },
   { id: "image", label: "Images", command: "Show images", icon: Image },
@@ -11,7 +19,7 @@ export const CATEGORIES: readonly { id: Category; label: string; command: string
   { id: "program", label: "Programs", command: "Show programs", icon: Package },
   { id: "disk", label: "Disk images", command: "Show disk images", icon: Disc },
   { id: "other", label: "Other files", command: "Show other files", icon: File },
-];
+]);
 
 export function isCategory(value: string): value is Category {
   return CATEGORIES.some((category) => category.id === value);

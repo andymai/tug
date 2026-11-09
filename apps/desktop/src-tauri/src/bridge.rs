@@ -972,7 +972,7 @@ pub async fn add_with_options(
     Ok(DownloadDto::from(&library.get(id)?))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects State by value"
@@ -986,11 +986,10 @@ pub fn list_downloads(state: tauri::State<'_, AppState>) -> Result<Vec<DownloadD
 #[tauri::command]
 pub async fn disk_free(state: tauri::State<'_, AppState>) -> Result<Option<u64>, CommandError> {
     let folder = state.library.settings()?.download_dir;
-    let free = tauri::async_runtime::spawn_blocking(move || tug_core::free_space(&folder).ok());
-    Ok(free.await.ok().flatten())
+    off_window(move || Ok(tug_core::free_space(&folder).ok())).await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects State by value"
@@ -1026,7 +1025,7 @@ pub async fn add_download(
     .await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects State by value"
@@ -1040,7 +1039,7 @@ pub fn download_headers(
     ))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects State by value"
@@ -1162,13 +1161,12 @@ pub fn started<R: tauri::Runtime>(app: &AppHandle<R>, id: DownloadId) {
     }
 }
 
-#[tauri::command]
 pub fn emit_captures<R: tauri::Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AppState>();
     let _sent = app.emit(CAPTURES_EVENT, state.captures());
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects State by value"
@@ -1195,7 +1193,7 @@ pub async fn answer_capture(
     Ok(result?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects State by value"
@@ -1230,7 +1228,7 @@ pub fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsDto, Co
     Ok(SettingsDto::from(&state.library.settings()?))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects State by value"
@@ -1243,7 +1241,7 @@ pub fn update_settings(
     Ok(state.library.update_settings(settings.apply(&current))?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects State by value"
@@ -1372,47 +1370,59 @@ fn opener_error(e: &tauri_plugin_opener::Error) -> CommandError {
     }
 }
 
+// A file check on a stalled mount, the launcher and the file manager each answer
+// in their own time, so they wait on a blocking thread: not the window's thread,
+// and not a runtime worker that other tasks need.
+async fn off_window<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, CommandError> + Send + 'static,
+) -> Result<T, CommandError> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| CommandError {
+            kind: ErrorKind::Internal,
+            message: e.to_string(),
+        })?
+}
+
 #[tauri::command]
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "Tauri injects AppHandle and State by value"
-)]
-pub fn open_file(
+pub async fn open_file(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<(), CommandError> {
-    open_download(&app, &state.library.get(DownloadId::from(id))?)
+    open_download(&app, &state.library.get(DownloadId::from(id))?).await
 }
 
-pub fn open_download<R: tauri::Runtime>(
+pub async fn open_download<R: tauri::Runtime>(
     app: &AppHandle<R>,
     download: &Download,
 ) -> Result<(), CommandError> {
     let url = file_url(finished_file(download)?)?;
-    app.opener()
-        .open_url(url, None::<&str>)
-        .map_err(|e| opener_error(&e))
+    let app = app.clone();
+    off_window(move || {
+        app.opener()
+            .open_url(url, None::<&str>)
+            .map_err(|e| opener_error(&e))
+    })
+    .await
 }
 
 #[tauri::command]
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "Tauri injects AppHandle and State by value"
-)]
-pub fn show_in_folder(
+pub async fn show_in_folder(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<(), CommandError> {
-    reveal_download(&app, &state.library.get(DownloadId::from(id))?)
+    reveal_download(&app, &state.library.get(DownloadId::from(id))?).await
 }
 
-pub fn reveal_download<R: tauri::Runtime>(
+pub async fn reveal_download<R: tauri::Runtime>(
     app: &AppHandle<R>,
     download: &Download,
 ) -> Result<(), CommandError> {
-    match finished_file(download) {
+    let app = app.clone();
+    let download = download.clone();
+    off_window(move || match finished_file(&download) {
         Ok(file) if file.exists() => app
             .opener()
             .reveal_item_in_dir(file)
@@ -1421,7 +1431,8 @@ pub fn reveal_download<R: tauri::Runtime>(
             .opener()
             .open_url(file_url(&download.dir)?, None::<&str>)
             .map_err(|e| opener_error(&e)),
-    }
+    })
+    .await
 }
 
 fn unix_ms(t: SystemTime) -> u64 {

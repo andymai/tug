@@ -15,6 +15,9 @@ export default defineConfig([
       reactHooks.configs.flat.recommended,
       jsxA11y.flatConfigs.recommended,
     ],
+    rules: {
+      "@typescript-eslint/switch-exhaustiveness-check": ["error", { considerDefaultExhaustiveForUnions: false }],
+    },
     languageOptions: {
       globals: globals.browser,
       parserOptions: {

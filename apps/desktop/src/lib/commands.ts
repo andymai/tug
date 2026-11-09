@@ -27,6 +27,7 @@ import {
 
 import { canRename, chosen, type DownloadsStore, savedViewOf, single, type StateView } from "../state/downloads";
 import { CATEGORIES } from "./categories";
+import { covering } from "./covering";
 import { focusRow } from "./dom";
 
 export interface Keys {
@@ -48,12 +49,12 @@ export interface Command {
   run: () => void;
 }
 
-const VIEW_COMMANDS: readonly { view: StateView; title: string; icon: LucideIcon; key: string }[] = [
+const VIEW_COMMANDS: readonly { view: StateView; title: string; icon: LucideIcon; key: string }[] = covering<StateView>().by<"view">()([
   { view: "all", title: "Show all downloads", icon: Layers, key: "1" },
   { view: "active", title: "Show active downloads", icon: ArrowDown, key: "2" },
   { view: "done", title: "Show finished downloads", icon: Check, key: "3" },
   { view: "failed", title: "Show failed downloads", icon: CircleAlert, key: "4" },
-];
+]);
 
 export function commands(store: DownloadsStore): Command[] {
   const state = store.getState();
