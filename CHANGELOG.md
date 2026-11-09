@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.1](https://github.com/andymai/tug/compare/v0.14.0...v0.14.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **core:** bound each CLI request, and respect a socket from an older Tug ([#64](https://github.com/andymai/tug/issues/64)) ([3799a64](https://github.com/andymai/tug/commit/3799a642976f25aa5f6b5295390f81603d950e54))
+* **core:** claim the socket with a lock, bound CLI waits, limit each request ([#63](https://github.com/andymai/tug/issues/63)) ([7cd98a3](https://github.com/andymai/tug/commit/7cd98a390a00fb0a8e9e83fa823bc2c4eaeae16c))
+
 ## [0.14.0](https://github.com/andymai/tug/compare/v0.13.2...v0.14.0) (2026-11-09)
 
 
