@@ -28,6 +28,19 @@ Design tokens: `design/tokens.json`. Brand sources: `brand/`.
 - Change tokens in `design/tokens.json` and regenerate; never edit `tokens.css`. Style with the token utilities (`bg-surface`, `text-ink-muted`, `rounded-md`) and the `.text-*` type styles, not raw colors or sizes.
 - UI work follows the design system: orange never colors text, every download state shows an icon and a word, and every screen is checked in screenshots, light and dark, before it is done. Each screen gets a shot in a `*.visual.tsx` file, which CI compares with the committed references.
 
+## Before a PR
+
+Run `/code-review high` on the branch, and fix what it finds before you open the PR. It is Claude Code's own review of the branch's diff, at its high effort. Without Claude Code, read the diff yourself. Then check the change against each item below. Each one is a fault that review found more than once:
+
+- **A late answer.** An answer that arrives after the person moved on must not overwrite newer state. Keep it only if its request is still the newest and its download is still the one on screen. A field keeps text typed after its save started.
+- **Check, then act.** A check and the write that it allows happen under one lock. Between them, no `await` happens unless the run lock holds. A row that says `downloading` with no transfer in `running` still settles, so treat it as busy.
+- **The mock.** The mock refuses what Rust refuses, before it inserts a row, and it cleans up values (trims, URL cleanup) as Rust does. Its sizes and types follow a change as Rust's do.
+- **Lists.** A new variant reaches every list that names the variants: command groups, tabs, error kinds, the keyboard map.
+- **Unmount.** State that a component owns (a menu, a drag, a draft) ends when the component goes.
+- **The window's thread.** A plain Tauri command runs on the window's thread. A command that reads files, starts a process or waits on the network is `async`.
+- **Bounds.** A value that the person sets stays in bounds after the window changes size, in whole pixels or bytes. Tug saves back a value that shows rounded only when the person changed it.
+- **Tests.** A test for a fix fails without the fix: run it once with the fix stashed.
+
 ## Commands
 
 Cargo runs in the `dev` distrobox (the host lacks the build libraries), and so do commits, because the pre-commit hook runs cargo. Always set `RUSTFLAGS=""` there: the global mold flags export the bundled SQLite's symbols to WebKitGTK, and the hook sets the same so the cache stays warm:
