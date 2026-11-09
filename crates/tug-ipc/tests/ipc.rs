@@ -5,7 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::sync::Arc;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tug_ipc::{Client, Endpoint, Entry, Handler, IpcError, Request, Response, Server};
+use tug_ipc::{Client, Endpoint, Entry, Handler, IpcError, Origin, Request, Response, Server};
 
 struct Fake;
 
@@ -24,7 +24,7 @@ impl Handler for Fake {
                     size: Some(100),
                 }],
             },
-            Request::Add { urls } => Response::Added {
+            Request::Add { urls, .. } => Response::Added {
                 added: Vec::new(),
                 failed: urls
                     .into_iter()
@@ -63,6 +63,7 @@ async fn a_client_with_the_token_gets_answers() {
     let Response::Added { failed, .. } = client
         .send(Request::Add {
             urls: vec!["nope".into()],
+            origin: Origin::default(),
         })
         .await
         .unwrap()
@@ -169,6 +170,39 @@ async fn a_live_socket_with_a_full_queue_is_kept() {
     ));
 }
 
+#[test]
+fn an_add_without_an_origin_reads_and_writes_as_before() {
+    let old: Request =
+        serde_json::from_str(r#"{"type":"add","urls":["https://a.example/x"]}"#).unwrap();
+    assert_eq!(
+        old,
+        Request::Add {
+            urls: vec!["https://a.example/x".into()],
+            origin: Origin::default(),
+        }
+    );
+    assert_eq!(
+        serde_json::to_string(&old).unwrap(),
+        r#"{"type":"add","urls":["https://a.example/x"]}"#
+    );
+
+    let from_browser: Request = serde_json::from_str(
+        r#"{"type":"add","urls":[],"referrer":"https://a.example/","cookies":"s=1","user_agent":"Mozilla/5.0"}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        from_browser,
+        Request::Add {
+            urls: Vec::new(),
+            origin: Origin {
+                referrer: Some("https://a.example/".into()),
+                cookies: Some("s=1".into()),
+                user_agent: Some("Mozilla/5.0".into()),
+            },
+        }
+    );
+}
+
 #[tokio::test]
 async fn connecting_without_a_server_fails() {
     let (_dir, endpoint) = endpoint();
@@ -206,6 +240,7 @@ async fn each_request_gets_its_own_size_limit() {
         let Response::Added { failed, .. } = client
             .send(Request::Add {
                 urls: vec![big.clone()],
+                origin: Origin::default(),
             })
             .await
             .unwrap()

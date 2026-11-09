@@ -69,8 +69,22 @@ impl Endpoint {
 pub enum Request {
     Ping,
     Show,
-    Add { urls: Vec<String> },
+    Add {
+        urls: Vec<String>,
+        #[serde(flatten)]
+        origin: Origin,
+    },
     List,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Origin {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub referrer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cookies: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_agent: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

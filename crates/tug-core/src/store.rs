@@ -1,11 +1,16 @@
 use std::ffi::OsString;
+use std::fs::{OpenOptions, Permissions};
+use std::io;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use url::Url;
+
+use crate::origin::Origin;
 
 const MIGRATIONS: &[&str] = &[
     r"
@@ -40,6 +45,14 @@ const MIGRATIONS: &[&str] = &[
     );
     CREATE INDEX events_download ON events (download_id, id);
 ",
+    r"
+    CREATE TABLE origins (
+        download_id INTEGER PRIMARY KEY REFERENCES downloads (id) ON DELETE CASCADE,
+        referrer    TEXT,
+        cookies     TEXT,
+        user_agent  TEXT
+    );
+",
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -56,6 +69,8 @@ pub enum StoreError {
     TooLarge(u64),
     #[error("the database is at schema version {found}, newer than this Tug ({known})")]
     FromNewerTug { found: i64, known: i64 },
+    #[error("couldn't keep the database private: {0}")]
+    Private(#[from] io::Error),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -183,6 +198,7 @@ pub struct Store {
 
 impl Store {
     pub fn open(path: &Path) -> Result<Self, StoreError> {
+        private(path)?;
         let conn = Connection::open(path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
@@ -207,7 +223,16 @@ impl Store {
     }
 
     pub fn insert(&self, new: &NewDownload) -> Result<DownloadId, StoreError> {
-        self.conn.execute(
+        self.insert_from(new, &Origin::default())
+    }
+
+    pub fn insert_from(
+        &self,
+        new: &NewDownload,
+        origin: &Origin,
+    ) -> Result<DownloadId, StoreError> {
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
             "INSERT INTO downloads (url, dir, state, added_ms) VALUES (?1, ?2, ?3, ?4)",
             params![
                 new.url.as_str(),
@@ -216,7 +241,56 @@ impl Store {
                 to_ms(new.added),
             ],
         )?;
-        Ok(DownloadId(self.conn.last_insert_rowid()))
+        let id = tx.last_insert_rowid();
+        if !origin.is_empty() {
+            tx.execute(
+                "INSERT INTO origins (download_id, referrer, cookies, user_agent) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    id,
+                    origin.referrer().map(Url::as_str),
+                    origin.cookies(),
+                    origin.user_agent(),
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(DownloadId(id))
+    }
+
+    pub fn origin(&self, id: DownloadId) -> Result<Origin, StoreError> {
+        let row = self
+            .conn
+            .query_row(
+                "SELECT referrer, cookies, user_agent FROM origins WHERE download_id = ?1",
+                [id.0],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some((referrer, cookies, user_agent)) = row else {
+            return Ok(Origin::default());
+        };
+        Origin::new(
+            referrer.as_deref(),
+            cookies.as_deref(),
+            user_agent.as_deref(),
+        )
+        .map_err(|e| StoreError::Corrupt {
+            id: id.0,
+            column: "origin",
+            detail: e.to_string(),
+        })
+    }
+
+    pub fn forget_origin(&self, id: DownloadId) -> Result<(), StoreError> {
+        self.conn
+            .execute("DELETE FROM origins WHERE download_id = ?1", [id.0])?;
+        Ok(())
     }
 
     pub fn get(&self, id: DownloadId) -> Result<Option<Download>, StoreError> {
@@ -366,6 +440,25 @@ impl Store {
     }
 }
 
+// The origins table holds browser cookies: the database and its WAL files are
+// the user's alone, also when an older Tug made them with the default mode.
+fn private(path: &Path) -> io::Result<()> {
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .mode(0o600)
+        .open(path)?;
+    for suffix in ["", "-wal", "-shm"] {
+        let mut file = path.as_os_str().to_owned();
+        file.push(suffix);
+        match std::fs::set_permissions(&file, Permissions::from_mode(0o600)) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 const SELECT: &str =
     "SELECT id, url, dir, file, state, size, received, error, added_ms, finished_ms FROM downloads";
 
@@ -454,7 +547,7 @@ mod tests {
     #[test]
     fn migrates_a_fresh_database_to_the_latest_schema() {
         let store = Store::open_in_memory().unwrap();
-        assert_eq!(store.schema_version().unwrap(), 2);
+        assert_eq!(store.schema_version().unwrap(), 3);
         assert!(store.list().unwrap().is_empty());
     }
 
@@ -467,7 +560,7 @@ mod tests {
             .insert(&new("https://example.org/a.iso", "/home/u/Downloads"))
             .unwrap();
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 2);
+        assert_eq!(store.schema_version().unwrap(), 3);
         assert_eq!(
             store.get(id).unwrap().unwrap().url.as_str(),
             "https://example.org/a.iso"
@@ -527,7 +620,7 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 2);
+        assert_eq!(store.schema_version().unwrap(), 3);
         let id = store
             .insert(&new("https://example.org/a.iso", "/d"))
             .unwrap();
@@ -543,6 +636,58 @@ mod tests {
             )
             .unwrap();
         assert_eq!(store.events(id).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn an_origin_round_trips_and_leaves_with_its_download() {
+        let store = Store::open_in_memory().unwrap();
+        let origin = Origin::new(
+            Some("https://example.org/page"),
+            Some("session=abc"),
+            Some("Mozilla/5.0"),
+        )
+        .unwrap();
+        let with = store
+            .insert_from(&new("https://example.org/a.iso", "/d"), &origin)
+            .unwrap();
+        let without = store
+            .insert(&new("https://example.org/b.iso", "/d"))
+            .unwrap();
+        assert_eq!(store.origin(with).unwrap(), origin);
+        assert_eq!(store.origin(without).unwrap(), Origin::default());
+
+        store.forget_origin(with).unwrap();
+        assert_eq!(store.origin(with).unwrap(), Origin::default());
+
+        let again = store
+            .insert_from(&new("https://example.org/c.iso", "/d"), &origin)
+            .unwrap();
+        store.remove(again).unwrap();
+        let left: i64 = store
+            .conn
+            .query_row("SELECT count(*) FROM origins", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(left, 0);
+    }
+
+    #[test]
+    fn the_database_and_its_wal_files_are_private() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("tug.db");
+        let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        {
+            let store = Store::open(&db).unwrap();
+            store
+                .insert(&new("https://example.org/a.iso", "/d"))
+                .unwrap();
+            for suffix in ["", "-wal", "-shm"] {
+                let file = PathBuf::from(format!("{}{suffix}", db.display()));
+                assert_eq!(mode(&file), 0o600, "{}", file.display());
+            }
+        }
+        std::fs::set_permissions(&db, Permissions::from_mode(0o644)).unwrap();
+        Store::open(&db).unwrap();
+        assert_eq!(mode(&db), 0o600);
     }
 
     #[test]

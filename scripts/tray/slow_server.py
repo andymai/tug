@@ -1,4 +1,5 @@
 import http.server
+import os
 import re
 import sys
 import threading
@@ -7,6 +8,7 @@ import time
 SIZE = 32 << 20
 RATE = 1 << 20
 CHUNK = 64 << 10
+LOG = os.environ.get("SLOW_SERVER_LOG")
 lock = threading.Lock()
 next_at = [time.monotonic()]
 
@@ -22,6 +24,10 @@ def pace(n):
 
 class Slow(http.server.BaseHTTPRequestHandler):
     def send_range(self, body):
+        if LOG:
+            fields = [self.path] + [self.headers.get(h, "") for h in ("Cookie", "Referer", "User-Agent")]
+            with lock, open(LOG, "a") as log:
+                log.write("\t".join(fields) + "\n")
         start, end = 0, SIZE - 1
         match = re.match(r"bytes=(\d+)-(\d*)", self.headers.get("Range", ""))
         if match:

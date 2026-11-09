@@ -181,7 +181,11 @@ async fn running_or_started(endpoint: &Endpoint) -> Result<Client, String> {
 
 async fn add(endpoint: &Endpoint, urls: Vec<String>, limits: Limits) -> Result<bool, String> {
     let mut client = running_or_started(endpoint).await?;
-    match ask(&mut client, Request::Add { urls }, limits.add).await? {
+    let request = Request::Add {
+        urls,
+        origin: tug_ipc::Origin::default(),
+    };
+    match ask(&mut client, request, limits.add).await? {
         Response::Added { added, failed } => {
             let mut out = io::stdout().lock();
             for entry in &added {
