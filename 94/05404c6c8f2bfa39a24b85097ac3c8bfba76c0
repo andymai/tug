@@ -1,0 +1,75 @@
+apps/desktop/src/backend/bindings/ConnectionStatus.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 1-3
+apps/desktop/src/backend/bindings/LogLine.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 1-3
+apps/desktop/src-tauri/src/bridge.rs
+  s_b321718d129a1e::t_d3b65a6d121bae 10-12,175-298,851-862,1179-1227,1230
+  s_b321718d129a1e::t_ef5725176e8edc 1228-1229,1231
+crates/tug-core/src/inspect.rs
+  s_b321718d129a1e::t_d3b65a6d121bae 1-112
+apps/desktop/src/components/DetailPanel.tsx
+  s_b321718d129a1e::t_eab344befb82f0 198
+  s_b321718d129a1e::t_d3b65a6d121bae 21,101-103,106,205,238-261
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_d3b65a6d121bae 1,12,81-82,85-86,105,271-285,398,420,561,767,773-786
+  s_b321718d129a1e::t_f6281091d85fc2 787
+apps/desktop/src/state/downloads.test.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 3,553-586
+  s_b321718d129a1e::t_f519d5eb4a6abf 587-588
+apps/desktop/src/backend/bindings/Segment.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 1-3
+apps/desktop/src/window.visual.tsx
+  s_b321718d129a1e::t_d3b65a6d121bae 181-202
+crates/tug-core/src/lib.rs
+  s_b321718d129a1e::t_d3b65a6d121bae 3,15
+crates/tug-core/tests/library.rs
+  s_b321718d129a1e::t_dc7fd66cc04fee 142-146
+  s_b321718d129a1e::t_d3b65a6d121bae 8-9,124-141,147-175
+  s_b321718d129a1e::t_3521ef992e5962 176-177
+apps/desktop/src/backend/bindings/Inspection.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 1-7
+apps/desktop/src/components/Inspector.tsx
+  s_b321718d129a1e::t_d3b65a6d121bae 1-286
+CLAUDE.md
+  s_b321718d129a1e::t_91b2ce2d6bbe92 22
+apps/desktop/src/backend/tauri.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 12,43
+apps/desktop/src/lib/format.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 44-49
+apps/desktop/src/backend/mock.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 12,160-195,383
+apps/desktop/src/backend/tauri.test.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 30,49
+apps/desktop/src/App.test.tsx
+  s_b321718d129a1e::t_d3b65a6d121bae 303-378
+apps/desktop/src-tauri/src/main.rs
+  s_b321718d129a1e::t_d3b65a6d121bae 82
+apps/desktop/src/backend/bindings/Server.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 1-3
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 12,57-58,96-97,114-115,133,206-207,499-513
+  s_b321718d129a1e::t_513b9e1d8d4972 514
+crates/tug-core/src/transfer.rs
+  s_b321718d129a1e::t_d3b65a6d121bae 13,188-191
+  s_b321718d129a1e::t_09c146b6ddc320 192-194
+apps/desktop/src/backend/bindings/Connection.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 1-4
+apps/desktop/src/backend/backend.ts
+  s_b321718d129a1e::t_d3b65a6d121bae 7,20-21,24-25,32-33,59-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9405404c6c8f2bfa39a24b85097ac3c8bfba76c0",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
