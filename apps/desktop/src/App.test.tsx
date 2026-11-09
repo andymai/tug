@@ -17,8 +17,12 @@ function open(seed = SHOWCASE) {
   return { backend, store, user: userEvent.setup() };
 }
 
+function downloadRows(title: string) {
+  return within(screen.getByRole("grid", { name: title })).getAllByRole("row").slice(1);
+}
+
 function row(name: string) {
-  const item = screen.getByText(name).closest("li");
+  const item = screen.getByText(name).closest("tr");
   if (!item) throw new Error(`no row for ${name}`);
   return within(item);
 }
@@ -61,7 +65,7 @@ describe("main window", () => {
     });
     const fedora = row("fedora-kde-44-x86_64.iso");
     expect(fedora.getByText("18.4 MB/s")).toBeInTheDocument();
-    expect(fedora.getByText(/^\d+:\d{2} left$/)).toBeInTheDocument();
+    expect(fedora.getByText(/^\d+:\d{2}$/)).toBeInTheDocument();
     expect(screen.getByText(/1 downloading/)).toBeInTheDocument();
   });
 
@@ -80,11 +84,11 @@ describe("main window", () => {
 
   it("selects a row and clears the selection on a second click", async () => {
     const { user } = open();
-    const fedora = await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ });
+    const fedora = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
     await user.click(fedora);
-    expect(fedora).toHaveAttribute("aria-pressed", "true");
+    expect(fedora).toHaveAttribute("aria-selected", "true");
     await user.click(fedora);
-    expect(fedora).toHaveAttribute("aria-pressed", "false");
+    expect(fedora).toHaveAttribute("aria-selected", "false");
   });
 
   it("shows why a retry failed until it is dismissed", async () => {
@@ -197,7 +201,7 @@ describe("adding links", () => {
 describe("detail panel", () => {
   it("opens on a selected row with its facts and live numbers", async () => {
     const { backend, user } = open();
-    await user.click(await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
     const panel = within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" }));
     expect(panel.getByText("download.example.org")).toHaveAttribute(
       "title",
@@ -213,7 +217,7 @@ describe("detail panel", () => {
 
   it("pauses and resumes the download it shows", async () => {
     const { user } = open();
-    await user.click(await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
     const panel = within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" }));
     await user.click(panel.getByRole("button", { name: "Pause" }));
     expect(await panel.findByText("Paused")).toBeInTheDocument();
@@ -228,7 +232,7 @@ describe("detail panel", () => {
     const store = createDownloadsStore({ ...backend, openFile, showInFolder });
     render(<App store={store} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: /^noto-fonts-2026\.11\.zip/ }));
+    await user.click(await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
     const panel = within(screen.getByRole("complementary", { name: "noto-fonts-2026.11.zip" }));
     const id = store.getState().selected;
 
@@ -250,14 +254,14 @@ describe("detail panel", () => {
     });
     render(<App store={store} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: /^noto-fonts-2026\.11\.zip/ }));
+    await user.click(await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
     await user.click(screen.getByRole("button", { name: "Open" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't open it: no app for zip files");
   });
 
   it("gives focus back to the row when it closes from inside", async () => {
     const { user } = open();
-    const row = await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ });
+    const row = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
     await user.click(row);
     await user.click(screen.getByRole("button", { name: "Close details" }));
     expect(row).toHaveFocus();
@@ -270,7 +274,7 @@ describe("detail panel", () => {
 
   it("shows the download's history and adds to it", async () => {
     const { user } = open();
-    await user.click(await screen.findByRole("button", { name: /^conference-talk-1080p\.mp4/ }));
+    await user.click(await screen.findByRole("row", { name: /^conference-talk-1080p\.mp4/ }));
     const panel = within(screen.getByRole("complementary", { name: "conference-talk-1080p.mp4" }));
     const history = within(await panel.findByRole("region", { name: "History" }));
     expect(history.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
@@ -286,7 +290,7 @@ describe("detail panel", () => {
   it("gives focus to the list's title when the row has left the view", async () => {
     const { user } = open();
     await user.click(await screen.findByRole("button", { name: /^Failed/ }));
-    await user.click(screen.getByRole("button", { name: /^dataset-shard-07\.parquet/ }));
+    await user.click(screen.getByRole("row", { name: /^dataset-shard-07\.parquet/ }));
     const panel = within(screen.getByRole("complementary", { name: "dataset-shard-07.parquet" }));
     await user.click(panel.getByRole("button", { name: "Retry" }));
     expect(await screen.findByRole("heading", { name: "Nothing failed" })).toBeInTheDocument();
@@ -296,7 +300,7 @@ describe("detail panel", () => {
 
   it("closes with its button and with Escape", async () => {
     const { user } = open();
-    const row = await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ });
+    const row = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
     await user.click(row);
     await user.click(screen.getByRole("button", { name: "Close details" }));
     expect(screen.queryByRole("complementary", { name: "fedora-kde-44-x86_64.iso" })).not.toBeInTheDocument();
@@ -402,7 +406,7 @@ describe("capture sheet", () => {
     const store = createDownloadsStore(backend);
     render(<App store={store} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
     await act(async () => {
       await backend.capture(REPORT);
     });
@@ -509,7 +513,7 @@ describe("queue", () => {
     expect(later.state).toBe("queued");
     render(<App store={createDownloadsStore(backend)} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: /^later\.iso/ }));
+    await user.click(await screen.findByRole("row", { name: /^later\.iso/ }));
     const panel = within(screen.getByRole("complementary", { name: "later.iso" }));
     await user.click(panel.getByRole("button", { name: "Start next" }));
 
@@ -526,7 +530,7 @@ describe("queue", () => {
     const user = userEvent.setup();
     const queued = (await backend.list()).find((d) => d.state === "queued");
     expect(queued).toBeDefined();
-    await user.click(await screen.findByRole("button", { name: new RegExp(`^${queued?.name ?? ""}`) }));
+    await user.click(await screen.findByRole("row", { name: new RegExp(`^${queued?.name ?? ""}`) }));
     const panel = within(screen.getByRole("complementary", { name: queued?.name ?? "" }));
     await user.click(panel.getByRole("button", { name: "Pause" }));
     expect((await backend.list()).find((d) => d.id === queued?.id)?.state).toBe("paused");
@@ -615,8 +619,8 @@ describe("types", () => {
 
     await user.click(types.getByRole("button", { name: /Archives/ }));
     expect(screen.getByRole("heading", { level: 1, name: "Archives" })).toBeInTheDocument();
-    const list = within(screen.getByRole("list", { name: "Archives" }));
-    expect(list.getAllByRole("listitem")).toHaveLength(2);
+    const list = within(screen.getByRole("grid", { name: "Archives" }));
+    expect(downloadRows("Archives")).toHaveLength(2);
     expect(list.getByText("blender-5.1-linux-x64.tar.xz")).toBeInTheDocument();
     expect(list.getByText("noto-fonts-2026.11.zip")).toBeInTheDocument();
 
@@ -625,6 +629,38 @@ describe("types", () => {
     await user.type(bar.getByRole("combobox"), "disk images");
     await user.keyboard("{Enter}");
     expect(screen.getByRole("heading", { level: 1, name: "Disk images" })).toBeInTheDocument();
+  });
+});
+
+describe("table", () => {
+  it("sorts by a column's header, down first for numbers, and keeps the sort", async () => {
+    const { backend, user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const names = () => downloadRows("All downloads").map((r) => r.querySelector("td")?.textContent);
+    const size = screen.getByRole("columnheader", { name: "Size" });
+
+    await user.click(within(size).getByRole("button"));
+    expect(size).toHaveAttribute("aria-sort", "descending");
+    expect(names()[0]).toBe("fedora-kde-44-x86_64.iso");
+    expect((await backend.settings()).sort).toBe("-size");
+
+    await user.click(within(size).getByRole("button"));
+    expect(size).toHaveAttribute("aria-sort", "ascending");
+    expect(names()[0]).toBe("noto-fonts-2026.11.zip");
+    expect(screen.getByRole("columnheader", { name: "Name" })).toHaveAttribute("aria-sort", "none");
+  });
+
+  it("picks the columns it shows, and always keeps name and status", async () => {
+    const { backend, user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.click(screen.getByRole("button", { name: "Columns" }));
+    const menu = within(screen.getByRole("menu", { name: "Columns" }));
+    expect(menu.queryByRole("menuitemcheckbox", { name: "Name" })).not.toBeInTheDocument();
+    await user.click(menu.getByRole("menuitemcheckbox", { name: "Source" }));
+    await user.click(menu.getByRole("menuitemcheckbox", { name: "Queue" }));
+    expect((await backend.settings()).columns).toEqual(["name", "status", "progress", "size", "speed", "left", "connections", "queue"]);
+    expect(screen.queryByRole("columnheader", { name: "Source" })).not.toBeInTheDocument();
+    expect(row("blender-5.1-linux-x64.tar.xz").getByText("#1")).toBeInTheDocument();
   });
 });
 
@@ -639,9 +675,9 @@ describe("search", () => {
     const field = screen.getByRole("searchbox", { name: "Search downloads" });
     expect(field).toHaveFocus();
     await user.type(field, "mirror");
-    const list = within(screen.getByRole("list", { name: "All downloads" }));
+    const list = within(screen.getByRole("grid", { name: "All downloads" }));
     await vi.waitFor(() => {
-      expect(list.getAllByRole("listitem")).toHaveLength(2);
+      expect(downloadRows("All downloads")).toHaveLength(2);
     });
     expect(list.getByText("blender-5.1-linux-x64.tar.xz")).toBeInTheDocument();
 
@@ -650,7 +686,7 @@ describe("search", () => {
     await user.keyboard("{Escape}");
     expect(field).toHaveValue("");
     await vi.waitFor(() => {
-      expect(within(screen.getByRole("list", { name: "All downloads" })).getAllByRole("listitem")).toHaveLength(5);
+      expect(downloadRows("All downloads")).toHaveLength(5);
     });
   });
 });
@@ -677,7 +713,7 @@ describe("saved views", () => {
     expect(screen.getByRole("searchbox", { name: "Search downloads" })).toHaveValue("mirror");
     expect(screen.getByRole("heading", { level: 1, name: "Archives" })).toBeInTheDocument();
     await vi.waitFor(() => {
-      expect(within(screen.getByRole("list", { name: "Archives" })).getAllByRole("listitem")).toHaveLength(1);
+      expect(downloadRows("Archives")).toHaveLength(1);
     });
 
     await user.click(saved.getByRole("button", { name: "Remove mirror" }));
@@ -709,7 +745,7 @@ describe("command bar and keyboard", () => {
     await user.keyboard("{Enter}");
     expect(screen.getByRole("heading", { level: 1, name: "All downloads" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "conference-talk-1080p.mp4" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^conference-talk-1080p\.mp4/ })).toHaveFocus();
+    expect(screen.getByRole("row", { name: /^conference-talk-1080p\.mp4/ })).toHaveFocus();
   });
 
   it("runs a command on a primary click only", async () => {
@@ -725,7 +761,7 @@ describe("command bar and keyboard", () => {
 
   it("moves the active option with the arrow keys and offers the selected download's actions", async () => {
     const { user } = open();
-    await user.click(await screen.findByRole("button", { name: /^noto-fonts-2026\.11\.zip/ }));
+    await user.click(await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
     await user.keyboard("{Control>}k{/Control}");
     const bar = within(screen.getByRole("dialog", { name: "Command bar" }));
     const options = bar.getAllByRole("option");
@@ -746,9 +782,9 @@ describe("command bar and keyboard", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Active" })).toBeInTheDocument();
 
     await user.keyboard("{ArrowDown}");
-    const fedora = screen.getByRole("button", { name: /^fedora-kde-44-x86_64\.iso/ });
+    const fedora = screen.getByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
     expect(fedora).toHaveFocus();
-    expect(fedora).toHaveAttribute("aria-pressed", "true");
+    expect(fedora).toHaveAttribute("aria-selected", "true");
     await user.keyboard("p");
     expect(await within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" })).findByText("Paused")).toBeInTheDocument();
 

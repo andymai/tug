@@ -14,7 +14,7 @@ import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
 import { WindowControls } from "./WindowControls";
-import { DownloadRow } from "./DownloadRow";
+import { DownloadTable } from "./DownloadTable";
 
 const TITLES: Record<StateView, string> = {
   all: "All downloads",
@@ -170,7 +170,6 @@ export function DownloadList() {
   const loadError = useDownloads((s) => s.loadError);
   const total = useDownloads((s) => s.items.length);
   const items = useDownloads(useShallow((s) => visibleItems(s)));
-  const selected = useDownloads((s) => s.selected);
   const openAdd = useDownloads((s) => s.openAdd);
   const searching = useDownloads((s) => s.matches !== null);
 
@@ -207,11 +206,7 @@ export function DownloadList() {
               <Empty view={view} first={total === 0} />
             )
           ) : (
-            <ul aria-label={titleOf(view)} className="flex-1 overflow-y-auto">
-              {items.map((download) => (
-                <DownloadRow key={download.id} download={download} selected={download.id === selected} />
-              ))}
-            </ul>
+            <DownloadTable title={titleOf(view)} />
           )}
         </div>
         <DetailPanel />

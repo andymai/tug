@@ -16,6 +16,7 @@ import {
   type Settings,
 } from "../backend/backend";
 import { isCategory } from "../lib/categories";
+import { queueRanks, sortItems, sortOf } from "../lib/columns";
 
 export type StateView = "all" | "active" | "done" | "failed";
 // A function patch reads the settings it lands on, so a change to a list never
@@ -569,11 +570,10 @@ export function inView(view: View, item: Download): boolean {
   return states === undefined ? item.category === view : states.includes(item.state);
 }
 
-export function visibleItems(state: Pick<DownloadsState, "items" | "view" | "matches">): Download[] {
+export function visibleItems(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">): Download[] {
   const found = state.matches === null ? null : new Set(state.matches);
-  return state.items
-    .filter((item) => inView(state.view, item) && (found === null || found.has(item.id)))
-    .sort((a, b) => b.addedMs - a.addedMs || b.id - a.id);
+  const shown = state.items.filter((item) => inView(state.view, item) && (found === null || found.has(item.id)));
+  return sortItems(shown, sortOf(state.settings), state.live, queueRanks(state.items));
 }
 
 export function countFor(items: readonly Download[], view: View): number {

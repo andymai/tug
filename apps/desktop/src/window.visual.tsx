@@ -113,6 +113,17 @@ describe("main window", () => {
     await capture(window, "drop");
   });
 
+  it("sorts by a column and picks its columns", async () => {
+    const { store, window } = await showcase();
+    await act(async () => {
+      await store.getState().saveSettings({ sort: "-size", columns: ["name", "status", "progress", "size", "type", "added", "queue"] });
+    });
+    act(() => {
+      document.querySelector<HTMLButtonElement>('button[aria-label="Columns"]')?.click();
+    });
+    await capture(window, "columns");
+  });
+
   it("shows the downloads of one type", async () => {
     const { store, window } = await showcase();
     act(() => {
