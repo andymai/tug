@@ -10,6 +10,12 @@ export function start(api: Api, userAgent: string): Capture {
       contexts: ["link", "image", "video", "audio"],
     });
   });
+  api.webRequest.onBeforeRequest.addListener(
+    (request) => {
+      capture.requested(request);
+    },
+    { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] },
+  );
   api.downloads.onCreated.addListener((item) => {
     void capture.created(item);
   });

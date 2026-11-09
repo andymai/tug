@@ -4,6 +4,9 @@ set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 work=$(mktemp -d)
+# A Tug that is still stopping can write into $work for a moment.
+cleanup() { for _ in 1 2 3 4 5; do rm -rf "$work" 2>/dev/null && return; sleep 1; done; }
+trap cleanup EXIT
 mkdir -m 700 "$work/runtime"
 # Tug's default folder comes from user-dirs.dirs; without one it is the real ~/Downloads.
 mkdir -p "$work/config" "$work/downloads"
@@ -113,5 +116,3 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     for _ in $(seq 1 20); do [ "$(prop Status)" = "s \"Active\"" ] && break; sleep 0.5; done
     expect "active after Resume all" "$(prop Status)" "s \"Active\""
   '
-# A Tug that is still stopping can write into $work for a moment.
-for _ in 1 2 3 4 5; do rm -rf "$work" 2>/dev/null && break; sleep 1; done
