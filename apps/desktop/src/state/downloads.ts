@@ -161,6 +161,21 @@ export function createDownloadsStore(backend: Backend) {
             void get().reload();
           })
           .catch(() => () => undefined);
+        const unfocus = await backend
+          .onFocusDownload((id) => {
+            void get()
+              .reload()
+              .then(() => {
+                const state = get();
+                const item = state.items.find((download) => download.id === id);
+                if (item === undefined) return;
+                if (!inView(state.view, item)) state.setView("all");
+                else state.setPage("downloads");
+                state.select(id);
+                state.requestFocus(id);
+              });
+          })
+          .catch(() => () => undefined);
         let schemeEvent = false;
         const unwatch = await backend
           .onColorScheme((systemScheme) => {
@@ -189,6 +204,7 @@ export function createDownloadsStore(backend: Backend) {
           unwatch();
           unnotice();
           uncapture();
+          unfocus();
         };
       },
 

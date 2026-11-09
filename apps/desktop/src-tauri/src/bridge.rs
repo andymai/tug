@@ -692,8 +692,14 @@ pub fn open_file(
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<(), CommandError> {
-    let download = state.library.get(DownloadId::from(id))?;
-    let url = file_url(finished_file(&download)?)?;
+    open_download(&app, &state.library.get(DownloadId::from(id))?)
+}
+
+pub fn open_download<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    download: &Download,
+) -> Result<(), CommandError> {
+    let url = file_url(finished_file(download)?)?;
     app.opener()
         .open_url(url, None::<&str>)
         .map_err(|e| opener_error(&e))
@@ -709,8 +715,14 @@ pub fn show_in_folder(
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<(), CommandError> {
-    let download = state.library.get(DownloadId::from(id))?;
-    match finished_file(&download) {
+    reveal_download(&app, &state.library.get(DownloadId::from(id))?)
+}
+
+pub fn reveal_download<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    download: &Download,
+) -> Result<(), CommandError> {
+    match finished_file(download) {
         Ok(file) if file.exists() => app
             .opener()
             .reveal_item_in_dir(file)

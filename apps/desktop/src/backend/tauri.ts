@@ -16,6 +16,7 @@ export const PROGRESS_EVENT = "progress";
 export const COLOR_SCHEME_EVENT = "color-scheme";
 export const NOTICE_EVENT = "notice";
 export const CAPTURES_EVENT = "captures";
+export const FOCUS_EVENT = "focus-download";
 
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   try {
@@ -54,6 +55,10 @@ export const tauriBackend: Backend = {
   answerCapture: (id, answer: CaptureAnswer) => call("answer_capture", { id, answer }),
   onCaptures: (listener) =>
     listen<Download[]>(CAPTURES_EVENT, (event) => {
+      listener(event.payload);
+    }),
+  onFocusDownload: (listener) =>
+    listen<number>(FOCUS_EVENT, (event) => {
       listener(event.payload);
     }),
 };

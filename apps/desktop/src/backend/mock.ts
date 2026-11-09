@@ -19,6 +19,7 @@ const RATE = 18.4 * MB;
 export interface MockBackend extends Backend {
   tick(): void;
   capture(url: string): Promise<void>;
+  focus(id: number): void;
   setColorScheme(scheme: ColorScheme | null): void;
   notice(message: string): void;
   dispose(): void;
@@ -69,6 +70,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
   const noticeListeners = new Set<(message: string) => void>();
   const captureListeners = new Set<(captures: Download[]) => void>();
+  const focusListeners = new Set<(id: number) => void>();
   let waiting: number[] = [];
   let nextId = 1;
   let seq = 0;
@@ -284,6 +286,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         captureListeners.delete(listener);
       });
     },
+    onFocusDownload: (listener) => {
+      focusListeners.add(listener);
+      return Promise.resolve(() => {
+        focusListeners.delete(listener);
+      });
+    },
+    focus: (id) => {
+      for (const listener of focusListeners) listener(id);
+    },
     capture: (url) =>
       attempt(() => {
         ask(url);
@@ -296,6 +307,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       schemeListeners.clear();
       noticeListeners.clear();
       captureListeners.clear();
+      focusListeners.clear();
     },
   };
 }
