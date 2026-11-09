@@ -1,0 +1,52 @@
+apps/desktop/src-tauri/src/bridge.rs
+  s_b050dc8a593981::t_a30944419fb6a1 695-702,718-725
+apps/desktop/src-tauri/src/main.rs
+  s_b050dc8a593981::t_4d780d41bcde76 6,46
+apps/desktop/src/state/downloads.ts
+  s_b050dc8a593981::t_d6ec7862ea8ca3 164-178,207
+scripts/tray/slow_server.py
+  s_b050dc8a593981::t_e41aa397c165f8 29-33,38,42,44
+scripts/notify/notice.py
+  s_b050dc8a593981::t_4a8fbe0464719a 1-13
+scripts/notify/server.py
+  s_b050dc8a593981::t_884886296ddf74 1-65
+apps/desktop/src/backend/backend.ts
+  s_b050dc8a593981::t_d6ec7862ea8ca3 43
+apps/desktop/src-tauri/Cargo.toml
+  s_b050dc8a593981::t_a30944419fb6a1 30
+apps/desktop/src/App.test.tsx
+  s_b050dc8a593981::t_d6ec7862ea8ca3 385-401
+apps/desktop/src-tauri/src/notify.rs
+  s_b050dc8a593981::t_3fbbf4cefb5e99 110
+  s_b050dc8a593981::t_70a2330fa35fc3 1-21,26-109,111-303
+  s_b050dc8a593981::t_4d780d41bcde76 22-25
+apps/desktop/src/backend/mock.ts
+  s_b050dc8a593981::t_d6ec7862ea8ca3 22,73,289-297,310
+apps/desktop/src/backend/tauri.ts
+  s_b050dc8a593981::t_d6ec7862ea8ca3 19,60-61
+  s_b050dc8a593981::t_9e33b82230f221 62-63
+Cargo.toml
+  s_b050dc8a593981::t_a30944419fb6a1 38
+scripts/notify/check.sh
+  s_b050dc8a593981::t_4a8fbe0464719a 1-68
+CLAUDE.md
+  s_b050dc8a593981::t_5d84bdcc544a61 55-56
+Cargo.lock
+  s_b050dc8a593981::t_3619a9c5fe6237 5349
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "55d0859d61bd63b53ab2f119c4a989ae733518d3",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
