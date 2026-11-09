@@ -9,6 +9,7 @@ import {
   type ColorScheme,
   type DownloadEvent,
   type DownloadState,
+  type Inspection,
   type Place,
   type ProgressBatch,
   type ProgressUpdate,
@@ -155,6 +156,42 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
 
   const queue = () =>
     [...downloads.values()].filter((d) => d.state === "queued").sort((a, b) => a.position - b.position);
+
+  // Uneven, as real connections are; like Tug, a stopped download keeps its last map and log.
+  const inspection = (download: Download): Inspection | null => {
+    const { size, received, state } = download;
+    if (size === null || received === 0 || (state !== "downloading" && state !== "paused" && state !== "failed")) return null;
+    const count = settings.connections;
+    const share = Math.ceil(size / count);
+    const pace = (at: number) => 0.7 + ((at * 7) % 5) * 0.15;
+    const segments = Array.from({ length: count }, (_, at) => {
+      const start = Math.min(size, at * share);
+      const end = Math.min(size, start + share);
+      return { start, cursor: Math.min(end, start + Math.round((received / count) * pace(at))), end };
+    }).filter((segment) => segment.end > segment.start);
+    const rate = (limitNow() ?? RATE) / count;
+    const host = new URL(download.url).hostname;
+    const connections =
+      state === "downloading"
+        ? segments.map((segment, at) => {
+            const number = at + 1;
+            if (segment.cursor === segment.end) return { number, received: segment.cursor - segment.start, speed: 0, status: { kind: "finished" as const } };
+            if (number === 3) return { number, received: segment.cursor - segment.start, speed: 0, status: { kind: "retrying" as const, error: "the server closed the connection" } };
+            return { number, received: segment.cursor - segment.start, speed: Math.round(rate * pace(at)), status: { kind: "receiving" as const } };
+          })
+        : [];
+    const at = download.addedMs;
+    const log = [
+      { seq: 1, atMs: at, text: `Connected to ${host} (203.0.113.24), size ${String(size)} bytes` },
+      ...segments.slice(1).map((segment, index) => ({ seq: index + 2, atMs: at + 1000, text: `Connection ${String(index + 2)}: from byte ${String(segment.start)}` })),
+    ];
+    if (connections.some((connection) => connection.status.kind === "retrying")) {
+      log.push({ seq: log.length + 1, atMs: at + 20_000, text: "Connection 3: the server closed the connection; retrying" });
+    }
+    if (state === "paused") log.push({ seq: log.length + 1, atMs: at + 20_000, text: "Stopped" });
+    if (state === "failed") log.push({ seq: log.length + 1, atMs: at + 20_000, text: `Connection 1: ${download.error ?? "failed"}` });
+    return { segments, connections, server: { ip: "203.0.113.24", rttMs: 38, proxied: false, cdn: "Fastly" }, log };
+  };
 
   // Like Tug, a place that frees up goes to the next queued download; the seed keeps its states.
   const fill = () => {
@@ -343,6 +380,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       attempt(() => {
         find(id);
       }),
+    inspect: (id) => attempt(() => inspection(find(id))),
     settings: () => Promise.resolve({ ...settings }),
     updateSettings: (next) =>
       attempt(() => {

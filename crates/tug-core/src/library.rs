@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -9,6 +9,7 @@ use mdm_engine::naming::part_path;
 use mdm_engine::state::state_path;
 use url::Url;
 
+use crate::inspect::Inspection;
 use crate::origin::Origin;
 use crate::schedule::Schedule;
 use crate::settings::{Settings, SettingsError};
@@ -77,7 +78,11 @@ pub struct Library {
     // transfer ends. Pause and resume change it under the run lock in that time.
     stopping: Mutex<HashMap<DownloadId, DownloadState>>,
     swarm: Option<Arc<Swarm>>,
+    // The last inspection of each transfer that ended in this session, newest last.
+    ended: Mutex<VecDeque<(DownloadId, Inspection)>>,
 }
+
+const KEPT_INSPECTIONS: usize = 64;
 
 impl Library {
     pub async fn open(store: Store) -> Result<Self, LibraryError> {
@@ -97,6 +102,7 @@ impl Library {
             news: Mutex::default(),
             stopping: Mutex::default(),
             swarm: torrents.map(|options| Arc::new(Swarm::new(options))),
+            ended: Mutex::default(),
         };
         {
             let store = library.store()?;
@@ -262,6 +268,21 @@ impl Library {
         Ok(self.store()?.events(id)?)
     }
 
+    // A running HTTP download's, else the last one its transfer had in this session.
+    pub async fn inspect(&self, id: DownloadId) -> Result<Option<Inspection>, LibraryError> {
+        self.get(id)?;
+        let running = self.running.lock().await;
+        if let Some(entry) = running.get(&id) {
+            return Ok(entry.transfer.inspect());
+        }
+        drop(running);
+        Ok(self
+            .ended()
+            .iter()
+            .find(|(other, _)| *other == id)
+            .map(|(_, seen)| seen.clone()))
+    }
+
     // A waiting download is held under the run lock, so a tick can't start it
     // between the check and the write.
     pub async fn pause(&self, id: DownloadId) -> Result<(), LibraryError> {
@@ -374,6 +395,7 @@ impl Library {
             let (_stopped, learned) = running.transfer.end().await;
             self.keep_learned(id, learned)?;
         }
+        self.keep_inspection(id, None);
         if download.is_torrent() {
             let torrent = self.store()?.torrent(id)?;
             self.forget_torrent(&download, torrent, delete_file).await?;
@@ -395,6 +417,7 @@ impl Library {
         }
         self.store()?.remove(id)?;
         drop(running);
+        self.keep_inspection(id, None);
         self.changed(id);
         delete_files(&download)?;
         Ok(true)
@@ -535,6 +558,7 @@ impl Library {
         let mut first = None;
         for (id, entry) in stopped {
             let last = entry.transfer.progress();
+            self.keep_inspection(id, entry.transfer.inspect());
             let (outcome, learned) = entry.transfer.end().await;
             if let Err(e) = self.keep_learned(id, learned) {
                 first.get_or_insert(e);
@@ -740,9 +764,25 @@ impl Library {
         unfinished: DownloadState,
     ) -> Result<(), LibraryError> {
         let last = transfer.progress();
+        self.keep_inspection(id, transfer.inspect());
         let (outcome, learned) = transfer.end().await;
         self.keep_learned(id, learned)?;
         record(&*self.store()?, id, &last, outcome, unfinished)
+    }
+
+    fn ended(&self) -> MutexGuard<'_, VecDeque<(DownloadId, Inspection)>> {
+        self.ended.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn keep_inspection(&self, id: DownloadId, seen: Option<Inspection>) {
+        let mut ended = self.ended();
+        ended.retain(|(other, _)| *other != id);
+        if let Some(seen) = seen {
+            if ended.len() >= KEPT_INSPECTIONS {
+                ended.pop_front();
+            }
+            ended.push_back((id, seen));
+        }
     }
 
     fn store(&self) -> Result<MutexGuard<'_, Store>, LibraryError> {

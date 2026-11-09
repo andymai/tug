@@ -9,6 +9,7 @@ import {
   type ColorScheme,
   type Download,
   type DownloadEvent,
+  type Inspection,
   type ProgressBatch,
   type Settings,
 } from "./backend";
@@ -39,6 +40,7 @@ export const tauriBackend: Backend = {
   openFile: (id) => call("open_file", { id }),
   showInFolder: (id) => call("show_in_folder", { id }),
   events: (id) => call<DownloadEvent[]>("download_events", { id }),
+  inspect: (id) => call<Inspection | null>("inspect_download", { id }),
   settings: () => call<Settings>("get_settings"),
   updateSettings: (settings) => call("update_settings", { settings }),
   chooseDownloadFolder: () => call<Settings | null>("choose_download_folder"),

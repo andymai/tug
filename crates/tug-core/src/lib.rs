@@ -1,5 +1,6 @@
 mod category;
 mod disk;
+mod inspect;
 mod library;
 mod origin;
 mod progress;
@@ -11,6 +12,7 @@ mod transfer;
 
 pub use category::Category;
 pub use disk::free_space;
+pub use inspect::{Connection, ConnectionStatus, Inspection, LogLine, Segment, Server};
 pub use library::{Library, LibraryError, Tick};
 pub use origin::{Origin, OriginError};
 pub use progress::{

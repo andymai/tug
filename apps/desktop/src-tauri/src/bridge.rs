@@ -7,9 +7,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
-    Appearance, Batch, Category, Download, DownloadId, DownloadState, Event, EventKind, Library,
-    LibraryError, Origin, Phase, Place, ProgressStream, SavedView, Schedule, Settings, SlowHours,
-    Store, StreamOptions, TorrentOptions, TorrentSource, Update,
+    Appearance, Batch, Category, ConnectionStatus, Download, DownloadId, DownloadState, Event,
+    EventKind, Inspection, Library, LibraryError, Origin, Phase, Place, ProgressStream, SavedView,
+    Schedule, Settings, SlowHours, Store, StreamOptions, TorrentOptions, TorrentSource, Update,
 };
 use url::Url;
 
@@ -168,6 +168,130 @@ impl From<&Event> for EventDto {
             at_ms: unix_ms(e.at),
             bytes: e.bytes,
             detail: e.detail.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "Inspection")]
+pub struct InspectionDto {
+    pub segments: Vec<SegmentDto>,
+    pub connections: Vec<ConnectionDto>,
+    pub server: Option<ServerDto>,
+    pub log: Vec<LogLineDto>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "Segment")]
+pub struct SegmentDto {
+    #[ts(type = "number")]
+    pub start: u64,
+    #[ts(type = "number")]
+    pub cursor: u64,
+    #[ts(type = "number")]
+    pub end: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "Connection")]
+pub struct ConnectionDto {
+    pub number: u32,
+    #[ts(type = "number")]
+    pub received: u64,
+    #[ts(type = "number")]
+    pub speed: u64,
+    pub status: ConnectionStatusDto,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+#[ts(export, rename = "ConnectionStatus")]
+pub enum ConnectionStatusDto {
+    Connecting,
+    Receiving,
+    Retrying { error: String },
+    Finished,
+    Failed { error: String },
+    Retired { host: String, cap: u32 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "Server")]
+pub struct ServerDto {
+    pub ip: Option<String>,
+    #[ts(type = "number | null")]
+    pub rtt_ms: Option<u64>,
+    pub proxied: bool,
+    pub cdn: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "LogLine")]
+pub struct LogLineDto {
+    #[ts(type = "number")]
+    pub seq: u64,
+    #[ts(type = "number")]
+    pub at_ms: u64,
+    pub text: String,
+}
+
+impl From<Inspection> for InspectionDto {
+    fn from(seen: Inspection) -> Self {
+        Self {
+            segments: seen
+                .segments
+                .iter()
+                .map(|s| SegmentDto {
+                    start: s.start,
+                    cursor: s.cursor,
+                    end: s.end,
+                })
+                .collect(),
+            connections: seen
+                .connections
+                .into_iter()
+                .map(|c| ConnectionDto {
+                    number: c.number,
+                    received: c.received,
+                    speed: c.speed,
+                    status: c.status.into(),
+                })
+                .collect(),
+            server: seen.server.map(|s| ServerDto {
+                ip: s.ip.map(|ip| ip.to_string()),
+                rtt_ms: s
+                    .rtt
+                    .map(|rtt| u64::try_from(rtt.as_millis()).unwrap_or(u64::MAX)),
+                proxied: s.proxied,
+                cdn: s.cdn,
+            }),
+            log: seen
+                .log
+                .into_iter()
+                .map(|line| LogLineDto {
+                    seq: line.seq,
+                    at_ms: unix_ms(line.at),
+                    text: line.text,
+                })
+                .collect(),
+        }
+    }
+}
+
+impl From<ConnectionStatus> for ConnectionStatusDto {
+    fn from(status: ConnectionStatus) -> Self {
+        match status {
+            ConnectionStatus::Connecting => Self::Connecting,
+            ConnectionStatus::Receiving => Self::Receiving,
+            ConnectionStatus::Retrying(error) => Self::Retrying { error },
+            ConnectionStatus::Finished => Self::Finished,
+            ConnectionStatus::Failed(error) => Self::Failed { error },
+            ConnectionStatus::Retired { host, cap } => Self::Retired { host, cap },
         }
     }
 }
@@ -724,6 +848,18 @@ pub async fn pause_download(
 }
 
 #[tauri::command]
+pub async fn inspect_download(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<Option<InspectionDto>, CommandError> {
+    Ok(state
+        .library
+        .inspect(DownloadId::from(id))
+        .await?
+        .map(InspectionDto::from))
+}
+
+#[tauri::command]
 pub async fn resume_download(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
@@ -1035,6 +1171,59 @@ mod tests {
                 "atMs": 1_762_600_000_123_u64,
                 "bytes": 1024,
                 "detail": "the server closed the connection",
+            })
+        );
+    }
+
+    #[test]
+    fn an_inspection_crosses_with_tagged_connection_states() {
+        let seen = Inspection {
+            segments: vec![tug_core::Segment {
+                start: 0,
+                cursor: 512,
+                end: 1024,
+            }],
+            connections: vec![
+                tug_core::Connection {
+                    number: 1,
+                    received: 512,
+                    speed: 2048,
+                    status: ConnectionStatus::Retrying("timed out".into()),
+                },
+                tug_core::Connection {
+                    number: 2,
+                    received: 0,
+                    speed: 0,
+                    status: ConnectionStatus::Retired {
+                        host: "example.org".into(),
+                        cap: 4,
+                    },
+                },
+            ],
+            server: Some(tug_core::Server {
+                ip: Some([10, 0, 0, 7].into()),
+                rtt: Some(Duration::from_micros(23_600)),
+                proxied: false,
+                cdn: Some("Cloudflare".into()),
+            }),
+            log: vec![tug_core::LogLine {
+                seq: 3,
+                at: UNIX_EPOCH + Duration::from_millis(1_762_600_000_123),
+                text: "connection 2 opened".into(),
+            }],
+        };
+        assert_eq!(
+            serde_json::to_value(InspectionDto::from(seen)).unwrap(),
+            serde_json::json!({
+                "segments": [{"start": 0, "cursor": 512, "end": 1024}],
+                "connections": [
+                    {"number": 1, "received": 512, "speed": 2048,
+                     "status": {"kind": "retrying", "error": "timed out"}},
+                    {"number": 2, "received": 0, "speed": 0,
+                     "status": {"kind": "retired", "host": "example.org", "cap": 4}},
+                ],
+                "server": {"ip": "10.0.0.7", "rttMs": 23, "proxied": false, "cdn": "Cloudflare"},
+                "log": [{"seq": 3, "atMs": 1_762_600_000_123_u64, "text": "connection 2 opened"}],
             })
         );
     }

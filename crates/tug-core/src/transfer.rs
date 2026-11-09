@@ -10,6 +10,7 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use url::Url;
 
+use crate::inspect::Inspection;
 use crate::origin::Origin;
 use crate::torrent::Swarm;
 
@@ -181,6 +182,13 @@ impl Transfer {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .clone(),
+        }
+    }
+
+    pub fn inspect(&self) -> Option<Inspection> {
+        match &self.work {
+            Work::Http(download) => Some(download.snapshot().into()),
+            Work::Torrent(_) => None,
         }
     }
 

@@ -9,6 +9,7 @@ import {
   type Download,
   type DownloadEvent,
   type DownloadState,
+  type Inspection,
   type ProgressBatch,
   type ProgressUpdate,
   type ResizeEdge,
@@ -54,6 +55,8 @@ export interface DownloadsState {
   adding: Adding;
   fresh: number[];
   history: { id: number; events: DownloadEvent[] } | null;
+  inspection: { id: number; data: Inspection | null } | null;
+  inspectorTab: InspectorTab;
   overlay: Overlay;
   focusRequest: number | null;
   search: string;
@@ -93,6 +96,8 @@ export interface DownloadsState {
   openFile: (id: number) => Promise<void>;
   showInFolder: (id: number) => Promise<void>;
   loadHistory: (id: number) => Promise<void>;
+  inspect: (id: number) => Promise<void>;
+  setInspectorTab: (tab: InspectorTab) => void;
   notify: (message: string) => void;
   dismissNotice: () => void;
   openAdd: (text?: string) => void;
@@ -108,6 +113,8 @@ export interface DownloadsState {
 }
 
 export type Overlay = "commands" | "shortcuts" | null;
+
+export type InspectorTab = "overview" | "connections" | "log";
 
 export type Page = "downloads" | "settings";
 
@@ -128,6 +135,7 @@ export function createDownloadsStore(backend: Backend) {
     let historyRequest = 0;
     let disk: Promise<void> | null = null;
     let diskAsked = 0;
+    let inspectRequest = 0;
 
     const act = async (action: () => Promise<void>) => {
       try {
@@ -203,6 +211,8 @@ export function createDownloadsStore(backend: Backend) {
       adding: CLOSED,
       fresh: [],
       history: null,
+      inspection: null,
+      inspectorTab: "overview",
       overlay: null,
       focusRequest: null,
       search: "",
@@ -506,6 +516,22 @@ export function createDownloadsStore(backend: Backend) {
           const events = await backend.events(id);
           if (request === historyRequest && get().selected === id) set({ history: { id, events } });
         }),
+
+      inspect: async (id) => {
+        const request = ++inspectRequest;
+        try {
+          const data = await backend.inspect(id);
+          if (request === inspectRequest && get().selected === id) set({ inspection: { id, data } });
+        } catch (error) {
+          const failure = BackendError.from(error);
+          // A download removed between two polls; its panel closes with it.
+          if (failure.kind !== "notFound") set({ notice: failure.message });
+        }
+      },
+
+      setInspectorTab: (tab) => {
+        set({ inspectorTab: tab });
+      },
 
       notify: (message) => {
         set({ notice: message });

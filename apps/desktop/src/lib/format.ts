@@ -41,6 +41,12 @@ export function formatClock(ms: number): string {
   return CLOCK.format(ms);
 }
 
+const SECONDS = new Intl.DateTimeFormat(undefined, { timeStyle: "medium" });
+
+export function formatSeconds(ms: number): string {
+  return SECONDS.format(ms);
+}
+
 export function formatPercent(received: number, total: number | null): string | null {
   if (total === null || total <= 0) return null;
   return `${String(Math.min(100, Math.floor((received * 100) / total)))}%`;
