@@ -41,10 +41,25 @@ pub fn parse(args: &[String]) -> Command {
     }
 }
 
+const fn invisible(c: char) -> bool {
+    matches!(
+        c,
+        '\u{ad}'
+            | '\u{61c}'
+            | '\u{180e}'
+            | '\u{200b}'..='\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2060}'..='\u{2064}'
+            | '\u{2066}'..='\u{2069}'
+            | '\u{feff}'
+            | '\u{fff9}'..='\u{fffb}'
+    )
+}
+
 pub fn printable(text: &str) -> String {
     text.chars()
         .fold(String::with_capacity(text.len()), |mut out, c| {
-            if c.is_control() {
+            if c.is_control() || invisible(c) {
                 out.extend(c.escape_unicode());
             } else {
                 out.push(c);
@@ -227,6 +242,15 @@ mod tests {
         assert_eq!(printable("a\u{1b}[2Jb"), "a\\u{1b}[2Jb");
         assert_eq!(printable("line\nbreak\u{7}"), "line\\u{a}break\\u{7}");
         assert_eq!(printable("café"), "café");
+        assert_eq!(
+            printable("invoice\u{202e}fdp.exe"),
+            "invoice\\u{202e}fdp.exe"
+        );
+        assert_eq!(printable("a\u{2066}b\u{2069}"), "a\\u{2066}b\\u{2069}");
+        assert_eq!(
+            printable("zero\u{200b}width\u{feff}"),
+            "zero\\u{200b}width\\u{feff}"
+        );
         let entry = Entry {
             id: 1,
             name: "evil\u{1b}]0;title\u{7}.iso".into(),
