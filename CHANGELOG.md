@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.2](https://github.com/andymai/tug/compare/v0.21.1...v0.21.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **desktop:** keep the AppImage launcher's libraries away from host programs ([#95](https://github.com/andymai/tug/issues/95)) ([d725947](https://github.com/andymai/tug/commit/d725947b7128b1932de3485cd5ad9d3c0964fdc4))
+
 ## [0.21.1](https://github.com/andymai/tug/compare/v0.21.0...v0.21.1) (2026-11-09)
 
 
