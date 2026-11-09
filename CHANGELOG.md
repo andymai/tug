@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.3](https://github.com/andymai/tug/compare/v0.21.2...v0.21.3) (2026-11-09)
+
+
+### Bug Fixes
+
+* **desktop:** draw the tray icon with the same 1px lines as Breeze ([#98](https://github.com/andymai/tug/issues/98)) ([ad1fbcd](https://github.com/andymai/tug/commit/ad1fbcdd39b6d6f01769554bc2029f299415a29b))
+
 ## [0.21.2](https://github.com/andymai/tug/compare/v0.21.1...v0.21.2) (2026-11-09)
 
 
