@@ -673,14 +673,13 @@ pub fn list_downloads(state: tauri::State<'_, AppState>) -> Result<Vec<DownloadD
     list(&state.library)
 }
 
+// A stalled network mount can block statvfs, and a plain command runs on the
+// window's thread.
 #[tauri::command]
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "Tauri injects State by value"
-)]
-pub fn disk_free(state: tauri::State<'_, AppState>) -> Result<Option<u64>, CommandError> {
+pub async fn disk_free(state: tauri::State<'_, AppState>) -> Result<Option<u64>, CommandError> {
     let folder = state.library.settings()?.download_dir;
-    Ok(tug_core::free_space(&folder).ok())
+    let free = tauri::async_runtime::spawn_blocking(move || tug_core::free_space(&folder).ok());
+    Ok(free.await.ok().flatten())
 }
 
 #[tauri::command]

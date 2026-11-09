@@ -662,6 +662,33 @@ describe("status bar", () => {
     const status = within(await screen.findByRole("region", { name: "Status" }));
     expect(await status.findByRole("button", { name: /Slower hours 2\.00 MB\/s/ })).toHaveAttribute("aria-pressed", "true");
   });
+
+  it("names the plain limit when it is lower than the slower hours' one", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    await backend.updateSettings({
+      ...(await backend.settings()),
+      speedLimit: 2 * MB,
+      slowHours: { limit: 8 * MB, hours: { days: 0b111_1111, start: 0, stop: 1439 } },
+    });
+    render(<App store={createDownloadsStore(backend)} />);
+    const status = within(await screen.findByRole("region", { name: "Status" }));
+    expect(await status.findByRole("button", { name: /^Limit 2\.00 MB\/s/ })).toBeInTheDocument();
+  });
+
+  it("brings back the last limit after a visit to Settings", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    await backend.updateSettings({ ...(await backend.settings()), speedLimit: 2 * MB });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    const status = () => within(screen.getByRole("region", { name: "Status" }));
+    await user.click(await status().findByRole("button", { name: /Limit 2\.00 MB\/s/ }));
+    expect((await backend.settings()).speedLimit).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("button", { name: /^All/ }));
+    await user.click(await status().findByRole("button", { name: /No limit/ }));
+    expect((await backend.settings()).speedLimit).toBe(2 * MB);
+  });
 });
 
 describe("table", () => {

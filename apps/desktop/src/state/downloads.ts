@@ -25,6 +25,7 @@ export type SettingsPatch = Partial<Settings> | ((current: Settings) => Partial<
 export const MAX_SAVED_VIEWS = 50;
 export const SAMPLES = 60;
 const SAMPLE_MS = 1000;
+const DEFAULT_LIMIT = 10 * (1 << 20);
 
 function patched(settings: Settings, patch: SettingsPatch): Settings {
   return { ...settings, ...(typeof patch === "function" ? patch(settings) : patch) };
@@ -61,6 +62,8 @@ export interface DownloadsState {
   // Total speed, one sample a second, the newest last.
   speeds: number[];
   diskFree: number | null;
+  // The speed limit that turning the limit on brings back.
+  lastLimit: number;
   captures: Download[];
   framed: boolean;
   maximized: boolean;
@@ -123,6 +126,8 @@ export type DownloadsStore = ReturnType<typeof createDownloadsStore>;
 export function createDownloadsStore(backend: Backend) {
   return createStore<DownloadsState>()((set, get) => {
     let historyRequest = 0;
+    let disk: Promise<void> | null = null;
+    let diskAsked = 0;
 
     const act = async (action: () => Promise<void>) => {
       try {
@@ -166,15 +171,18 @@ export function createDownloadsStore(backend: Backend) {
       saving = saving.then(task);
       return saving;
     };
+    const show = (settings: Settings) => {
+      set(settings.speedLimit === null ? { settings } : { settings, lastLimit: settings.speedLimit });
+    };
     const showSettings = () => {
       if (confirmed === null) return;
-      set({ settings: pending.reduce<Settings>((settings, { patch }) => patched(settings, patch), confirmed) });
+      show(pending.reduce<Settings>((settings, { patch }) => patched(settings, patch), confirmed));
     };
 
     const loadSettings = async () => {
       try {
         confirmed = await backend.settings();
-        set({ settings: confirmed });
+        show(confirmed);
       } catch (error) {
         set({ notice: BackendError.from(error).message });
       }
@@ -202,6 +210,7 @@ export function createDownloadsStore(backend: Backend) {
       searchRequest: 0,
       speeds: [],
       diskFree: null,
+      lastLimit: DEFAULT_LIMIT,
       captures: [],
       framed: backend.windowControls !== null,
       maximized: false,
@@ -441,12 +450,24 @@ export function createDownloadsStore(backend: Backend) {
           });
       },
 
-      checkDisk: async () => {
-        try {
-          set({ diskFree: await backend.diskFree() });
-        } catch {
-          set({ diskFree: null });
-        }
+      // One check at a time, so a stalled folder can't pile them up; a request
+      // during a check runs once after it, for a folder that just changed.
+      checkDisk: () => {
+        diskAsked += 1;
+        if (disk !== null) return disk;
+        disk = (async () => {
+          let answered = 0;
+          while (answered < diskAsked) {
+            answered = diskAsked;
+            try {
+              set({ diskFree: await backend.diskFree() });
+            } catch {
+              set({ diskFree: null });
+            }
+          }
+          disk = null;
+        })();
+        return disk;
       },
 
       openSearch: () => {
