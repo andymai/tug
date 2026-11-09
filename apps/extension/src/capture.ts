@@ -23,6 +23,7 @@ export class Capture {
   readonly #userAgent: string;
   readonly #handedBack = new Set<string>();
   readonly #forms = new Map<string, number>();
+  #storing: Promise<void> = Promise.resolve();
   readonly #now: () => number;
 
   constructor(api: Api, userAgent: string, now: () => number = Date.now) {
@@ -38,13 +39,19 @@ export class Capture {
       if (now - at > FORM_MEMORY_MS) this.#forms.delete(url);
     }
     this.#forms.set(request.url, now);
+    // One read-prune-write at a time: an overlapping prune could delete a marker just saved.
+    this.#storing = this.#storing.then(() => this.#store(request.url, now));
+    await this.#storing;
+  }
+
+  async #store(url: string, now: number): Promise<void> {
     const { session } = this.#api.storage;
     const stored = await session.get(null).catch((): Record<string, unknown> => ({}));
     const stale = Object.entries(stored)
       .filter(([key, at]) => key.startsWith(FORM_KEY) && (typeof at !== "number" || now - at > FORM_MEMORY_MS))
       .map(([key]) => key);
     if (stale.length > 0) await session.remove(stale).catch(ignore);
-    await session.set({ [FORM_KEY + request.url]: now }).catch(ignore);
+    await session.set({ [FORM_KEY + url]: now }).catch(ignore);
   }
 
   async #fromForm(url: string): Promise<boolean> {
