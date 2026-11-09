@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { start } from "../src/background.ts";
-import { Capture, MENU_ID } from "../src/capture.ts";
-import { cookieHeader } from "../src/origin.ts";
+import { Capture, FORM_MEMORY_MS, MENU_ID } from "../src/capture.ts";
+import { cookieHeader, referrerFor } from "../src/origin.ts";
 import { MIN_SIZE } from "../src/rules.ts";
 import { HOST } from "../src/tug.ts";
 import { fakeBrowser } from "./fake.ts";
@@ -31,7 +31,7 @@ describe("capture", () => {
         id: expect.any(Number) as number,
         type: "add",
         urls: [ISO],
-        referrer: "https://example.org/get",
+        referrer: "https://example.org/",
         cookies: "files=2; site=1",
         user_agent: UA,
         capture: true,
@@ -54,6 +54,9 @@ describe("capture", () => {
     ["Tug can't add the link", () => Promise.resolve({ ok: true, added: [], failed: [{ url: ISO, reason: "no" }] })],
     ["the host is missing", () => Promise.reject(new Error("Specified native messaging host not found."))],
     ["the answer is unreadable", () => Promise.resolve("?")],
+    ["the answer says ok and nothing else", () => Promise.resolve({ ok: true })],
+    ["the answer adds nothing", () => Promise.resolve({ ok: true, added: [], failed: [] })],
+    ["the answer has no list of failures", () => Promise.resolve({ ok: true, added: [{ name: "a.iso" }], failed: "invalid" })],
   ])("leaves the download to the browser when %s", async (_, reply) => {
     const fake = fakeBrowser({ reply });
     expect(await new Capture(fake.api, UA).created(download())).toBe("browser");
@@ -70,6 +73,30 @@ describe("capture", () => {
     const fake = fakeBrowser();
     expect(await new Capture(fake.api, UA).created(download(overrides))).toBe("skipped");
     expect(fake.calls).toEqual([]);
+  });
+
+  it("leaves a download alone when the browser can't pause it", async () => {
+    const fake = fakeBrowser({ pauseFails: true });
+    expect(await new Capture(fake.api, UA).created(download())).toBe("skipped");
+    expect(fake.sent).toEqual([]);
+  });
+
+  it("leaves a form's download to the browser for a while", async () => {
+    let now = 1_000;
+    const fake = fakeBrowser();
+    const capture = start(fake.api, UA);
+    expect(fake.requestFilters).toEqual([{ urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] }]);
+    const own = new Capture(fake.api, UA, () => now);
+    own.requested({ url: ISO, method: "POST" });
+    own.requested({ url: "https://example.org/other.iso", method: "GET" });
+
+    expect(await own.created(download())).toBe("skipped");
+    expect(await own.created(download({ url: "https://example.org/other.iso" }))).toBe("tug");
+    now += FORM_MEMORY_MS + 1;
+    expect(await own.created(download())).toBe("tug");
+
+    fake.request({ url: "https://example.org/report", method: "post" });
+    expect(await capture.created(download({ url: "https://example.org/report" }))).toBe("skipped");
   });
 
   it("takes a download whose size the browser doesn't know yet", async () => {
@@ -100,7 +127,7 @@ describe("Download with Tug", () => {
     ]);
   });
 
-  it("sends the link with its frame as the referrer and the tab's cookies", async () => {
+  it("sends the link with its frame's site as the referrer and the tab's cookies", async () => {
     const fake = fakeBrowser();
     const capture = new Capture(fake.api, UA);
     const outcome = await capture.clicked(
@@ -108,7 +135,7 @@ describe("Download with Tug", () => {
       { cookieStoreId: "firefox-container-1" },
     );
     expect(outcome).toBe("tug");
-    expect(fake.sent[0]).toMatchObject({ urls: [ISO], referrer: "https://example.org/frame" });
+    expect(fake.sent[0]).toMatchObject({ urls: [ISO], referrer: "https://example.org/" });
     expect(fake.sent[0]).not.toHaveProperty("capture");
     expect(fake.cookieQueries).toEqual([{ url: ISO, storeId: "firefox-container-1" }]);
     expect(fake.calls).toEqual([`native ${HOST}`]);
@@ -129,6 +156,15 @@ describe("Download with Tug", () => {
 
     expect(await capture.created(download())).toBe("skipped");
     expect(await capture.created(download({ id: 8 }))).toBe("browser");
+  });
+
+  it("keeps the container when the browser downloads the link in Tug's place", async () => {
+    const fake = fakeBrowser({ reply: () => Promise.resolve({ ok: false, error: "no" }) });
+    const capture = new Capture(fake.api, UA);
+    expect(await capture.clicked({ menuItemId: MENU_ID, linkUrl: ISO }, { cookieStoreId: "firefox-container-3" })).toBe(
+      "browser",
+    );
+    expect(fake.calls).toContain(`download ${ISO} in firefox-container-3`);
   });
 
   it("ignores other menu items and links it can't download", async () => {
@@ -153,6 +189,19 @@ describe("wiring", () => {
     });
     expect(created).toHaveBeenCalledOnce();
     expect(clicked).toHaveBeenCalledWith({ menuItemId: MENU_ID, linkUrl: ISO }, { cookieStoreId: "x" });
+  });
+});
+
+describe("referrerFor", () => {
+  it.each([
+    ["https://example.org/a.iso", "https://example.org/list?q=1#top", "https://example.org/list?q=1"],
+    ["https://cdn.example.org/a.iso", "https://example.org/account?token=secret", "https://example.org/"],
+    ["http://example.org/a.iso", "https://example.org/page", undefined],
+    ["https://example.org/a.iso", "http://example.org/page", "http://example.org/"],
+    ["https://example.org/a.iso", "about:blank", undefined],
+    ["https://example.org/a.iso", undefined, undefined],
+  ])("sends %s from %s as %s", (link, page, sent) => {
+    expect(referrerFor(link, page)).toBe(sent);
   });
 });
 

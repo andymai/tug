@@ -4,6 +4,9 @@ set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 work=$(mktemp -d)
+# A Tug that is still stopping can write into $work for a moment.
+cleanup() { for _ in 1 2 3 4 5; do rm -rf "$work" 2>/dev/null && return; sleep 1; done; }
+trap cleanup EXIT
 mkdir -m 700 "$work/runtime"
 # Tug's default folder comes from user-dirs.dirs; without one it is the real ~/Downloads.
 mkdir -p "$work/config" "$work/downloads"
@@ -136,5 +139,3 @@ assert bad[\"failed\"] == [{\"url\": \"http://127.0.0.1:8766/bad.bin\", \"reason
     grep -q " big.bin$" <<<"$($tug list)" || fail "after the race: $($tug list)"
     echo "ok: and it answers"
   '
-# A Tug that is still stopping can write into $work for a moment.
-for _ in 1 2 3 4 5; do rm -rf "$work" 2>/dev/null && break; sleep 1; done

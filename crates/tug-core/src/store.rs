@@ -687,6 +687,28 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_forget_leaves_the_download_unfinished_with_its_origin() {
+        let store = Store::open_in_memory().unwrap();
+        let origin = Origin::new(None, Some("session=abc"), None).unwrap();
+        let id = store
+            .insert_from(&new("https://example.org/a.iso", "/d"), &origin)
+            .unwrap();
+        store
+            .conn
+            .execute_batch(
+                "CREATE TRIGGER keep BEFORE DELETE ON origins BEGIN SELECT RAISE(ABORT, 'kept'); END;",
+            )
+            .unwrap();
+        assert!(
+            store
+                .set_state(id, DownloadState::Done, None, SystemTime::now())
+                .is_err()
+        );
+        assert_eq!(store.get(id).unwrap().unwrap().state, DownloadState::Queued);
+        assert_eq!(store.origin(id).unwrap(), origin);
+    }
+
+    #[test]
     fn opening_forgets_the_origins_of_finished_downloads() {
         let dir = tempfile::tempdir().unwrap();
         let db = dir.path().join("tug.db");

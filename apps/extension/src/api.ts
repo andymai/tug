@@ -26,6 +26,11 @@ export interface MenuClick {
   frameUrl?: string;
 }
 
+export interface PageRequest {
+  url: string;
+  method: string;
+}
+
 export interface Tab {
   cookieStoreId?: string;
   incognito?: boolean;
@@ -42,10 +47,15 @@ export interface Api {
     resume(id: number): Promise<void>;
     cancel(id: number): Promise<void>;
     erase(query: { id: number }): Promise<unknown>;
-    download(options: { url: string }): Promise<number>;
+    download(options: { url: string; cookieStoreId?: string }): Promise<number>;
   };
   cookies: {
     getAll(details: { url: string; storeId?: string }): Promise<Cookie[]>;
+  };
+  webRequest: {
+    onBeforeRequest: {
+      addListener(callback: (request: PageRequest) => void, filter: { urls: string[]; types: string[] }): void;
+    };
   };
   contextMenus: {
     create(properties: { id: string; title: string; contexts: string[] }): unknown;
