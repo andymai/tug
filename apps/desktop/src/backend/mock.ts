@@ -1,4 +1,5 @@
 import { nameOf, SCHEMES } from "../lib/links";
+import { siteOf } from "../lib/sites";
 import {
   type Backend,
   BackendError,
@@ -61,7 +62,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
   };
   const listeners = new Set<(batch: ProgressBatch) => void>();
-  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system" };
+  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [] };
   let scheme = options.colorScheme ?? null;
   const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
   const noticeListeners = new Set<(message: string) => void>();
@@ -205,6 +206,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           throw new BackendError("invalid", `connections must be between 1 and 32, not ${String(next.connections)}`);
         }
         if (next.speedLimit === 0) throw new BackendError("invalid", "a speed limit must be above zero");
+        for (const [at, site] of next.excludedSites.entries()) {
+          if (siteOf(site) !== site) throw new BackendError("invalid", `${JSON.stringify(site)} isn't a site, like example.org`);
+          if (next.excludedSites.indexOf(site) !== at) throw new BackendError("invalid", `${site} is in the list twice`);
+        }
         settings = { ...next };
       }),
     chooseDownloadFolder: () =>

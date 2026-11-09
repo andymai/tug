@@ -64,6 +64,7 @@ async fn a_client_with_the_token_gets_answers() {
         .send(Request::Add {
             urls: vec!["nope".into()],
             origin: Origin::default(),
+            capture: false,
         })
         .await
         .unwrap()
@@ -179,6 +180,7 @@ fn an_add_without_an_origin_reads_and_writes_as_before() {
         Request::Add {
             urls: vec!["https://a.example/x".into()],
             origin: Origin::default(),
+            capture: false,
         }
     );
     assert_eq!(
@@ -187,7 +189,7 @@ fn an_add_without_an_origin_reads_and_writes_as_before() {
     );
 
     let from_browser: Request = serde_json::from_str(
-        r#"{"type":"add","urls":[],"referrer":"https://a.example/","cookies":"s=1","user_agent":"Mozilla/5.0"}"#,
+        r#"{"type":"add","urls":[],"referrer":"https://a.example/","cookies":"s=1","user_agent":"Mozilla/5.0","capture":true}"#,
     )
     .unwrap();
     assert_eq!(
@@ -199,7 +201,13 @@ fn an_add_without_an_origin_reads_and_writes_as_before() {
                 cookies: Some("s=1".into()),
                 user_agent: Some("Mozilla/5.0".into()),
             },
+            capture: true,
         }
+    );
+    assert!(
+        serde_json::to_string(&from_browser)
+            .unwrap()
+            .ends_with(r#","capture":true}"#)
     );
 }
 
@@ -241,6 +249,7 @@ async fn each_request_gets_its_own_size_limit() {
             .send(Request::Add {
                 urls: vec![big.clone()],
                 origin: Origin::default(),
+                capture: false,
             })
             .await
             .unwrap()

@@ -48,6 +48,8 @@ enum Command {
         urls: Vec<String>,
         #[serde(flatten)]
         origin: Origin,
+        #[serde(default)]
+        capture: bool,
     },
     List,
 }
@@ -202,7 +204,15 @@ impl<L: Launcher> Host<L> {
         let request = match command {
             Command::Ping => Request::Ping,
             Command::Show => Request::Show,
-            Command::Add { urls, origin } => Request::Add { urls, origin },
+            Command::Add {
+                urls,
+                origin,
+                capture,
+            } => Request::Add {
+                urls,
+                origin,
+                capture,
+            },
             Command::List => Request::List,
         };
         match Self::ask(&mut client, request).await? {

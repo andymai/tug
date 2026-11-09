@@ -184,6 +184,7 @@ async fn add(endpoint: &Endpoint, urls: Vec<String>, limits: Limits) -> Result<b
     let request = Request::Add {
         urls,
         origin: tug_ipc::Origin::default(),
+        capture: false,
     };
     match ask(&mut client, request, limits.add).await? {
         Response::Added { added, failed } => {

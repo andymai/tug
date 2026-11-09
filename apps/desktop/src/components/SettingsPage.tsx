@@ -1,8 +1,9 @@
-import { CircleAlert, FolderOpen, Minus, Plus } from "lucide-react";
+import { CircleAlert, FolderOpen, Globe, Minus, Plus, X } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from "react";
 
 import type { Appearance, Settings } from "../backend/backend";
 import { sentence, shortDir } from "../lib/format";
+import { siteOf } from "../lib/sites";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { Button } from "./Button";
@@ -193,6 +194,75 @@ function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Part
   );
 }
 
+function ExcludedSites({ sites, save }: { sites: readonly string[]; save: (patch: Partial<Settings>) => void }) {
+  const fieldId = useId();
+  const [draft, setDraft] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const add = () => {
+    const site = siteOf(draft);
+    if (site === null) {
+      setProblem("Enter a site, like example.org.");
+      return;
+    }
+    setProblem(null);
+    setDraft("");
+    if (!sites.includes(site)) save({ excludedSites: [...sites, site] });
+  };
+
+  return (
+    <>
+      <Row
+        label="Sites Tug leaves to the browser"
+        labelFor={fieldId}
+        description={problem ?? "Downloads from these sites and their pages stay in the browser."}
+        control={
+          <>
+            <input
+              id={fieldId}
+              value={draft}
+              placeholder="example.org"
+              spellCheck={false}
+              autoComplete="off"
+              aria-invalid={problem !== null}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                if (problem !== null) setProblem(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") add();
+              }}
+              className="h-[30px] w-48 rounded-sm border border-control-border bg-surface px-2 text-mono text-ink placeholder:text-ink-faint aria-invalid:border-state-error"
+            />
+            <Button icon={Plus} disabled={draft.trim() === ""} onClick={add}>
+              Add
+            </Button>
+          </>
+        }
+      />
+      {sites.length > 0 && (
+        <ul aria-label="Sites Tug leaves to the browser" className="-mt-2 flex flex-col pb-2">
+          {sites.map((site) => (
+            <li key={site} className="flex h-9 items-center gap-3 rounded-sm pr-1 pl-2 hover:bg-hover">
+              <Globe {...ICON} className="shrink-0 text-ink-muted" />
+              <span className="min-w-0 flex-1 truncate text-mono text-ink">{site}</span>
+              <Button
+                size="icon"
+                variant="quiet"
+                icon={X}
+                aria-label={`Remove ${site}`}
+                onClick={() => {
+                  save({ excludedSites: sites.filter((entry) => entry !== site) });
+                }}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 export function SettingsPage() {
   const settings = useDownloads((s) => s.settings);
   const error = useDownloads((s) => s.settingsError);
@@ -250,6 +320,12 @@ export function SettingsPage() {
                 Speed
               </h2>
               <SpeedLimit settings={settings} save={save} />
+            </section>
+            <section aria-labelledby="settings-browsers">
+              <h2 id="settings-browsers" className="pb-1 text-label text-ink-muted">
+                Browsers
+              </h2>
+              <ExcludedSites sites={settings.excludedSites} save={save} />
             </section>
             <section aria-labelledby="settings-appearance">
               <h2 id="settings-appearance" className="pb-1 text-label text-ink-muted">

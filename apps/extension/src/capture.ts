@@ -25,7 +25,7 @@ export class Capture {
     if (this.#handedBack.delete(item.url) || !worthTaking(item)) return "skipped";
     const { downloads } = this.#api;
     await downloads.pause(item.id).catch(ignore);
-    const taken = await this.#send(item.url, item.referrer, item.cookieStoreId);
+    const taken = await this.#send(item.url, item.referrer, item.cookieStoreId, true);
     if (taken.ok) {
       await downloads.cancel(item.id).catch(ignore);
       await downloads.erase({ id: item.id }).catch(ignore);
@@ -38,7 +38,7 @@ export class Capture {
   async clicked(info: MenuClick, tab?: Tab): Promise<Outcome> {
     const link = info.linkUrl ?? info.srcUrl;
     if (info.menuItemId !== MENU_ID || link === undefined || !isWebLink(link)) return "skipped";
-    const taken = await this.#send(link, info.frameUrl ?? info.pageUrl, tab?.cookieStoreId);
+    const taken = await this.#send(link, info.frameUrl ?? info.pageUrl, tab?.cookieStoreId, false);
     if (taken.ok) return "tug";
     // The browser downloads it instead, and this capture must let that download through.
     this.#handedBack.add(link);
@@ -48,10 +48,10 @@ export class Capture {
     return "browser";
   }
 
-  async #send(link: string, referrer: string | undefined, storeId: string | undefined): Promise<Taken> {
+  async #send(link: string, referrer: string | undefined, storeId: string | undefined, capture: boolean): Promise<Taken> {
     try {
       const origin = await originOf(this.#api, link, referrer, storeId, this.#userAgent);
-      return await addToTug(this.#api, [link], origin);
+      return await addToTug(this.#api, [link], origin, capture);
     } catch (error) {
       return { ok: false, reason: error instanceof Error ? error.message : String(error) };
     }
