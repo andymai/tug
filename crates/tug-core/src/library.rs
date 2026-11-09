@@ -15,7 +15,10 @@ use crate::settings::{Settings, SettingsError};
 use crate::store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Place, Store, StoreError,
 };
-use crate::transfer::{Finished, Phase, Progress, Transfer, TransferOptions};
+use crate::torrent::{Swarm, TorrentOptions, TorrentSource};
+use crate::transfer::{
+    Finished, Phase, Progress, TorrentJob, Transfer, TransferError, TransferOptions,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -31,6 +34,12 @@ pub enum LibraryError {
     Delete { path: PathBuf, source: io::Error },
     #[error("a panic left the download list unusable")]
     Poisoned,
+    #[error("this is not a magnet link or a .torrent file")]
+    NotATorrent,
+    #[error("this Tug has no folder for torrents")]
+    NoTorrents,
+    #[error(transparent)]
+    Torrent(#[from] mdm_torrent::TorrentError),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -63,10 +72,18 @@ pub struct Library {
     // Downloads that the schedule stops, with the state each settles as when its
     // transfer ends. Pause and resume change it under the run lock in that time.
     stopping: Mutex<HashMap<DownloadId, DownloadState>>,
+    swarm: Option<Arc<Swarm>>,
 }
 
 impl Library {
     pub async fn open(store: Store) -> Result<Self, LibraryError> {
+        Self::open_with(store, None).await
+    }
+
+    pub async fn open_with(
+        store: Store,
+        torrents: Option<TorrentOptions>,
+    ) -> Result<Self, LibraryError> {
         let settings = Settings::load(&store)?;
         let library = Self {
             limiter: Arc::new(Limiter::new(settings.speed_limit_now())),
@@ -75,6 +92,7 @@ impl Library {
             running: tokio::sync::Mutex::default(),
             news: Mutex::default(),
             stopping: Mutex::default(),
+            swarm: torrents.map(|options| Arc::new(Swarm::new(options))),
         };
         {
             let store = library.store()?;
@@ -100,6 +118,25 @@ impl Library {
         origin: &Origin,
     ) -> Result<DownloadId, LibraryError> {
         let id = self.insert(url, dir, origin, false)?;
+        self.pump().await?;
+        Ok(id)
+    }
+
+    pub async fn add_torrent(
+        &self,
+        source: TorrentSource,
+        dir: &Path,
+    ) -> Result<DownloadId, LibraryError> {
+        if self.swarm.is_none() {
+            return Err(LibraryError::NoTorrents);
+        }
+        let link = source.link().ok_or(LibraryError::NotATorrent)?;
+        let url = Url::parse(&link).map_err(|_| LibraryError::NotATorrent)?;
+        let id = self.insert(url, dir, &Origin::default(), false)?;
+        if let TorrentSource::File(bytes) = &source {
+            let hash = crate::store::info_hash(&link).unwrap_or_default();
+            self.store()?.set_torrent(id, &hash, bytes)?;
+        }
         self.pump().await?;
         Ok(id)
     }
@@ -283,7 +320,11 @@ impl Library {
             running.transfer.stop();
             let _stopped = running.transfer.finish().await;
         }
-        if delete_file {
+        if download.is_torrent() {
+            let hash = self.store()?.torrent(id)?.map(|(hash, _)| hash);
+            self.forget_torrent(&download, hash.as_deref(), delete_file)
+                .await?;
+        } else if delete_file {
             delete_files(&download)?;
         }
         self.store()?.remove(id)?;
@@ -312,6 +353,9 @@ impl Library {
         let mut running = self.running.lock().await;
         for (&id, entry) in running.iter_mut() {
             let progress = entry.transfer.progress();
+            if let Some((hash, torrent)) = entry.transfer.take_torrent() {
+                self.store()?.set_torrent(id, &hash, &torrent)?;
+            }
             if !entry.file_recorded
                 && let Some(file) = &progress.file
             {
@@ -493,6 +537,9 @@ impl Library {
         download: &Download,
         running: &mut HashMap<DownloadId, Running>,
     ) -> Result<(), LibraryError> {
+        if download.is_torrent() {
+            return self.launch_torrent(download, running);
+        }
         let resumable = download
             .file
             .as_deref()
@@ -523,6 +570,77 @@ impl Library {
                 file_recorded: resumable.is_some(),
             },
         );
+        Ok(())
+    }
+
+    fn launch_torrent(
+        &self,
+        download: &Download,
+        running: &mut HashMap<DownloadId, Running>,
+    ) -> Result<(), LibraryError> {
+        let swarm = self.swarm.as_ref().ok_or(LibraryError::NoTorrents)?;
+        let torrent = self.store()?.torrent(download.id)?;
+        let now = SystemTime::now();
+        let started = if download.received > 0 {
+            event(EventKind::Resumed, now, Some(download.received), None)
+        } else {
+            event(EventKind::Started, now, None, None)
+        };
+        let transfer = Transfer::torrent(
+            Arc::clone(swarm),
+            TorrentJob {
+                magnet: download.url.to_string(),
+                torrent,
+                dir: download.dir.clone(),
+            },
+            Arc::clone(&self.limiter),
+        );
+        {
+            let store = self.store()?;
+            store.set_state(download.id, DownloadState::Downloading, None, now)?;
+            store.add_event(download.id, &started)?;
+        }
+        running.insert(
+            download.id,
+            Running {
+                transfer,
+                file_recorded: false,
+            },
+        );
+        Ok(())
+    }
+
+    // A torrent leaves librqbit's session with its download; one that finished
+    // has left it already, so its files go from here.
+    async fn forget_torrent(
+        &self,
+        download: &Download,
+        hash: Option<&str>,
+        delete_file: bool,
+    ) -> Result<(), LibraryError> {
+        if let (Some(swarm), Some(hash)) = (&self.swarm, hash) {
+            let session = swarm.session().await?;
+            if session.has(hash) {
+                session.remove(hash, delete_file).await?;
+                return Ok(());
+            }
+        }
+        if let (true, Some(file)) = (delete_file, &download.file) {
+            let gone = if file.is_dir() {
+                std::fs::remove_dir_all(file)
+            } else {
+                std::fs::remove_file(file)
+            };
+            match gone {
+                Err(e) if e.kind() != io::ErrorKind::NotFound => {
+                    return Err(LibraryError::Delete {
+                        path: file.clone(),
+                        source: e,
+                    });
+                }
+                _ => {}
+            }
+        }
         Ok(())
     }
 
@@ -565,7 +683,7 @@ fn record(
     store: &Store,
     id: DownloadId,
     last: &Progress,
-    outcome: Result<Finished, mdm_engine::Error>,
+    outcome: Result<Finished, TransferError>,
     unfinished: DownloadState,
 ) -> Result<(), LibraryError> {
     if let Some(file) = &last.file {
