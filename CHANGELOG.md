@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/andymai/tug/compare/v0.16.0...v0.16.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **desktop:** give each browser registration its own staged file ([#73](https://github.com/andymai/tug/issues/73)) ([e836d55](https://github.com/andymai/tug/commit/e836d551ef4d1b493ad3f582524ea3b412cda899))
+
 ## [0.16.0](https://github.com/andymai/tug/compare/v0.15.0...v0.16.0) (2026-11-09)
 
 
