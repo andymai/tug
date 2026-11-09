@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.20.0](https://github.com/andymai/tug/compare/v0.19.1...v0.20.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** notify when a download finishes or fails, with Open and Show in folder ([#87](https://github.com/andymai/tug/issues/87)) ([a6c58cd](https://github.com/andymai/tug/commit/a6c58cdefc615c1c1d13efb43888758f99d0a727))
+* **desktop:** the capture sheet: ask before each browser download, or start it silently ([#85](https://github.com/andymai/tug/issues/85)) ([1235143](https://github.com/andymai/tug/commit/123514319989e7b61b83df29a66739c06ec57f33))
+
+
+### Bug Fixes
+
+* **extension:** one form-memory update at a time, so a prune never deletes a fresh marker ([#86](https://github.com/andymai/tug/issues/86)) ([e8cc4d3](https://github.com/andymai/tug/commit/e8cc4d3bf9e8ed99cd33ce3a6629b1e4f53c1572))
+
 ## [0.19.1](https://github.com/andymai/tug/compare/v0.19.0...v0.19.1) (2026-11-09)
 
 
