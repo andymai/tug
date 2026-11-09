@@ -390,12 +390,17 @@ impl Library {
                 .set_state(id, DownloadState::Paused, None, SystemTime::now())?;
         }
         drop(running);
+        // Settled as paused, so a removal that fails below leaves a true state,
+        // and the file that the run learned is known to the delete.
         if let Some(running) = stopped {
             running.transfer.stop();
-            let (_stopped, learned) = running.transfer.end().await;
-            self.keep_learned(id, learned)?;
+            let settled = self
+                .settle(id, running.transfer, DownloadState::Paused)
+                .await;
+            self.changed(id);
+            settled?;
         }
-        self.keep_inspection(id, None);
+        let download = self.get(id)?;
         if download.is_torrent() {
             let torrent = self.store()?.torrent(id)?;
             self.forget_torrent(&download, torrent, delete_file).await?;
@@ -403,6 +408,7 @@ impl Library {
             delete_files(&download)?;
         }
         self.store()?.remove(id)?;
+        self.keep_inspection(id, None);
         self.changed(id);
         self.pump().await
     }
