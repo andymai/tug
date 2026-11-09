@@ -635,14 +635,14 @@ export function createDownloadsStore(backend: Backend) {
         act(async () => {
           const request = ++historyRequest;
           const events = await backend.events(id);
-          if (request === historyRequest && single(get())?.id === id) set({ history: { id, events } });
+          if (request === historyRequest && shownId(get()) === id) set({ history: { id, events } });
         }),
 
       inspect: async (id) => {
         const request = ++inspectRequest;
         try {
           const data = await backend.inspect(id);
-          if (request === inspectRequest && single(get())?.id === id) set({ inspection: { id, data } });
+          if (request === inspectRequest && shownId(get()) === id) set({ inspection: { id, data } });
         } catch (error) {
           const failure = BackendError.from(error);
           // A download removed between two polls; its panel closes with it.
@@ -790,6 +790,10 @@ export function single(state: Pick<DownloadsState, "items" | "view" | "matches" 
     return list.length === 1 ? list[0] : undefined;
   }
   return state.items.find((item) => item.id === state.selected);
+}
+
+function shownId(state: Parameters<typeof single>[0]): number | null {
+  return state.marked.length > 1 ? (single(state)?.id ?? null) : state.selected;
 }
 
 // The marked downloads that the view shows, in its order.
