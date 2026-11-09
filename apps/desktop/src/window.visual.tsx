@@ -101,6 +101,14 @@ describe("main window", () => {
     await capture(window, "drop");
   });
 
+  it("shows the downloads of one type", async () => {
+    const { store, window } = await showcase();
+    act(() => {
+      store.getState().setView("archive");
+    });
+    await capture(window, "type");
+  });
+
   it("narrows the list to a search", async () => {
     const { store, window } = await showcase();
     act(() => {

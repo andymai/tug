@@ -605,6 +605,29 @@ describe("schedule", () => {
   });
 });
 
+describe("types", () => {
+  it("lists the types of the downloads and shows one type at a time", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    const types = within(await screen.findByRole("navigation", { name: "Types" }));
+    expect(types.getAllByRole("button").map((button) => button.textContent)).toEqual(["Videos1", "Archives2", "Disk images1", "Other files1"]);
+
+    await user.click(types.getByRole("button", { name: /Archives/ }));
+    expect(screen.getByRole("heading", { level: 1, name: "Archives" })).toBeInTheDocument();
+    const list = within(screen.getByRole("list", { name: "Archives" }));
+    expect(list.getAllByRole("listitem")).toHaveLength(2);
+    expect(list.getByText("blender-5.1-linux-x64.tar.xz")).toBeInTheDocument();
+    expect(list.getByText("noto-fonts-2026.11.zip")).toBeInTheDocument();
+
+    await user.keyboard("{Control>}k{/Control}");
+    const bar = within(screen.getByRole("dialog", { name: "Command bar" }));
+    await user.type(bar.getByRole("combobox"), "disk images");
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("heading", { level: 1, name: "Disk images" })).toBeInTheDocument();
+  });
+});
+
 describe("search", () => {
   it("narrows the list to the downloads whose name or link has the words", async () => {
     const backend = createMockBackend({ seed: SHOWCASE });

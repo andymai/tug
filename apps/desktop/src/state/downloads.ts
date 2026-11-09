@@ -4,6 +4,7 @@ import {
   type Backend,
   BackendError,
   type CaptureAnswer,
+  type Category,
   type ColorScheme,
   type Download,
   type DownloadEvent,
@@ -14,9 +15,10 @@ import {
   type Settings,
 } from "../backend/backend";
 
-export type View = "all" | "active" | "done" | "failed";
+export type StateView = "all" | "active" | "done" | "failed";
+export type View = StateView | Category;
 
-export const VIEWS: readonly { id: View; label: string; states: readonly DownloadState[] }[] = [
+export const VIEWS: readonly { id: StateView; label: string; states: readonly DownloadState[] }[] = [
   { id: "all", label: "All", states: ["queued", "downloading", "paused", "done", "failed"] },
   { id: "active", label: "Active", states: ["queued", "downloading", "paused"] },
   { id: "done", label: "Done", states: ["done"] },
@@ -442,7 +444,7 @@ export function createDownloadsStore(backend: Backend) {
         set({
           ...(ours() ? { adding: { ...CLOSED, session } } : {}),
           fresh: [...fresh, ...added],
-          view: view === "done" || view === "failed" ? "all" : view,
+          view: view === "all" || view === "active" ? view : "all",
           ...(reason === null ? {} : { notice: reason }),
         });
         await get().reload();
@@ -480,7 +482,8 @@ export function createDownloadsStore(backend: Backend) {
 }
 
 export function inView(view: View, item: Download): boolean {
-  return VIEWS.find((v) => v.id === view)?.states.includes(item.state) ?? false;
+  const states = VIEWS.find((v) => v.id === view)?.states;
+  return states === undefined ? item.category === view : states.includes(item.state);
 }
 
 export function visibleItems(state: Pick<DownloadsState, "items" | "view" | "matches">): Download[] {

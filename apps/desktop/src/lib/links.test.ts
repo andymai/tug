@@ -7,6 +7,7 @@ const done: Download = {
   id: 4,
   url: "https://fonts.example.org/noto.zip",
   name: "noto.zip",
+  category: "archive",
   dir: "/home/you/Downloads",
   file: "/home/you/Downloads/noto.zip",
   state: "done",

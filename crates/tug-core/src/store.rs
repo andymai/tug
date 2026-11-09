@@ -10,6 +10,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use url::Url;
 
+use crate::category::Category;
 use crate::origin::Origin;
 
 const MIGRATIONS: &[&str] = &[
@@ -217,6 +218,10 @@ pub struct Download {
 impl Download {
     pub fn name(&self) -> String {
         name_of(&self.url, self.file.as_deref())
+    }
+
+    pub fn category(&self) -> Category {
+        Category::of(&self.name())
     }
 }
 

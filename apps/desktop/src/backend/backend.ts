@@ -15,6 +15,7 @@ export type { CommandError } from "./bindings/CommandError";
 export type { Download } from "./bindings/Download";
 export type { DownloadEvent } from "./bindings/DownloadEvent";
 export type { EventKind } from "./bindings/EventKind";
+export type { Category } from "./bindings/Category";
 export type { DownloadState } from "./bindings/DownloadState";
 export type { ErrorKind } from "./bindings/ErrorKind";
 export type { Phase } from "./bindings/Phase";

@@ -4,6 +4,7 @@ import { siteOf } from "../lib/sites";
 import {
   type Backend,
   BackendError,
+  type Category,
   type Download,
   type ColorScheme,
   type DownloadEvent,
@@ -64,6 +65,24 @@ function words(text: string): string[] {
     .filter((word) => word !== "");
 }
 
+// The same lists as tug_core::Category; a test reads category.rs to keep them equal.
+export const EXTENSIONS: readonly [Category, readonly string[]][] = [
+  ["video", ["3gp", "avi", "flv", "m2ts", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "mts", "ogv", "webm", "wmv"]],
+  ["audio", ["aac", "aiff", "alac", "ape", "flac", "m4a", "mka", "mp3", "oga", "ogg", "opus", "wav", "wma"]],
+  ["image", ["avif", "bmp", "gif", "heic", "heif", "ico", "jpeg", "jpg", "jxl", "png", "psd", "svg", "tif", "tiff", "webp", "xcf"]],
+  ["document", ["azw3", "csv", "djvu", "doc", "docx", "epub", "md", "mobi", "odp", "ods", "odt", "pdf", "ppt", "pptx", "rtf", "txt", "xls", "xlsx"]],
+  ["archive", ["7z", "bz2", "cab", "gz", "lz", "lz4", "lzma", "rar", "tar", "tbz2", "tgz", "txz", "tzst", "xz", "zip", "zst"]],
+  ["program", ["apk", "appimage", "deb", "exe", "flatpak", "flatpakref", "jar", "msi", "rpm", "run", "sh", "snap"]],
+  ["disk", ["dmg", "img", "iso", "qcow2", "vdi", "vhd", "vhdx", "vmdk"]],
+];
+
+export function categoryOf(name: string): Category {
+  const dot = name.lastIndexOf(".");
+  if (dot < 0) return "other";
+  const extension = name.slice(dot + 1).toLowerCase();
+  return EXTENSIONS.find(([, extensions]) => extensions.includes(extension))?.[0] ?? "other";
+}
+
 function sizeOf(url: URL): number {
   let hash = 0;
   for (const char of url.href) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
@@ -117,6 +136,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       id: nextId++,
       url: url.href,
       name: nameOf(url),
+      category: categoryOf(nameOf(url)),
       dir: dir ?? settings.downloadDir,
       file: null,
       state: "queued",
