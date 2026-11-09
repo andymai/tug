@@ -6,7 +6,7 @@ use std::str::FromStr;
 use mdm_engine::download::MAX_CONNECTIONS;
 use url::Url;
 
-use crate::schedule::{Schedule, ScheduleError};
+use crate::schedule::{Schedule, ScheduleError, local_now};
 use crate::store::{Store, StoreError};
 
 pub const DEFAULT_CONNECTIONS: u32 = 8;
@@ -21,6 +21,7 @@ const EXCLUDED_SITES: &str = "excluded_sites";
 const CONFIRM_CAPTURES: &str = "confirm_captures";
 const MAX_ACTIVE_KEY: &str = "max_active";
 const SCHEDULE: &str = "schedule";
+const SLOW_HOURS: &str = "slow_hours";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Appearance {
@@ -53,6 +54,23 @@ impl FromStr for Appearance {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SlowHours {
+    pub limit: u64,
+    pub hours: Schedule,
+}
+
+impl SlowHours {
+    fn parse(text: &str) -> Option<Self> {
+        let (limit, hours) = text.split_once(' ')?;
+        let slow = Self {
+            limit: limit.parse().ok().filter(|&n: &u64| n > 0)?,
+            hours: hours.parse().ok()?,
+        };
+        Some(slow)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
     pub download_dir: PathBuf,
@@ -63,6 +81,7 @@ pub struct Settings {
     pub confirm_captures: bool,
     pub max_active: u32,
     pub schedule: Option<Schedule>,
+    pub slow_hours: Option<SlowHours>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -110,6 +129,7 @@ impl Default for Settings {
             confirm_captures: true,
             max_active: DEFAULT_MAX_ACTIVE,
             schedule: None,
+            slow_hours: None,
         }
     }
 }
@@ -124,6 +144,12 @@ impl Settings {
         }
         if let Some(schedule) = self.schedule {
             schedule.validate()?;
+        }
+        if let Some(slow) = self.slow_hours {
+            if slow.limit == 0 {
+                return Err(SettingsError::ZeroSpeedLimit);
+            }
+            slow.hours.validate()?;
         }
         if self.speed_limit == Some(0) {
             return Err(SettingsError::ZeroSpeedLimit);
@@ -140,6 +166,22 @@ impl Settings {
             }
         }
         Ok(())
+    }
+
+    // In the slow hours the lower of the two limits holds.
+    pub fn speed_limit_at(&self, weekday: u8, minute: u16) -> Option<u64> {
+        match self.slow_hours {
+            Some(slow) if slow.hours.is_open(weekday, minute) => Some(
+                self.speed_limit
+                    .map_or(slow.limit, |limit| limit.min(slow.limit)),
+            ),
+            _ => self.speed_limit,
+        }
+    }
+
+    pub fn speed_limit_now(&self) -> Option<u64> {
+        let (weekday, minute) = local_now();
+        self.speed_limit_at(weekday, minute)
     }
 
     pub fn excluded_site<'a>(&'a self, link: &Url, referrer: Option<&Url>) -> Option<&'a str> {
@@ -198,6 +240,9 @@ impl Settings {
             .filter(|n| (1..=MAX_ACTIVE).contains(n))
             .unwrap_or(defaults.max_active);
         let schedule = store.setting(SCHEDULE)?.and_then(|v| v.parse().ok());
+        let slow_hours = store
+            .setting(SLOW_HOURS)?
+            .and_then(|v| SlowHours::parse(&v));
         Ok(Self {
             download_dir,
             connections,
@@ -207,6 +252,7 @@ impl Settings {
             confirm_captures,
             max_active,
             schedule,
+            slow_hours,
         })
     }
 
@@ -233,6 +279,14 @@ impl Settings {
                 store.remove_setting(SCHEDULE)?;
             }
         }
+        match &self.slow_hours {
+            Some(slow) => {
+                store.set_setting(SLOW_HOURS, &format!("{} {}", slow.limit, slow.hours))?;
+            }
+            None => {
+                store.remove_setting(SLOW_HOURS)?;
+            }
+        }
         Ok(())
     }
 }
@@ -257,6 +311,7 @@ mod tests {
             confirm_captures: true,
             max_active: 3,
             schedule: None,
+            slow_hours: None,
         }
     }
 
@@ -358,6 +413,43 @@ mod tests {
     }
 
     #[test]
+    fn the_slow_hours_take_the_lower_limit_while_they_last() {
+        let slow = SlowHours {
+            limit: 1 << 20,
+            hours: Schedule {
+                days: Schedule::EVERY_DAY,
+                start: 9 * 60,
+                stop: 17 * 60,
+            },
+        };
+        let open = |speed_limit| {
+            Settings {
+                speed_limit,
+                slow_hours: Some(slow),
+                ..valid()
+            }
+            .speed_limit_at(0, 12 * 60)
+        };
+        assert_eq!(open(None), Some(1 << 20));
+        assert_eq!(open(Some(4 << 20)), Some(1 << 20));
+        assert_eq!(open(Some(256 << 10)), Some(256 << 10));
+        let evening = Settings {
+            speed_limit: Some(4 << 20),
+            slow_hours: Some(slow),
+            ..valid()
+        };
+        assert_eq!(evening.speed_limit_at(0, 20 * 60), Some(4 << 20));
+        assert_eq!(
+            Settings {
+                slow_hours: Some(SlowHours { limit: 0, ..slow }),
+                ..valid()
+            }
+            .validate(),
+            Err(SettingsError::ZeroSpeedLimit)
+        );
+    }
+
+    #[test]
     fn excluded_sites_must_be_clean_and_once() {
         assert_eq!(
             sites(&["Example.org"]).validate(),
@@ -414,6 +506,14 @@ mod tests {
                 start: 22 * 60,
                 stop: 6 * 60,
             }),
+            slow_hours: Some(SlowHours {
+                limit: 512 << 10,
+                hours: Schedule {
+                    days: 0b001_1111,
+                    start: 9 * 60,
+                    stop: 17 * 60,
+                },
+            }),
         };
         settings.save(&store).unwrap();
         assert_eq!(Settings::load(&store).unwrap(), settings);
@@ -422,6 +522,7 @@ mod tests {
             speed_limit: None,
             excluded_sites: Vec::new(),
             schedule: None,
+            slow_hours: None,
             ..settings
         };
         unlimited.save(&store).unwrap();
@@ -438,8 +539,9 @@ mod tests {
             .unwrap();
         store.set_setting(CONFIRM_CAPTURES, "sometimes").unwrap();
         store.set_setting(SCHEDULE, "0 60 420").unwrap();
+        store.set_setting(SLOW_HOURS, "0 127 540 1020").unwrap();
         let loaded = Settings::load(&store).unwrap();
-        assert_eq!(loaded.schedule, None);
+        assert_eq!((loaded.schedule, loaded.slow_hours), (None, None));
         assert_eq!(loaded.excluded_sites, vec!["example.org".to_owned()]);
         assert!(loaded.confirm_captures);
         assert_eq!(

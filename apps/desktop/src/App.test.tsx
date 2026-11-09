@@ -569,6 +569,30 @@ describe("schedule", () => {
     expect((await backend.settings()).schedule).toBeNull();
   });
 
+  it("sets a slower limit for set hours, apart from the schedule", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("switch", { name: "Download at set times" }));
+    await user.click(screen.getByRole("switch", { name: "Slower at set hours" }));
+    expect((await backend.settings()).slowHours).toEqual({ limit: 2 << 20, hours: { days: 0b001_1111, start: 540, stop: 1020 } });
+
+    const limit = screen.getByRole("textbox", { name: "Slower limit" });
+    await user.clear(limit);
+    await user.type(limit, "0.5{Enter}");
+    expect((await backend.settings()).slowHours?.limit).toBe(512 << 10);
+    const from = screen.getByRole("textbox", { name: "Slower hours" });
+    await user.clear(from);
+    await user.type(from, "8:00{Enter}");
+    await user.click(within(screen.getByRole("group", { name: "Slower days" })).getByRole("button", { name: "Saturday" }));
+    expect((await backend.settings()).slowHours?.hours).toEqual({ days: 0b011_1111, start: 480, stop: 1020 });
+    expect((await backend.settings()).schedule, "the schedule keeps its own hours").toEqual({ days: 0b111_1111, start: 60, stop: 420 });
+
+    await user.click(screen.getByRole("switch", { name: "Slower at set hours" }));
+    expect((await backend.settings()).slowHours).toBeNull();
+  });
+
   it("says why queued downloads wait outside the scheduled hours", async () => {
     const backend = createMockBackend({ seed: [{ url: "https://example.org/night.iso", state: "queued" }] });
     const now = new Date();

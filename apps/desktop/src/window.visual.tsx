@@ -162,6 +162,19 @@ describe("main window", () => {
     await capture(window, "settings-schedule");
   });
 
+  it("sets a slower limit for the working day", async () => {
+    const { store, window } = await open(SHOWCASE);
+    await act(async () => {
+      await store.getState().saveSettings({
+        speedLimit: 12 * 1024 * 1024,
+        slowHours: { limit: 2 * 1024 * 1024, hours: { days: 0b001_1111, start: 9 * 60, stop: 17 * 60 } },
+      });
+      store.getState().setPage("settings");
+    });
+    document.getElementById("settings-speed")?.scrollIntoView({ block: "start" });
+    await capture(window, "settings-slower");
+  });
+
   it("asks before a download from the browser", async () => {
     const { window } = await open(
       SHOWCASE,

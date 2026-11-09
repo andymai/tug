@@ -66,7 +66,7 @@ impl Library {
     pub async fn open(store: Store) -> Result<Self, LibraryError> {
         let settings = Settings::load(&store)?;
         let library = Self {
-            limiter: Arc::new(Limiter::new(settings.speed_limit)),
+            limiter: Arc::new(Limiter::new(settings.speed_limit_now())),
             settings: Mutex::new(settings),
             store: Mutex::new(store),
             running: tokio::sync::Mutex::default(),
@@ -149,7 +149,7 @@ impl Library {
     pub fn update_settings(&self, settings: Settings) -> Result<(), LibraryError> {
         settings.validate()?;
         settings.save(&*self.store()?)?;
-        self.limiter.set(settings.speed_limit);
+        self.limiter.set(settings.speed_limit_now());
         *self.settings.lock().map_err(|_| LibraryError::Poisoned)? = settings;
         Ok(())
     }
@@ -314,7 +314,9 @@ impl Library {
             }
             settled.push(id);
         }
-        if let Err(e) = self.close_hours().await {
+        let settings = self.settings()?;
+        self.limiter.set(settings.speed_limit_now());
+        if let Err(e) = self.close_hours(&settings).await {
             error.get_or_insert_with(|| e.to_string());
         }
         // Also picks up a raised limit and a download that a failed start left behind.
@@ -390,8 +392,8 @@ impl Library {
 
     // Outside the schedule's hours, running downloads go back to the queue and
     // keep their place, so they go on when the hours come again.
-    async fn close_hours(&self) -> Result<(), LibraryError> {
-        if within_hours(&self.settings()?) {
+    async fn close_hours(&self, settings: &Settings) -> Result<(), LibraryError> {
+        if within_hours(settings) {
             return Ok(());
         }
         let stopped: Vec<(DownloadId, Running)> = self.running.lock().await.drain().collect();

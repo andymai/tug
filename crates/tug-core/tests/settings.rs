@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer};
 use tug_core::{
-    Appearance, DownloadId, DownloadState, Library, LibraryError, Settings, SettingsError, Store,
+    Appearance, DownloadId, DownloadState, Library, LibraryError, Schedule, Settings,
+    SettingsError, SlowHours, Store,
 };
 
 async fn finish(library: &Library, id: DownloadId) -> Duration {
@@ -35,6 +36,7 @@ async fn settings_survive_a_reopen() {
         confirm_captures: true,
         max_active: 3,
         schedule: None,
+        slow_hours: None,
     };
     Library::open(Store::open(&db).unwrap())
         .await
@@ -80,6 +82,7 @@ async fn the_global_speed_limit_holds_downloads_back() {
             confirm_captures: true,
             max_active: 3,
             schedule: None,
+            slow_hours: None,
         })
         .unwrap();
 
@@ -108,6 +111,7 @@ async fn lifting_the_limit_speeds_up_a_running_download() {
         confirm_captures: true,
         max_active: 3,
         schedule: None,
+        slow_hours: None,
     };
     library.update_settings(limited.clone()).unwrap();
 
@@ -125,5 +129,40 @@ async fn lifting_the_limit_speeds_up_a_running_download() {
     assert!(
         took < Duration::from_secs(8),
         "4 MB at 256 KB/s would take 16 s; took {took:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_slow_hours_hold_downloads_back_while_they_last() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(Store::open_in_memory().unwrap())
+        .await
+        .unwrap();
+    let (_, minute) = tug_core::local_now();
+    let around = |by: i32| {
+        u16::try_from((i32::from(minute) + by).rem_euclid(i32::from(tug_core::MINUTES_PER_DAY)))
+            .unwrap()
+    };
+    library
+        .update_settings(Settings {
+            slow_hours: Some(SlowHours {
+                limit: 1 << 20,
+                hours: Schedule {
+                    days: Schedule::EVERY_DAY,
+                    start: around(-60),
+                    stop: around(60),
+                },
+            }),
+            ..library.settings().unwrap()
+        })
+        .unwrap();
+
+    let url = lab.url("/gen/3M/slow.bin?seed=6").parse().unwrap();
+    let id = library.add(url, dir.path()).await.unwrap();
+    let took = finish(&library, id).await;
+    assert!(
+        took >= Duration::from_millis(1500),
+        "3 MB at 1 MB/s took {took:?}"
     );
 }

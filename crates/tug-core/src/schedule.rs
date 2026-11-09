@@ -57,12 +57,16 @@ impl Schedule {
     }
 
     pub fn is_open_now(self) -> bool {
-        let now = jiff::Zoned::now();
-        let weekday = u8::try_from(now.weekday().to_monday_zero_offset()).unwrap_or(0);
-        let minute =
-            u16::try_from(i32::from(now.hour()) * 60 + i32::from(now.minute())).unwrap_or(0);
+        let (weekday, minute) = local_now();
         self.is_open(weekday, minute)
     }
+}
+
+pub fn local_now() -> (u8, u16) {
+    let now = jiff::Zoned::now();
+    let weekday = u8::try_from(now.weekday().to_monday_zero_offset()).unwrap_or(0);
+    let minute = u16::try_from(i32::from(now.hour()) * 60 + i32::from(now.minute())).unwrap_or(0);
+    (weekday, minute)
 }
 
 impl fmt::Display for Schedule {
