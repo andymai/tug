@@ -635,14 +635,14 @@ export function createDownloadsStore(backend: Backend) {
         act(async () => {
           const request = ++historyRequest;
           const events = await backend.events(id);
-          if (request === historyRequest && get().selected === id) set({ history: { id, events } });
+          if (request === historyRequest && single(get())?.id === id) set({ history: { id, events } });
         }),
 
       inspect: async (id) => {
         const request = ++inspectRequest;
         try {
           const data = await backend.inspect(id);
-          if (request === inspectRequest && get().selected === id) set({ inspection: { id, data } });
+          if (request === inspectRequest && single(get())?.id === id) set({ inspection: { id, data } });
         } catch (error) {
           const failure = BackendError.from(error);
           // A download removed between two polls; its panel closes with it.

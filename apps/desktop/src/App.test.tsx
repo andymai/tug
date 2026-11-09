@@ -888,7 +888,11 @@ describe("selection", () => {
     await vi.waitFor(() => {
       expect(screen.queryByText("conference-talk-1080p.mp4")).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" })).toBeInTheDocument();
+    const panel = within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" }));
+    expect(await panel.findByRole("region", { name: "History" })).toBeInTheDocument();
+    await user.click(panel.getByRole("tab", { name: "Log" }));
+    expect((await within(panel.getByRole("tabpanel", { name: "Log" })).findAllByRole("listitem")).length).toBeGreaterThan(0);
+    await user.click(panel.getByRole("tab", { name: "Overview" }));
     await user.keyboard("p");
     await vi.waitFor(() => {
       expect(store.getState().items.find((d) => d.name === "fedora-kde-44-x86_64.iso")?.state).toBe("paused");
