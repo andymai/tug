@@ -2,7 +2,7 @@ import { Check, Copy, ExternalLink, FolderOpen, ListStart, Pause, Pencil, Play, 
 import { type KeyboardEvent as KeyEvent, useEffect, useId, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 
-import type { Download, DownloadEvent } from "../backend/backend";
+import type { CookiesChange, Download, DownloadEvent, Headers } from "../backend/backend";
 import {
   formatBytes,
   formatClock,
@@ -127,6 +127,139 @@ function NameEditor({ download }: { download: Download }) {
       />
     </form>
   );
+}
+
+// The cookies never come back from Tug: the panel only says whether they go
+// along, and replaces or clears them.
+function HeaderFields({ download, headers }: { download: Download; headers: Headers }) {
+  const setHeaders = useDownloads((s) => s.setHeaders);
+  const [referrer, setReferrer] = useState(headers.referrer ?? "");
+  const [userAgent, setUserAgent] = useState(headers.userAgent ?? "");
+  const [replacing, setReplacing] = useState(!headers.hasCookies);
+  const [cookies, setCookies] = useState("");
+  const headingId = useId();
+  const referrerId = useId();
+  const cookiesId = useId();
+  const userAgentId = useId();
+  const plain = (text: string) => (text.trim() === "" ? null : text.trim());
+
+  const commit = (change: CookiesChange = { kind: "keep" }) => {
+    const same = plain(referrer) === headers.referrer && plain(userAgent) === headers.userAgent;
+    if (same && change.kind === "keep") return;
+    void setHeaders(download.id, plain(referrer), change, plain(userAgent)).then((saved) => {
+      if (saved && change.kind !== "keep") {
+        setCookies("");
+        setReplacing(change.kind === "clear");
+      }
+    });
+  };
+  const commitCookies = () => {
+    if (cookies.trim() !== "") commit({ kind: "set", value: cookies.trim() });
+    else if (headers.hasCookies) setReplacing(false);
+  };
+  const enter = (save: () => void) => (event: KeyEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") save();
+  };
+  const field = "h-7 min-w-0 rounded-sm border border-control-border bg-surface px-2 text-small text-ink placeholder:text-ink-faint";
+
+  return (
+    <section aria-labelledby={headingId} className="border-t border-line px-4 py-4">
+      <h3 id={headingId} className="pb-2 text-label text-ink-muted">
+        Headers
+      </h3>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 text-small">
+        <label htmlFor={referrerId} className="text-ink-muted">
+          Referrer
+        </label>
+        <input
+          id={referrerId}
+          spellCheck={false}
+          value={referrer}
+          placeholder="None"
+          onChange={(event) => {
+            setReferrer(event.target.value);
+          }}
+          onBlur={() => {
+            commit();
+          }}
+          onKeyDown={enter(() => {
+            commit();
+          })}
+          className={field}
+        />
+        <label htmlFor={cookiesId} className="text-ink-muted">
+          Cookies
+        </label>
+        {replacing ? (
+          <input
+            id={cookiesId}
+            type="password"
+            autoComplete="off"
+            value={cookies}
+            placeholder="None"
+            onChange={(event) => {
+              setCookies(event.target.value);
+            }}
+            onBlur={commitCookies}
+            onKeyDown={enter(commitCookies)}
+            className={field}
+          />
+        ) : (
+          <span id={cookiesId} className="flex items-center gap-2">
+            <span className="text-ink">Sent</span>
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={() => {
+                setReplacing(true);
+              }}
+            >
+              Replace
+            </Button>
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={() => {
+                commit({ kind: "clear" });
+              }}
+            >
+              Clear
+            </Button>
+          </span>
+        )}
+        <label htmlFor={userAgentId} className="text-ink-muted">
+          User agent
+        </label>
+        <input
+          id={userAgentId}
+          spellCheck={false}
+          value={userAgent}
+          placeholder="Tug's own"
+          onChange={(event) => {
+            setUserAgent(event.target.value);
+          }}
+          onBlur={() => {
+            commit();
+          }}
+          onKeyDown={enter(() => {
+            commit();
+          })}
+          className={field}
+        />
+      </div>
+      {download.state === "downloading" && <p className="pt-2 text-small text-ink-muted">New headers go with the next start.</p>}
+    </section>
+  );
+}
+
+function OwnHeaders({ download }: { download: Download }) {
+  const headers = useDownloads((s) => (s.headers?.id === download.id ? s.headers.data : null));
+  const loadHeaders = useDownloads((s) => s.loadHeaders);
+  useEffect(() => {
+    void loadHeaders(download.id);
+  }, [download.id, loadHeaders]);
+  if (headers === null) return null;
+  return <HeaderFields download={download} headers={headers} />;
 }
 
 const countText = (count: number | null) => (count === null ? "" : String(count));
@@ -403,7 +536,12 @@ function Panel({ download }: { download: Download }) {
                 </div>
               ))}
             </dl>
-            {download.state !== "done" && !download.url.startsWith("magnet:") && <OwnOptions download={download} />}
+            {download.state !== "done" && !download.url.startsWith("magnet:") && (
+              <>
+                <OwnOptions download={download} />
+                <OwnHeaders download={download} />
+              </>
+            )}
             <History
               id={download.id}
               state={download.state}

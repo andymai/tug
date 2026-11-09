@@ -396,6 +396,25 @@ impl Store {
         Ok(DownloadId(id))
     }
 
+    // No row for an empty origin: the table keeps only what a browser handed over.
+    pub fn set_origin(&self, id: DownloadId, origin: &Origin) -> Result<(), StoreError> {
+        if origin.is_empty() {
+            self.conn
+                .execute("DELETE FROM origins WHERE download_id = ?1", [id.0])?;
+        } else {
+            self.conn.execute(
+                "INSERT OR REPLACE INTO origins (download_id, referrer, cookies, user_agent) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    id.0,
+                    origin.referrer().map(Url::as_str),
+                    origin.cookies(),
+                    origin.user_agent(),
+                ],
+            )?;
+        }
+        Ok(())
+    }
+
     pub fn origin(&self, id: DownloadId) -> Result<Origin, StoreError> {
         let row = self
             .conn

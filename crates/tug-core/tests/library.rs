@@ -776,6 +776,51 @@ async fn a_download_takes_a_name_before_it_starts_and_its_file_one_after_it_fini
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn new_headers_go_with_the_next_start_and_a_finished_download_takes_none() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(Store::open_in_memory().unwrap())
+        .await
+        .unwrap();
+    let old = Origin::new(Some("https://old.example/"), Some("old=1"), None).unwrap();
+    let url = lab.url("/gen/2M/headers.bin?seed=12").parse().unwrap();
+    let id = library.add_paused(url, dir.path(), &old).unwrap();
+
+    let new = Origin::new(
+        Some("https://example.org/page"),
+        Some("session=xyz"),
+        Some("Mozilla/5.0 (X11; Linux x86_64) Test"),
+    )
+    .unwrap();
+    library.set_origin(id, &new).await.unwrap();
+    assert_eq!(library.origin(id).unwrap(), new);
+    library.resume(id).await.unwrap();
+    tick_until(&library, |l| state_of(l, id) == DownloadState::Done).await;
+    let log = lab.log();
+    assert!(!log.is_empty());
+    for entry in &log {
+        assert_eq!(entry.cookie.as_deref(), Some("session=xyz"), "{entry:?}");
+        assert_eq!(
+            entry.user_agent.as_deref(),
+            Some("Mozilla/5.0 (X11; Linux x86_64) Test")
+        );
+    }
+    assert!(
+        library.origin(id).unwrap().is_empty(),
+        "a finished download keeps no origin"
+    );
+    assert!(matches!(
+        library.set_origin(id, &new).await,
+        Err(LibraryError::NoHeaders)
+    ));
+
+    let url = lab.url("/gen/1M/cleared.bin?seed=13").parse().unwrap();
+    let other = library.add_paused(url, dir.path(), &old).unwrap();
+    library.set_origin(other, &Origin::default()).await.unwrap();
+    assert!(library.origin(other).unwrap().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_missing_file_fails_with_the_reason() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();

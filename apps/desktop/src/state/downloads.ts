@@ -10,6 +10,8 @@ import {
   type DownloadEvent,
   type DownloadState,
   type AddOptions,
+  type CookiesChange,
+  type Headers,
   type Inspection,
   type Place,
   type ProgressBatch,
@@ -135,6 +137,9 @@ export interface DownloadsState {
   renaming: number | null;
   startRename: (id: number | null) => void;
   rename: (id: number, name: string) => Promise<boolean>;
+  headers: { id: number; data: Headers } | null;
+  loadHeaders: (id: number) => Promise<void>;
+  setHeaders: (id: number, referrer: string | null, cookies: CookiesChange, userAgent: string | null) => Promise<boolean>;
   pickFolder: (from?: string) => Promise<string | null>;
   settleFresh: (id: number) => void;
   answerCapture: (id: number, answer: CaptureAnswer) => Promise<void>;
@@ -170,6 +175,7 @@ export function createDownloadsStore(backend: Backend) {
     let disk: Promise<void> | null = null;
     let diskAsked = 0;
     let inspectRequest = 0;
+    let headersRequest = 0;
 
     // One by one, then one reload, and one notice for what failed.
     const many = async (order: readonly Download[], verb: string, action: (id: number) => Promise<void>) => {
@@ -258,6 +264,7 @@ export function createDownloadsStore(backend: Backend) {
       dragging: null,
       dropMark: null,
       renaming: null,
+      headers: null,
       status: "loading",
       loadError: null,
       notice: null,
@@ -770,6 +777,29 @@ export function createDownloadsStore(backend: Backend) {
           return true;
         } catch (error) {
           set({ notice: `couldn't change the download: ${BackendError.from(error).message}` });
+          return false;
+        }
+      },
+
+      loadHeaders: async (id) => {
+        const request = ++headersRequest;
+        try {
+          const data = await backend.headers(id);
+          if (request === headersRequest) set({ headers: { id, data } });
+        } catch (error) {
+          const failure = BackendError.from(error);
+          if (failure.kind !== "notFound") set({ notice: failure.message });
+        }
+      },
+
+      setHeaders: async (id, referrer, cookies, userAgent) => {
+        try {
+          const data = await backend.setHeaders(id, referrer, cookies, userAgent);
+          ++headersRequest;
+          set({ headers: { id, data } });
+          return true;
+        } catch (error) {
+          set({ notice: `couldn't change the headers: ${BackendError.from(error).message}` });
           return false;
         }
       },

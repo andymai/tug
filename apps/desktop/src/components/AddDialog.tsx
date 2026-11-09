@@ -43,6 +43,12 @@ function AddForm({ titleId }: { titleId: string }) {
   const [paused, setPaused] = useState(false);
   const [first, setFirst] = useState(false);
   const [name, setName] = useState("");
+  const [referrer, setReferrer] = useState("");
+  const [cookies, setCookies] = useState("");
+  const [userAgent, setUserAgent] = useState("");
+  const referrerId = useId();
+  const cookiesId = useId();
+  const userAgentId = useId();
   const [problem, setProblem] = useState<string | null>(null);
   const fieldId = useId();
   const nameId = useId();
@@ -76,7 +82,8 @@ function AddForm({ titleId }: { titleId: string }) {
     }
     setProblem(null);
     const one = named && name.trim() !== "" ? name.trim() : null;
-    const add = { paused, first, connections: own.value, speedLimit: cap.value, name: one };
+    const header = (text: string) => (text.trim() === "" ? null : text.trim());
+    const add = { paused, first, connections: own.value, speedLimit: cap.value, name: one, referrer: header(referrer), cookies: header(cookies), userAgent: header(userAgent) };
     void addLinks(hrefs, dir === "" || dir === downloadDir ? { add } : { dir, add });
   };
 
@@ -226,6 +233,46 @@ function AddForm({ titleId }: { titleId: string }) {
               />
               <span className="text-mono text-ink-muted">MB/s</span>
             </div>
+            <label htmlFor={referrerId} className="text-ink-muted">
+              Referrer
+            </label>
+            <input
+              id={referrerId}
+              spellCheck={false}
+              value={referrer}
+              placeholder="None"
+              onChange={(event) => {
+                setReferrer(event.target.value);
+              }}
+              className="h-[30px] min-w-0 rounded-sm border border-control-border bg-surface px-2 text-body text-ink placeholder:text-ink-faint"
+            />
+            <label htmlFor={cookiesId} className="text-ink-muted">
+              Cookies
+            </label>
+            <input
+              id={cookiesId}
+              type="password"
+              autoComplete="off"
+              value={cookies}
+              placeholder="None"
+              onChange={(event) => {
+                setCookies(event.target.value);
+              }}
+              className="h-[30px] min-w-0 rounded-sm border border-control-border bg-surface px-2 text-body text-ink placeholder:text-ink-faint"
+            />
+            <label htmlFor={userAgentId} className="text-ink-muted">
+              User agent
+            </label>
+            <input
+              id={userAgentId}
+              spellCheck={false}
+              value={userAgent}
+              placeholder="Tug's own"
+              onChange={(event) => {
+                setUserAgent(event.target.value);
+              }}
+              className="h-[30px] min-w-0 rounded-sm border border-control-border bg-surface px-2 text-body text-ink placeholder:text-ink-faint"
+            />
             <span />
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-ink">
               <label className="flex items-center gap-2">

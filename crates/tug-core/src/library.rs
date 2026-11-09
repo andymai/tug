@@ -53,6 +53,8 @@ pub enum LibraryError {
     NameTaken(String),
     #[error("could not rename {}: {source}", path.display())]
     Rename { path: PathBuf, source: io::Error },
+    #[error("a finished download or a torrent sends no headers")]
+    NoHeaders,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -207,6 +209,24 @@ impl Library {
             (None, _) if !running.contains_key(&id) => self.store()?.set_name(id, name)?,
             _ => return Err(LibraryError::CantRename),
         }
+        drop(running);
+        self.changed(id);
+        Ok(())
+    }
+
+    pub fn origin(&self, id: DownloadId) -> Result<Origin, LibraryError> {
+        self.get(id)?;
+        Ok(self.store()?.origin(id)?)
+    }
+
+    // A running download keeps the headers it started with until its next start.
+    pub async fn set_origin(&self, id: DownloadId, origin: &Origin) -> Result<(), LibraryError> {
+        let running = self.running.lock().await;
+        let download = self.get(id)?;
+        if download.state == DownloadState::Done || download.is_torrent() {
+            return Err(LibraryError::NoHeaders);
+        }
+        self.store()?.set_origin(id, origin)?;
         drop(running);
         self.changed(id);
         Ok(())

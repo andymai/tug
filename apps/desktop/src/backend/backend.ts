@@ -1,5 +1,7 @@
 import type { AddOptions } from "./bindings/AddOptions";
 import type { CaptureAnswer } from "./bindings/CaptureAnswer";
+import type { CookiesChange } from "./bindings/CookiesChange";
+import type { Headers } from "./bindings/Headers";
 import type { ColorScheme } from "./bindings/ColorScheme";
 import type { CommandError } from "./bindings/CommandError";
 import type { ErrorKind } from "./bindings/ErrorKind";
@@ -13,6 +15,8 @@ import type { Settings } from "./bindings/Settings";
 export type { AddOptions } from "./bindings/AddOptions";
 export type { Appearance } from "./bindings/Appearance";
 export type { CaptureAnswer } from "./bindings/CaptureAnswer";
+export type { CookiesChange } from "./bindings/CookiesChange";
+export type { Headers } from "./bindings/Headers";
 export type { ColorScheme } from "./bindings/ColorScheme";
 export type { CommandError } from "./bindings/CommandError";
 export type { Download } from "./bindings/Download";
@@ -55,6 +59,9 @@ export interface Backend {
   setOptions(id: number, connections: number | null, speedLimit: number | null): Promise<Download>;
   // Before it starts it takes the name; after it finishes its file does.
   rename(id: number, name: string): Promise<Download>;
+  // The browser's referrer and User-Agent, and whether cookies go along; never the cookies.
+  headers(id: number): Promise<Headers>;
+  setHeaders(id: number, referrer: string | null, cookies: CookiesChange, userAgent: string | null): Promise<Headers>;
   // A folder for the downloads being added, which leaves Tug's own folder alone.
   chooseFolder(from?: string): Promise<string | null>;
   pause(id: number): Promise<void>;

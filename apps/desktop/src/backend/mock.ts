@@ -9,6 +9,7 @@ import {
   type ColorScheme,
   type DownloadEvent,
   type DownloadState,
+  type Headers,
   type Inspection,
   type Place,
   type ProgressBatch,
@@ -96,6 +97,19 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   const now = options.now ?? (() => Date.now());
   const downloads = new Map<number, Download>();
   const history = new Map<number, DownloadEvent[]>();
+  const origins = new Map<number, { referrer: string | null; cookies: string | null; userAgent: string | null }>();
+  const headersOf = (id: number): Headers => {
+    const origin = origins.get(id);
+    return { referrer: origin?.referrer ?? null, userAgent: origin?.userAgent ?? null, hasCookies: (origin?.cookies ?? null) !== null };
+  };
+  const checkReferrer = (referrer: string | null) => {
+    if (referrer === null) return;
+    try {
+      if (!["http:", "https:"].includes(new URL(referrer).protocol)) throw new Error("scheme");
+    } catch {
+      throw new BackendError("invalid", "the referrer isn't a web address");
+    }
+  };
   const log = (id: number, kind: DownloadEvent["kind"], atMs: number, bytes: number | null = null, detail: string | null = null) => {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
   };
@@ -285,6 +299,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       if (download.received >= download.size) {
         download.state = "done";
         download.finishedMs = now();
+        origins.delete(download.id);
         log(download.id, "finished", download.finishedMs, download.size);
         settled.push(download.id);
       } else {
@@ -366,6 +381,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         }
         const download = addNow(url, dir);
         if (!url.trim().startsWith("magnet:")) {
+          checkReferrer(options?.referrer ?? null);
+          if (options !== undefined && (options.referrer ?? options.cookies ?? options.userAgent) !== null) {
+            origins.set(download.id, { referrer: options.referrer, cookies: options.cookies, userAgent: options.userAgent });
+          }
           download.connections = options?.connections ?? null;
           download.speedLimit = options?.speedLimit ?? null;
           if (named !== null) {
@@ -402,6 +421,24 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         if (download.file !== null) download.file = `${download.dir}/${plain}`;
         revision += 1;
         return { ...download };
+      }),
+    headers: (id) =>
+      attempt(() => {
+        find(id);
+        return headersOf(id);
+      }),
+    setHeaders: (id, referrer, cookies, userAgent) =>
+      attempt(() => {
+        const download = find(id);
+        if (download.state === "done" || download.url.startsWith("magnet:")) {
+          throw new BackendError("invalid", "a finished download or a torrent sends no headers");
+        }
+        checkReferrer(referrer);
+        const kept = origins.get(id)?.cookies ?? null;
+        const next = { referrer, userAgent, cookies: cookies.kind === "keep" ? kept : cookies.kind === "clear" ? null : cookies.value };
+        if (next.referrer === null && next.cookies === null && next.userAgent === null) origins.delete(id);
+        else origins.set(id, next);
+        return headersOf(id);
       }),
     chooseFolder: () => Promise.resolve(options.folder ?? "/home/you/Media/Downloads"),
     pause: (id) =>
