@@ -219,10 +219,19 @@ describe("mock backend", () => {
   });
   it("refuses a bad name before it adds a row, and a new name brings its type", async () => {
     const backend = createMockBackend({ seed: [{ url: "https://example.org/fonts.zip", state: "done" }] });
-    await expect(backend.add("https://example.org/a.iso", undefined, { paused: false, first: false, connections: null, speedLimit: null, name: "a/b" })).rejects.toThrow(/can't be a file name/);
+    await expect(backend.add("https://example.org/a.iso", undefined, { paused: false, first: false, connections: null, speedLimit: null, name: "a/b", referrer: null, cookies: null, userAgent: null })).rejects.toThrow(/can't be a file name/);
     expect((await backend.list()).map((d) => d.name)).toEqual(["fonts.zip"]);
     const [fonts] = await backend.list();
     const renamed = await backend.rename(fonts?.id ?? -1, "fonts.iso");
     expect(renamed.category).toBe("disk");
+  });
+  it("checks headers as Tug does, before it adds a row", async () => {
+    const backend = createMockBackend();
+    const options = { paused: false, first: false, connections: null, speedLimit: null, name: null, cookies: null, userAgent: null };
+    await expect(backend.add("https://example.org/a.iso", undefined, { ...options, referrer: "ftp://example.org/" })).rejects.toThrow(/referrer/);
+    await expect(backend.add("https://example.org/a.iso", undefined, { ...options, referrer: null, userAgent: "bad\u0001agent" })).rejects.toThrow(/User-Agent/);
+    expect(await backend.list()).toEqual([]);
+    const added = await backend.add("https://example.org/a.iso", undefined, { ...options, paused: true, referrer: " https://u:p@example.org/page#top " });
+    expect(await backend.headers(added.id)).toEqual({ referrer: "https://example.org/page", userAgent: null, hasCookies: false });
   });
 });

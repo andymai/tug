@@ -21,9 +21,11 @@ describe("tauri backend", () => {
     await tauriBackend.diskFree();
     await tauriBackend.add("https://example.org/a.iso");
     await tauriBackend.add("https://example.org/b.iso", "/data");
-    await tauriBackend.add("https://example.org/c.iso", "/data", { paused: true, first: false, connections: 4, speedLimit: null, name: null });
+    await tauriBackend.add("https://example.org/c.iso", "/data", { paused: true, first: false, connections: 4, speedLimit: null, name: null, referrer: null, cookies: null, userAgent: null });
     await tauriBackend.setOptions(3, 2, 1024);
     await tauriBackend.rename(3, "mine.iso");
+    await tauriBackend.headers(3);
+    await tauriBackend.setHeaders(3, null, { kind: "keep" }, "Mozilla/5.0");
     await tauriBackend.chooseFolder("/data");
     await tauriBackend.pause(3);
     await tauriBackend.resume(3);
@@ -44,9 +46,11 @@ describe("tauri backend", () => {
       ["disk_free", undefined],
       ["add_download", { url: "https://example.org/a.iso", dir: null, options: null }],
       ["add_download", { url: "https://example.org/b.iso", dir: "/data", options: null }],
-      ["add_download", { url: "https://example.org/c.iso", dir: "/data", options: { paused: true, first: false, connections: 4, speedLimit: null, name: null } }],
+      ["add_download", { url: "https://example.org/c.iso", dir: "/data", options: { paused: true, first: false, connections: 4, speedLimit: null, name: null, referrer: null, cookies: null, userAgent: null } }],
       ["set_download_options", { id: 3, connections: 2, speedLimit: 1024 }],
       ["rename_download", { id: 3, name: "mine.iso" }],
+      ["download_headers", { id: 3 }],
+      ["set_download_headers", { id: 3, referrer: null, cookies: { kind: "keep" }, userAgent: "Mozilla/5.0" }],
       ["choose_folder", { from: "/data" }],
       ["pause_download", { id: 3 }],
       ["resume_download", { id: 3 }],

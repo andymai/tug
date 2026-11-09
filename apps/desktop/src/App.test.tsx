@@ -181,6 +181,9 @@ describe("adding links", () => {
       connections: 4,
       speedLimit: 2 * MB,
       name: null,
+      referrer: null,
+      cookies: null,
+      userAgent: null,
     });
     expect(await within(await screen.findByRole("row", { name: /^own\.iso/ })).findByText("Paused")).toBeInTheDocument();
     expect((await backend.settings()).downloadDir, "Tug's own folder stays").toBe("/home/you/Downloads");
@@ -207,6 +210,24 @@ describe("adding links", () => {
     await user.clear(again.getByRole("textbox", { name: "Links" }));
     await user.type(again.getByRole("textbox", { name: "Links" }), "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056");
     expect(again.queryByRole("textbox", { name: "Name" }), "a torrent keeps its own name").not.toBeInTheDocument();
+  });
+
+  it("sends the referrer, cookies and User-Agent the person gives", async () => {
+    const { backend, user } = open();
+    const add = vi.spyOn(backend, "add");
+    await user.click(await screen.findByRole("button", { name: "Add" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Add downloads" }));
+    await user.type(dialog.getByRole("textbox", { name: "Links" }), "https://example.org/report.pdf");
+    await user.click(dialog.getByRole("button", { name: "Options" }));
+    await user.type(dialog.getByRole("textbox", { name: "Referrer" }), "https://example.org/reports");
+    await user.type(dialog.getByLabelText("Cookies"), " session=abc ");
+    await user.type(dialog.getByRole("textbox", { name: "User agent" }), "Mozilla/5.0 Test");
+    await user.click(dialog.getByRole("button", { name: "Add" }));
+    expect(add).toHaveBeenCalledWith(
+      "https://example.org/report.pdf",
+      undefined,
+      expect.objectContaining({ referrer: "https://example.org/reports", cookies: "session=abc", userAgent: "Mozilla/5.0 Test" }),
+    );
   });
 
   it("skips a link already in the list unless asked to download it again", async () => {
@@ -561,6 +582,79 @@ describe("detail panel", () => {
     });
     expect(await screen.findByRole("row", { name: /^fonts\.zip/ })).toBeInTheDocument();
     expect(blender.getByRole("textbox", { name: "Name" }), "B's editor stays").toBeInTheDocument();
+  });
+
+  it("changes the headers a waiting download sends, and never shows its cookies", async () => {
+    const { backend, user } = open();
+    const setHeaders = vi.spyOn(backend, "setHeaders");
+    await user.click(await screen.findByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }));
+    const panel = within(screen.getByRole("complementary", { name: "blender-5.1-linux-x64.tar.xz" }));
+    const headers = within(await panel.findByRole("region", { name: "Headers" }));
+
+    await user.type(headers.getByRole("textbox", { name: "Referrer" }), "ftp://nope{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/referrer isn't a web address/);
+    await user.clear(headers.getByRole("textbox", { name: "Referrer" }));
+    await user.type(headers.getByRole("textbox", { name: "Referrer" }), "https://example.org/page{Enter}");
+    expect(setHeaders).toHaveBeenLastCalledWith(expect.any(Number), "https://example.org/page", { kind: "keep" }, null);
+
+    const secret = headers.getByLabelText("Cookies");
+    expect(secret).toHaveAttribute("type", "password");
+    await user.type(secret, "session=secret{Enter}");
+    expect(setHeaders).toHaveBeenLastCalledWith(expect.any(Number), "https://example.org/page", { kind: "set", value: "session=secret" }, null);
+    expect(await headers.findByText("Sent")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("session=secret")).not.toBeInTheDocument();
+
+    await user.click(headers.getByRole("button", { name: "Clear" }));
+    expect(setHeaders).toHaveBeenLastCalledWith(expect.any(Number), "https://example.org/page", { kind: "clear" }, null);
+    expect(await headers.findByLabelText("Cookies")).toHaveAttribute("type", "password");
+  });
+
+  it("shows the referrer as Tug saved it, and keeps newer edits when saves answer late", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const answers: (() => void)[] = [];
+    let slow = false;
+    const shown = {
+      ...backend,
+      setHeaders: (...args: Parameters<typeof backend.setHeaders>) =>
+        slow
+          ? new Promise<Awaited<ReturnType<typeof backend.setHeaders>>>((resolve) => {
+              answers.push(() => {
+                resolve(backend.setHeaders(...args));
+              });
+            })
+          : backend.setHeaders(...args),
+    };
+    const sent = vi.spyOn(shown, "setHeaders");
+    render(<App store={createDownloadsStore(shown)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }));
+    let headers = within(await screen.findByRole("region", { name: "Headers" }));
+    await user.type(headers.getByRole("textbox", { name: "Referrer" }), "https://user:pw@example.org#top{Enter}");
+    expect(await headers.findByDisplayValue("https://example.org/")).toBeInTheDocument();
+    const calls = sent.mock.calls.length;
+    await user.click(headers.getByRole("textbox", { name: "User agent" }));
+    await user.click(headers.getByRole("textbox", { name: "Referrer" }));
+    expect(sent.mock.calls.length, "the saved value is the same, so no new save").toBe(calls);
+
+    slow = true;
+    await user.type(headers.getByLabelText("Cookies"), "a=1{Enter}");
+    await user.clear(headers.getByLabelText("Cookies"));
+    await user.type(headers.getByLabelText("Cookies"), "b=2");
+    await act(async () => {
+      answers.shift()?.();
+      await Promise.resolve();
+    });
+    expect(headers.getByLabelText("Cookies"), "the newer cookie text stays").toHaveValue("b=2");
+
+    await user.type(headers.getByRole("textbox", { name: "User agent" }), "Late/1{Enter}");
+    await user.click(screen.getByRole("row", { name: /^conference-talk-1080p\.mp4/ }));
+    headers = within(await screen.findByRole("region", { name: "Headers" }));
+    await act(async () => {
+      answers.shift()?.();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("region", { name: "Headers" }), "another download's late answer leaves this one").toBeInTheDocument();
+    expect(headers.getByRole("textbox", { name: "User agent" })).toHaveValue("");
   });
 
   it("closes with its button and with Escape", async () => {

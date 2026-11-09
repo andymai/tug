@@ -10,7 +10,7 @@ use mdm_engine::state::state_path;
 use url::Url;
 
 use crate::inspect::Inspection;
-use crate::origin::Origin;
+use crate::origin::{Origin, OriginError};
 use crate::schedule::Schedule;
 use crate::settings::{Settings, SettingsError, check_own};
 use crate::store::{
@@ -53,6 +53,17 @@ pub enum LibraryError {
     NameTaken(String),
     #[error("could not rename {}: {source}", path.display())]
     Rename { path: PathBuf, source: io::Error },
+    #[error("a finished download or a torrent sends no headers")]
+    NoHeaders,
+    #[error(transparent)]
+    Origin(#[from] OriginError),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cookies<'a> {
+    Keep,
+    Clear,
+    Set(&'a str),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -210,6 +221,39 @@ impl Library {
         drop(running);
         self.changed(id);
         Ok(())
+    }
+
+    pub fn origin(&self, id: DownloadId) -> Result<Origin, LibraryError> {
+        self.get(id)?;
+        Ok(self.store()?.origin(id)?)
+    }
+
+    // A running download keeps the headers it started with until its next start.
+    // Under one store lock from the check to the write: a download that finishes
+    // in between would get its cookies back, and a second edit could undo them.
+    pub fn set_origin(
+        &self,
+        id: DownloadId,
+        referrer: Option<&str>,
+        cookies: Cookies<'_>,
+        user_agent: Option<&str>,
+    ) -> Result<Origin, LibraryError> {
+        let store = self.store()?;
+        let download = store.get(id)?.ok_or(LibraryError::Unknown(id.get()))?;
+        if download.state == DownloadState::Done || download.is_torrent() {
+            return Err(LibraryError::NoHeaders);
+        }
+        let current = store.origin(id)?;
+        let cookies = match cookies {
+            Cookies::Keep => current.cookies(),
+            Cookies::Clear => None,
+            Cookies::Set(value) => Some(value),
+        };
+        let origin = Origin::new(referrer, cookies, user_agent)?;
+        store.set_origin(id, &origin)?;
+        drop(store);
+        self.changed(id);
+        Ok(origin)
     }
 
     // The connections take effect at the next start; the speed limit at once.

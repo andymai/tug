@@ -8,10 +8,10 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
-    AddOptions, Appearance, Batch, Category, ConnectionStatus, Download, DownloadId, DownloadState,
-    Event, EventKind, Inspection, Library, LibraryError, Origin, Phase, Place, ProgressStream,
-    SavedView, Schedule, Settings, SlowHours, Store, StreamOptions, TorrentOptions, TorrentSource,
-    Update,
+    AddOptions, Appearance, Batch, Category, ConnectionStatus, Cookies, Download, DownloadId,
+    DownloadState, Event, EventKind, Inspection, Library, LibraryError, Origin, Phase, Place,
+    ProgressStream, SavedView, Schedule, Settings, SlowHours, Store, StreamOptions, TorrentOptions,
+    TorrentSource, Update,
 };
 use url::Url;
 
@@ -143,6 +143,49 @@ pub struct AddOptionsDto {
     #[ts(type = "number | null")]
     pub speed_limit: Option<u64>,
     pub name: Option<String>,
+    pub referrer: Option<String>,
+    pub cookies: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+impl AddOptionsDto {
+    fn origin(&self) -> Result<Origin, CommandError> {
+        Origin::new(
+            self.referrer.as_deref(),
+            self.cookies.as_deref(),
+            self.user_agent.as_deref(),
+        )
+        .map_err(|e| CommandError::invalid(e.to_string()))
+    }
+}
+
+// The window learns only whether cookies are there, never what they say.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "Headers")]
+pub struct HeadersDto {
+    pub referrer: Option<String>,
+    pub user_agent: Option<String>,
+    pub has_cookies: bool,
+}
+
+impl From<&Origin> for HeadersDto {
+    fn from(o: &Origin) -> Self {
+        Self {
+            referrer: o.referrer().map(ToString::to_string),
+            user_agent: o.user_agent().map(str::to_owned),
+            has_cookies: o.cookies().is_some(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+#[ts(export, rename = "CookiesChange")]
+pub enum CookiesDto {
+    Keep,
+    Clear,
+    Set { value: String },
 }
 
 impl From<AddOptionsDto> for AddOptions {
@@ -676,7 +719,9 @@ impl From<LibraryError> for CommandError {
             | LibraryError::DuplicateTorrent(_)
             | LibraryError::BadName(_)
             | LibraryError::CantRename
-            | LibraryError::NameTaken(_) => ErrorKind::Invalid,
+            | LibraryError::NameTaken(_)
+            | LibraryError::NoHeaders
+            | LibraryError::Origin(_) => ErrorKind::Invalid,
             LibraryError::Store(_) | LibraryError::Delete { .. } | LibraryError::Rename { .. } => {
                 ErrorKind::Storage
             }
@@ -892,14 +937,56 @@ pub async fn add_download(
     dir: Option<String>,
     options: Option<AddOptionsDto>,
 ) -> Result<DownloadDto, CommandError> {
+    let options = options.unwrap_or_default();
+    let origin = options.origin()?;
     add_with_options(
         &state.library,
         &url,
         dir.as_deref(),
-        &Origin::default(),
-        options.unwrap_or_default().into(),
+        &origin,
+        options.into(),
     )
     .await
+}
+
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects State by value"
+)]
+pub fn download_headers(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<HeadersDto, CommandError> {
+    Ok(HeadersDto::from(
+        &state.library.origin(DownloadId::from(id))?,
+    ))
+}
+
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects State by value"
+)]
+pub fn set_download_headers(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    referrer: Option<String>,
+    cookies: CookiesDto,
+    user_agent: Option<String>,
+) -> Result<HeadersDto, CommandError> {
+    let cookies = match &cookies {
+        CookiesDto::Keep => Cookies::Keep,
+        CookiesDto::Clear => Cookies::Clear,
+        CookiesDto::Set { value } => Cookies::Set(value),
+    };
+    let origin = state.library.set_origin(
+        DownloadId::from(id),
+        referrer.as_deref(),
+        cookies,
+        user_agent.as_deref(),
+    )?;
+    Ok(HeadersDto::from(&origin))
 }
 
 #[tauri::command]
@@ -1650,6 +1737,43 @@ mod tests {
                 ..AddOptions::default()
             }
         );
+    }
+
+    #[test]
+    fn headers_cross_without_the_cookies_and_a_change_says_what_to_do_with_them() {
+        let origin = Origin::new(
+            Some("https://example.org/page#top"),
+            Some("session=secret"),
+            Some("Mozilla/5.0"),
+        )
+        .unwrap();
+        let json = serde_json::to_value(HeadersDto::from(&origin)).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "referrer": "https://example.org/page",
+                "userAgent": "Mozilla/5.0",
+                "hasCookies": true,
+            })
+        );
+        assert!(!json.to_string().contains("secret"));
+        for (sent, want) in [
+            (serde_json::json!({"kind": "keep"}), CookiesDto::Keep),
+            (serde_json::json!({"kind": "clear"}), CookiesDto::Clear),
+            (
+                serde_json::json!({"kind": "set", "value": "a=1"}),
+                CookiesDto::Set {
+                    value: "a=1".into(),
+                },
+            ),
+        ] {
+            assert_eq!(serde_json::from_value::<CookiesDto>(sent).unwrap(), want);
+        }
+        let bad = AddOptionsDto {
+            referrer: Some("not a page".into()),
+            ..AddOptionsDto::default()
+        };
+        assert_eq!(bad.origin().unwrap_err().kind, ErrorKind::Invalid);
     }
 
     #[tokio::test]

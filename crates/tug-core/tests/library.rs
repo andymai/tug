@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer, content};
 use tug_core::{
-    AddOptions, ConnectionStatus, Download, DownloadId, DownloadState, EventKind, Library,
+    AddOptions, ConnectionStatus, Cookies, Download, DownloadId, DownloadState, EventKind, Library,
     LibraryError, MINUTES_PER_DAY, Origin, Place, Schedule, Settings, Store,
 };
 
@@ -773,6 +773,72 @@ async fn a_download_takes_a_name_before_it_starts_and_its_file_one_after_it_fini
         library.rename(busy, "other.bin").await,
         Err(LibraryError::CantRename)
     ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn new_headers_go_with_the_next_start_and_a_finished_download_takes_none() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(Store::open_in_memory().unwrap())
+        .await
+        .unwrap();
+    let old = Origin::new(Some("https://old.example/"), Some("old=1"), None).unwrap();
+    let url = lab.url("/gen/2M/headers.bin?seed=12").parse().unwrap();
+    let id = library.add_paused(url, dir.path(), &old).unwrap();
+
+    let new = library
+        .set_origin(
+            id,
+            Some("https://example.org/page"),
+            Cookies::Set("session=xyz"),
+            Some("Mozilla/5.0 (X11; Linux x86_64) Test"),
+        )
+        .unwrap();
+    assert_eq!(library.origin(id).unwrap(), new);
+    assert_eq!(new.cookies(), Some("session=xyz"));
+    let kept = library
+        .set_origin(
+            id,
+            Some("https://example.org/page"),
+            Cookies::Keep,
+            Some("Mozilla/5.0 (X11; Linux x86_64) Test"),
+        )
+        .unwrap();
+    assert_eq!(
+        kept.cookies(),
+        Some("session=xyz"),
+        "Keep keeps the stored cookies"
+    );
+    assert!(matches!(
+        library.set_origin(id, Some("ftp://nope"), Cookies::Keep, None),
+        Err(LibraryError::Origin(_))
+    ));
+    library.resume(id).await.unwrap();
+    tick_until(&library, |l| state_of(l, id) == DownloadState::Done).await;
+    let log = lab.log();
+    assert!(!log.is_empty());
+    for entry in &log {
+        assert_eq!(entry.cookie.as_deref(), Some("session=xyz"), "{entry:?}");
+        assert_eq!(
+            entry.user_agent.as_deref(),
+            Some("Mozilla/5.0 (X11; Linux x86_64) Test")
+        );
+    }
+    assert!(
+        library.origin(id).unwrap().is_empty(),
+        "a finished download keeps no origin"
+    );
+    assert!(matches!(
+        library.set_origin(id, None, Cookies::Set("again=1"), None),
+        Err(LibraryError::NoHeaders)
+    ));
+
+    let url = lab.url("/gen/1M/cleared.bin?seed=13").parse().unwrap();
+    let other = library.add_paused(url, dir.path(), &old).unwrap();
+    library
+        .set_origin(other, None, Cookies::Clear, None)
+        .unwrap();
+    assert!(library.origin(other).unwrap().is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread")]
