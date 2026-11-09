@@ -66,6 +66,13 @@ describe("checkLinks", () => {
     expect(checkLinks("https://example.org/%FF.iso", [])[0]).toMatchObject({ kind: "ready", name: "%FF.iso" });
   });
 
+  it("takes a magnet link and names it after its torrent", () => {
+    const magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Fedora%2044";
+    expect(checkLinks(magnet, [])).toEqual([{ kind: "ready", input: magnet, href: magnet, name: "Fedora 44", host: "torrent" }]);
+    expect(checkLinks("magnet:?xt=urn:btih:00", [])[0]).toMatchObject({ kind: "ready", name: "magnet link" });
+    expect(findLinks(`get it here: ${magnet}.`)).toEqual([magnet]);
+  });
+
   it("keeps one of two spellings of the same link", () => {
     const checks = checkLinks("https://EXAMPLE.org/a.bin https://example.org/a.bin", []);
     expect(checks).toHaveLength(1);

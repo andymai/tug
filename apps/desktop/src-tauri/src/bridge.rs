@@ -9,7 +9,7 @@ use ts_rs::TS;
 use tug_core::{
     Appearance, Batch, Category, Download, DownloadId, DownloadState, Event, EventKind, Library,
     LibraryError, Origin, Phase, Place, ProgressStream, SavedView, Schedule, Settings, SlowHours,
-    Store, StreamOptions, Update,
+    Store, StreamOptions, TorrentOptions, TorrentSource, Update,
 };
 use url::Url;
 
@@ -574,7 +574,8 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(&dir)?;
     let store = Store::open(&dir.join("tug.db"))?;
     let (library, stream) = tauri::async_runtime::block_on(async {
-        let library = Arc::new(Library::open(store).await?);
+        let torrents = TorrentOptions::new(dir.join("torrents"));
+        let library = Arc::new(Library::open_with(store, Some(torrents)).await?);
         let stream = ProgressStream::spawn(Arc::clone(&library), StreamOptions::default());
         Ok::<_, LibraryError>((library, stream))
     })?;
@@ -629,7 +630,7 @@ pub async fn add(
 ) -> Result<DownloadDto, CommandError> {
     let url = Url::parse(url.trim())
         .map_err(|e| CommandError::invalid(format!("{url} is not a link: {e}")))?;
-    if !matches!(url.scheme(), "http" | "https" | "ftp" | "ftps") {
+    if !matches!(url.scheme(), "http" | "https" | "ftp" | "ftps" | "magnet") {
         return Err(CommandError::invalid(format!(
             "Tug can't download {} links",
             url.scheme()
@@ -639,7 +640,14 @@ pub async fn add(
         Some(dir) => PathBuf::from(dir),
         None => library.settings()?.download_dir,
     };
-    let id = if paused {
+    let id = if url.scheme() == "magnet" {
+        let source = TorrentSource::Magnet(url.to_string());
+        if paused {
+            library.add_torrent_paused(source, &dir).await?
+        } else {
+            library.add_torrent(source, &dir).await?
+        }
+    } else if paused {
         library.add_paused(url, &dir, origin)?
     } else {
         library.add_from(url, &dir, origin).await?
@@ -1254,5 +1262,54 @@ mod tests {
             assert_eq!(err.kind, ErrorKind::Invalid, "{url}");
         }
         assert!(list(&library).unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_magnet_link_becomes_a_torrent_download() {
+        let magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Fedora%2044";
+        let plain = library().await;
+        let err = add(&plain, magnet, Some("/tmp"), &Origin::default(), false)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind, ErrorKind::Engine);
+
+        let state = tempfile::tempdir().unwrap();
+        let torrents = Library::open_with(
+            Store::open_in_memory().unwrap(),
+            Some(TorrentOptions {
+                local_only: true,
+                ..TorrentOptions::new(state.path().to_owned())
+            }),
+        )
+        .await
+        .unwrap();
+        let dto = add(&torrents, magnet, Some("/tmp"), &Origin::default(), false)
+            .await
+            .unwrap();
+        assert_eq!(dto.name, "Fedora 44");
+        assert!(
+            dto.url.starts_with("magnet:?xt=urn:btih:0123"),
+            "{}",
+            dto.url
+        );
+        let twice = add(&torrents, magnet, Some("/tmp"), &Origin::default(), false)
+            .await
+            .unwrap_err();
+        assert_eq!(twice.kind, ErrorKind::Invalid, "{}", twice.message);
+
+        let captured = add(
+            &torrents,
+            "magnet:?xt=urn:btih:1123456789abcdef0123456789abcdef01234567",
+            Some("/tmp"),
+            &Origin::default(),
+            true,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            captured.state,
+            StateDto::Paused,
+            "a capture waits for its answer"
+        );
     }
 }
