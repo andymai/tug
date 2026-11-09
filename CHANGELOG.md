@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.1](https://github.com/andymai/tug/compare/v0.21.0...v0.21.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **desktop:** cancel and resume decide under one lock, and notices never wait in line ([#93](https://github.com/andymai/tug/issues/93)) ([94473ff](https://github.com/andymai/tug/commit/94473ff5d1b98b8e2e4ae5afa6349da30b939e9c))
+* **desktop:** notify for every settled download, in the Flatpak too ([#91](https://github.com/andymai/tug/issues/91)) ([8c5fba2](https://github.com/andymai/tug/commit/8c5fba2895fa2f047e312084b3b9567aedaae170))
+
 ## [0.21.0](https://github.com/andymai/tug/compare/v0.20.0...v0.21.0) (2026-11-09)
 
 
