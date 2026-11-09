@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.32.0](https://github.com/andymai/tug/compare/v0.31.0...v0.32.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** select several downloads, act on them from a right-click menu, and remove them ([#134](https://github.com/andymai/tug/issues/134)) ([2ffdf20](https://github.com/andymai/tug/commit/2ffdf204b28dbd10e66f2548db8dae78fc8b6b16))
+
+
+### Bug Fixes
+
+* **core:** a removal that fails leaves the download paused, with its inspection ([#132](https://github.com/andymai/tug/issues/132)) ([1485eb0](https://github.com/andymai/tug/commit/1485eb0888e88e39e71044b99995c098900c50d4))
+* **core:** hold the run lock while a download and its files go ([#133](https://github.com/andymai/tug/issues/133)) ([6987908](https://github.com/andymai/tug/commit/6987908d261eb1d674d2aebd372297decfedb590))
+
 ## [0.31.0](https://github.com/andymai/tug/compare/v0.30.0...v0.31.0) (2026-11-09)
 
 
