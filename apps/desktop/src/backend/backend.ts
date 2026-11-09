@@ -21,6 +21,17 @@ export type { ProgressBatch } from "./bindings/ProgressBatch";
 export type { ProgressUpdate } from "./bindings/ProgressUpdate";
 export type { Settings } from "./bindings/Settings";
 
+export type ResizeEdge = "North" | "South" | "East" | "West" | "NorthEast" | "NorthWest" | "SouthEast" | "SouthWest";
+
+export interface WindowControls {
+  minimize(): Promise<void>;
+  toggleMaximize(): Promise<void>;
+  close(): Promise<void>;
+  startResize(edge: ResizeEdge): Promise<void>;
+  isMaximized(): Promise<boolean>;
+  onMaximized(listener: (maximized: boolean) => void): Promise<() => void>;
+}
+
 export interface Backend {
   list(): Promise<Download[]>;
   add(url: string, dir?: string): Promise<Download>;
@@ -41,6 +52,7 @@ export interface Backend {
   answerCapture(id: number, answer: CaptureAnswer): Promise<void>;
   onCaptures(listener: (captures: Download[]) => void): Promise<() => void>;
   onFocusDownload(listener: (id: number) => void): Promise<() => void>;
+  windowControls: WindowControls | null;
 }
 
 export function isCommandError(error: unknown): error is CommandError {

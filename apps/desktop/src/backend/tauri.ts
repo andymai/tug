@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import {
   type Backend,
@@ -61,4 +62,17 @@ export const tauriBackend: Backend = {
     listen<number>(FOCUS_EVENT, (event) => {
       listener(event.payload);
     }),
+  windowControls: {
+    minimize: () => getCurrentWindow().minimize(),
+    toggleMaximize: () => getCurrentWindow().toggleMaximize(),
+    close: () => getCurrentWindow().close(),
+    startResize: (edge) => getCurrentWindow().startResizeDragging(edge),
+    isMaximized: () => getCurrentWindow().isMaximized(),
+    onMaximized: (listener) => {
+      const window = getCurrentWindow();
+      return window.onResized(() => {
+        void window.isMaximized().then(listener, () => undefined);
+      });
+    },
+  },
 };

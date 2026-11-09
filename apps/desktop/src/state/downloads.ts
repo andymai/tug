@@ -10,6 +10,7 @@ import {
   type DownloadState,
   type ProgressBatch,
   type ProgressUpdate,
+  type ResizeEdge,
   type Settings,
 } from "../backend/backend";
 
@@ -40,6 +41,8 @@ export interface DownloadsState {
   overlay: Overlay;
   focusRequest: number | null;
   captures: Download[];
+  framed: boolean;
+  maximized: boolean;
   init: () => Promise<() => void>;
   reload: () => Promise<void>;
   applyBatch: (batch: ProgressBatch) => void;
@@ -64,6 +67,10 @@ export interface DownloadsState {
   addLinks: (hrefs: readonly string[]) => Promise<void>;
   settleFresh: (id: number) => void;
   answerCapture: (id: number, answer: CaptureAnswer) => Promise<void>;
+  minimizeWindow: () => void;
+  toggleMaximizeWindow: () => void;
+  closeWindow: () => void;
+  startResize: (edge: ResizeEdge) => void;
 }
 
 export type Overlay = "commands" | "shortcuts" | null;
@@ -135,6 +142,8 @@ export function createDownloadsStore(backend: Backend) {
       overlay: null,
       focusRequest: null,
       captures: [],
+      framed: backend.windowControls !== null,
+      maximized: false,
 
       init: async () => {
         let stop: () => void = () => undefined;
@@ -177,6 +186,23 @@ export function createDownloadsStore(backend: Backend) {
               });
           })
           .catch(() => () => undefined);
+        const controls = backend.windowControls;
+        let maximizedEvent = false;
+        const unmaximized =
+          controls === null
+            ? () => undefined
+            : await controls
+                .onMaximized((maximized) => {
+                  maximizedEvent = true;
+                  set({ maximized });
+                })
+                .catch(() => () => undefined);
+        void controls?.isMaximized().then(
+          (maximized) => {
+            if (!maximizedEvent) set({ maximized });
+          },
+          () => undefined,
+        );
         let schemeEvent = false;
         const unwatch = await backend
           .onColorScheme((systemScheme) => {
@@ -206,6 +232,7 @@ export function createDownloadsStore(backend: Backend) {
           unnotice();
           uncapture();
           unfocus();
+          unmaximized();
         };
       },
 
@@ -380,6 +407,22 @@ export function createDownloadsStore(backend: Backend) {
 
       settleFresh: (id) => {
         set({ fresh: get().fresh.filter((item) => item !== id) });
+      },
+
+      minimizeWindow: () => {
+        void act(() => backend.windowControls?.minimize() ?? Promise.resolve());
+      },
+
+      toggleMaximizeWindow: () => {
+        void act(() => backend.windowControls?.toggleMaximize() ?? Promise.resolve());
+      },
+
+      closeWindow: () => {
+        void act(() => backend.windowControls?.close() ?? Promise.resolve());
+      },
+
+      startResize: (edge) => {
+        void act(() => backend.windowControls?.startResize(edge) ?? Promise.resolve());
       },
 
       answerCapture: (id, answer) => {
