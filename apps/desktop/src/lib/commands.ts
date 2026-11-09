@@ -32,6 +32,7 @@ export interface Keys {
   key: string;
   ctrl?: boolean;
   shift?: boolean;
+  alt?: boolean;
   label: readonly string[];
 }
 
@@ -204,6 +205,22 @@ export function commands(store: DownloadsStore): Command[] {
     if (selected.state === "queued") {
       list.push(
         { id: "start-next", title: "Start next", group: "Selected download", icon: ListStart, run: () => void state.startNext(id) },
+        {
+          id: "move-up",
+          title: "Move up in the queue",
+          group: "Selected download",
+          icon: ArrowUp,
+          keys: { key: "arrowup", alt: true, label: ["Alt", "↑"] },
+          run: () => void state.moveOne(id, "up"),
+        },
+        {
+          id: "move-down",
+          title: "Move down in the queue",
+          group: "Selected download",
+          icon: ArrowDown,
+          keys: { key: "arrowdown", alt: true, label: ["Alt", "↓"] },
+          run: () => void state.moveOne(id, "down"),
+        },
         { id: "move-last", title: "Move to the end", group: "Selected download", icon: ListEnd, run: () => void state.moveMany([id], "last") },
       );
     }
@@ -295,7 +312,7 @@ export const PALETTE_KEYS: Keys = { key: "k", ctrl: true, label: ["Ctrl", "K"] }
 
 export function matches(keys: Keys, event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">): boolean {
   const key = event.key.toLowerCase();
-  if (key !== keys.key || event.altKey) return false;
+  if (key !== keys.key || event.altKey !== Boolean(keys.alt)) return false;
   if ((event.ctrlKey || event.metaKey) !== Boolean(keys.ctrl)) return false;
   const symbol = keys.key.length === 1 && !/[a-z0-9]/.test(keys.key);
   return symbol || event.shiftKey === Boolean(keys.shift);
@@ -330,6 +347,8 @@ export const KEYMAP: readonly { group: string; entries: readonly { title: string
       { title: "Select more, one by one", label: ["Ctrl", "Click"] },
       { title: "Select a range", label: ["Shift", "↑", "↓"] },
       { title: "Select all", label: ["Ctrl", "A"] },
+      { title: "Move up in the queue", label: ["Alt", "↑"] },
+      { title: "Move down in the queue", label: ["Alt", "↓"] },
       { title: "Menu for the selection", label: ["Shift", "F10"] },
       { title: "Pause, resume or retry", label: ["P"] },
       { title: "Remove", label: ["Del"] },

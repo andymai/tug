@@ -32,6 +32,13 @@ describe("matches", () => {
   it("names arrow keys by their key", () => {
     expect(matches({ key: "arrowdown", label: ["↓"] }, press("ArrowDown"))).toBe(true);
   });
+
+  it("needs Alt only for keys that ask for it", () => {
+    const keys = { key: "arrowup", alt: true, label: ["Alt", "↑"] };
+    expect(matches(keys, press("ArrowUp", { alt: true }))).toBe(true);
+    expect(matches(keys, press("ArrowUp"))).toBe(false);
+    expect(matches({ key: "arrowup", label: ["↑"] }, press("ArrowUp", { alt: true }))).toBe(false);
+  });
 });
 
 describe("rank", () => {

@@ -5,7 +5,9 @@ import type { Download } from "../backend/backend";
 import { type Column, type ColumnId, hostOf, typeOf } from "../lib/columns";
 import { formatBytes, formatDate, formatDuration, formatPercent, formatSpeed, percentOf, sentence, shortDir } from "../lib/format";
 import { ICON, STATES } from "../lib/states";
+import { ROW_DRAG } from "../lib/dom";
 import { useDownloads, useDownloadsStore } from "../state/context";
+import { chosen } from "../state/downloads";
 import { Button } from "./Button";
 
 export interface DownloadRowProps {
@@ -14,11 +16,13 @@ export interface DownloadRowProps {
   rank: number | undefined;
   // The row that Tab reaches: the selected one, else the first.
   tabbable: boolean;
+  // The queue's order when the table is sorted by it; only then can a row be dragged.
+  queueOrder: "up" | "down" | null;
 }
 
 const CELL = "h-8 px-2 first:pl-3 last:pr-3 whitespace-nowrap overflow-hidden";
 
-export const DownloadRow = memo(function DownloadRow({ download, columns, rank, tabbable }: DownloadRowProps) {
+export const DownloadRow = memo(function DownloadRow({ download, columns, rank, tabbable, queueOrder }: DownloadRowProps) {
   const store = useDownloadsStore();
   const live = useDownloads((s) => s.live[download.id]);
   const marked = useDownloads((s) => s.marked.includes(download.id));
@@ -26,6 +30,13 @@ export const DownloadRow = memo(function DownloadRow({ download, columns, rank, 
   const toggleMark = useDownloads((s) => s.toggleMark);
   const markTo = useDownloads((s) => s.markTo);
   const openMenu = useDownloads((s) => s.openMenu);
+  const carried = useDownloads((s) => s.dragging?.includes(download.id) ?? false);
+  const dropEdge = useDownloads((s) => (s.dropMark?.id === download.id ? s.dropMark.edge : null));
+  const startDrag = useDownloads((s) => s.startDrag);
+  const markDrop = useDownloads((s) => s.markDrop);
+  const endDrag = useDownloads((s) => s.endDrag);
+  const moveNextTo = useDownloads((s) => s.moveNextTo);
+  const canDrag = queueOrder !== null && download.state === "queued";
   const resume = useDownloads((s) => s.resume);
   const fresh = useDownloads((s) => s.fresh.includes(download.id));
   const settleFresh = useDownloads((s) => s.settleFresh);
@@ -136,6 +147,40 @@ export const DownloadRow = memo(function DownloadRow({ download, columns, rank, 
         event.preventDefault();
         menuAt({ x: event.clientX, y: event.clientY });
       }}
+      draggable={canDrag || undefined}
+      onDragStart={(event) => {
+        if (!canDrag) return;
+        const state = store.getState();
+        const withMarks = state.marked.includes(download.id);
+        if (!withMarks) select(download.id);
+        // Only the waiting rows move; a marked running one stays put.
+        const ids = (withMarks ? chosen(state) : [download]).filter((item) => item.state === "queued").map((item) => item.id);
+        event.dataTransfer.setData(ROW_DRAG, ids.join(","));
+        event.dataTransfer.effectAllowed = "move";
+        startDrag(ids);
+      }}
+      onDragOver={(event) => {
+        const { dragging } = store.getState();
+        if (dragging === null || download.state !== "queued" || dragging.includes(download.id)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        const box = event.currentTarget.getBoundingClientRect();
+        markDrop({ id: download.id, edge: event.clientY - box.top < box.height / 2 ? "top" : "bottom" });
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        if (store.getState().dropMark?.id === download.id) markDrop(null);
+      }}
+      onDrop={(event) => {
+        const { dragging, dropMark } = store.getState();
+        if (dragging === null || dropMark?.id !== download.id) return;
+        event.preventDefault();
+        // The top half of a row lands before it in the view, which is after it in a falling queue.
+        const below = dropMark.edge === "bottom";
+        endDrag();
+        void moveNextTo(dragging, download.id, queueOrder === "down" ? !below : below);
+      }}
+      onDragEnd={endDrag}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
         if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
@@ -150,7 +195,7 @@ export const DownloadRow = memo(function DownloadRow({ download, columns, rank, 
           toggle();
         }
       }}
-      className="cursor-default border-t border-line transition-colors duration-(--duration-fast) ease-(--ease-out) outline-offset-[-2px] first:border-t-0 hover:bg-hover focus-visible:bg-selection aria-selected:bg-selection"
+      className={`cursor-default border-t border-line transition-colors duration-(--duration-fast) ease-(--ease-out) outline-offset-[-2px] first:border-t-0 hover:bg-hover focus-visible:bg-selection aria-selected:bg-selection ${carried ? "opacity-60" : ""} ${dropEdge === "top" ? "shadow-[inset_0_2px_0_var(--color-accent)]" : dropEdge === "bottom" ? "shadow-[inset_0_-2px_0_var(--color-accent)]" : ""}`}
     >
       {columns.map((column) => (
         <td key={column.id} className={`${CELL} ${column.numeric ? "text-right" : "text-left"}`}>

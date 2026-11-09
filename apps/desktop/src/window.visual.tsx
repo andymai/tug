@@ -219,6 +219,26 @@ describe("main window", () => {
     await capture(window, "row-menu");
   });
 
+  it("shows where a dragged download lands in the queue", async () => {
+    const seed: SeedDownload[] = [
+      { url: "https://download.example.org/fedora-kde-44-x86_64.iso", state: "downloading", progress: 0.71, size: 4.2 * 1024 * MB },
+      ...["blender-5.1-linux-x64.tar.xz", "gimp-3.2.tar.xz", "inkscape-1.5.AppImage", "kdenlive-26.08.AppImage"].map((name) => ({
+        url: `https://mirror.example.org/${name}`,
+        state: "queued" as const,
+        size: 412 * MB,
+      })),
+    ];
+    const { store, window } = await open(seed);
+    await act(() => store.getState().saveSettings({ sort: "queue", columns: ["status", "size", "queue"], maxActive: 1 }));
+    const id = (name: string) => store.getState().items.find((d) => d.name === name)?.id ?? -1;
+    act(() => {
+      store.getState().select(id("kdenlive-26.08.AppImage"));
+      store.getState().startDrag([id("kdenlive-26.08.AppImage")]);
+      store.getState().markDrop({ id: id("gimp-3.2.tar.xz"), edge: "top" });
+    });
+    await capture(window, "queue-drag");
+  });
+
   it("asks before it removes downloads", async () => {
     const { store, window } = await showcase();
     act(() => {

@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, FolderOpen, ListEnd, ListStart, type LucideIcon, Pause, Play, RotateCw, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, ExternalLink, FolderOpen, ListEnd, ListStart, type LucideIcon, Pause, Play, RotateCw, Trash2 } from "lucide-react";
 import { Fragment, type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 
@@ -39,10 +39,14 @@ export function entriesFor(list: readonly Download[], state: DownloadsState): En
   });
   const act: Entry[] = [];
   if (any("queued")) {
-    act.push(
-      { id: "start-next", label: "Start next", icon: ListStart, run: () => void state.moveMany(ids, "first") },
-      { id: "move-last", label: "Move to the end", icon: ListEnd, run: () => void state.moveMany(ids, "last") },
-    );
+    act.push({ id: "start-next", label: "Start next", icon: ListStart, run: () => void state.moveMany(ids, "first") });
+    if (one !== undefined) {
+      act.push(
+        { id: "move-up", label: "Move up", icon: ArrowUp, run: () => void state.moveOne(one.id, "up") },
+        { id: "move-down", label: "Move down", icon: ArrowDown, run: () => void state.moveOne(one.id, "down") },
+      );
+    }
+    act.push({ id: "move-last", label: "Move to the end", icon: ListEnd, run: () => void state.moveMany(ids, "last") });
   }
   if (any("downloading", "queued")) act.push({ id: "pause", label: "Pause", icon: Pause, run: () => void state.pauseMany(ids) });
   if (any("paused")) act.push({ id: "resume", label: "Resume", icon: Play, run: () => void state.resumeMany(ids) });

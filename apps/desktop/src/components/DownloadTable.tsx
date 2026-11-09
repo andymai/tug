@@ -104,13 +104,16 @@ export function DownloadTable({ title }: { title: string }) {
   const allItems = useDownloads((s) => s.items);
   const savePreference = useDownloads((s) => s.savePreference);
   const closeMenu = useDownloads((s) => s.closeMenu);
+  const endDrag = useDownloads((s) => s.endDrag);
   const chosen = columnsOf(settings);
-  // The empty view can take the table's place while its menu is open.
+  // The empty view can take the table's place while its menu is open or a row
+  // is in a drag, and a row that goes sends no dragend.
   useEffect(
     () => () => {
       closeMenu();
+      endDrag();
     },
-    [closeMenu],
+    [closeMenu, endDrag],
   );
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
@@ -127,6 +130,7 @@ export function DownloadTable({ title }: { title: string }) {
   }, []);
   const columns = fit(chosen, width);
   const sort = sortOf(settings);
+  const queueOrder = sort.by === "queue" ? (sort.down ? "down" : "up") : null;
   const ranks = useMemo(() => queueRanks(allItems), [allItems]);
   const tabbable = items.some((item) => item.id === selected) ? selected : (items[0]?.id ?? null);
 
@@ -153,6 +157,7 @@ export function DownloadTable({ title }: { title: string }) {
                 >
                   <button
                     type="button"
+                    title={column.id === "queue" ? "Sort by the queue to drag waiting downloads into order" : undefined}
                     onClick={() => {
                       void savePreference({ sort: sortText(nextSort(sort, column)) }, "the sort");
                     }}
@@ -182,6 +187,7 @@ export function DownloadTable({ title }: { title: string }) {
               columns={columns}
               rank={ranks.get(download.id)}
               tabbable={download.id === tabbable}
+              queueOrder={queueOrder}
             />
           ))}
         </tbody>

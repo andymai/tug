@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -917,6 +917,49 @@ describe("selection", () => {
     expect(store.getState().menu).toBeNull();
     await user.keyboard("?");
     expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+  });
+
+  it("drags waiting downloads into a new order when the table is sorted by the queue", async () => {
+    const queue = ["a", "b", "c"].map((name) => ({ url: `https://example.org/${name}.iso`, state: "queued" as const }));
+    const { store, user } = open([{ url: "https://example.org/run.iso", state: "downloading", progress: 0.2 }, ...queue]);
+    await screen.findByText("a.iso");
+    expect(rowOf("a.iso")).not.toHaveAttribute("draggable");
+    await act(() => store.getState().saveSettings({ sort: "queue", columns: ["queue"], maxActive: 1 }));
+    const order = () => downloadRows("All downloads").map((r) => r.querySelector("td")?.textContent);
+    await vi.waitFor(() => {
+      expect(order()).toEqual(["a.iso", "b.iso", "c.iso", "run.iso"]);
+    });
+    expect(rowOf("a.iso")).toHaveAttribute("draggable", "true");
+
+    const types: string[] = [];
+    const dataTransfer = {
+      types,
+      setData: (type: string) => {
+        types.push(type);
+      },
+      getData: () => "https://example.org/x.iso",
+      effectAllowed: "",
+      dropEffect: "",
+    };
+    fireEvent.dragStart(rowOf("c.iso"), { dataTransfer });
+    expect(types).toEqual(["application/x-tug-downloads"]);
+    // A browser may add text to a drag; the row's own type still keeps the link overlay shut.
+    types.push("text/plain");
+    fireEvent.dragEnter(rowOf("a.iso"), { dataTransfer });
+    expect(screen.queryByText("Drop to add")).not.toBeInTheDocument();
+    // jsdom has no DragEvent, so the pointer's height goes on by hand: above the middle.
+    const at = (event: Event) => Object.defineProperty(event, "clientY", { value: -1 });
+    fireEvent(rowOf("a.iso"), at(createEvent.dragOver(rowOf("a.iso"), { dataTransfer })));
+    fireEvent(rowOf("a.iso"), at(createEvent.drop(rowOf("a.iso"), { dataTransfer })));
+    await vi.waitFor(() => {
+      expect(order()).toEqual(["c.iso", "a.iso", "b.iso", "run.iso"]);
+    });
+
+    expect(rowOf("c.iso"), "the drag selects the row it carries").toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    await vi.waitFor(() => {
+      expect(order()).toEqual(["a.iso", "c.iso", "b.iso", "run.iso"]);
+    });
   });
 
   it("says that a running download stops when several go", async () => {

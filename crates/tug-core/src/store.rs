@@ -84,6 +84,9 @@ pub enum Place {
     Last,
     Up,
     Down,
+    // Next to another waiting download.
+    Before(DownloadId),
+    After(DownloadId),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -476,6 +479,34 @@ impl Store {
                         params![other, position],
                     )?;
                 }
+            }
+            Place::Before(other) | Place::After(other) => {
+                if other == id {
+                    return Ok(true);
+                }
+                let anchor: Option<i64> = tx
+                    .query_row(
+                        "SELECT position FROM downloads WHERE id = ?1 AND state = 'queued'",
+                        [other.0],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                let Some(anchor) = anchor else {
+                    return Ok(false);
+                };
+                let at = if matches!(place, Place::Before(_)) {
+                    anchor
+                } else {
+                    anchor + 1
+                };
+                tx.execute(
+                    "UPDATE downloads SET position = position + 1 WHERE position >= ?1 AND id != ?2",
+                    params![at, id.0],
+                )?;
+                tx.execute(
+                    "UPDATE downloads SET position = ?2 WHERE id = ?1",
+                    params![id.0, at],
+                )?;
             }
         }
         tx.commit()?;
@@ -1021,6 +1052,20 @@ mod tests {
             vec![c, d, a],
             "a paused download is no neighbor"
         );
+
+        assert!(store.place(a, Place::Before(c)).unwrap());
+        assert_eq!(store.queued().unwrap(), vec![a, c, d]);
+        assert!(store.place(a, Place::After(d)).unwrap());
+        assert_eq!(store.queued().unwrap(), vec![c, d, a]);
+        assert!(store.place(c, Place::After(d)).unwrap());
+        assert_eq!(store.queued().unwrap(), vec![d, c, a]);
+        assert!(store.place(d, Place::Before(d)).unwrap());
+        assert_eq!(store.queued().unwrap(), vec![d, c, a]);
+        assert!(
+            !store.place(d, Place::Before(b)).unwrap(),
+            "a paused download is no anchor"
+        );
+        assert_eq!(store.queued().unwrap(), vec![d, c, a]);
     }
 
     #[test]

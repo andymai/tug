@@ -212,6 +212,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     if (at < 0) return;
     const mine = waiting[at];
     if (mine === undefined) return;
+    if (typeof where === "object") {
+      const other = "before" in where ? where.before : where.after;
+      const anchor = waiting.find((d) => d.id === other);
+      if (anchor === undefined || other === id) return;
+      const to = "before" in where ? anchor.position : anchor.position + 1;
+      for (const d of downloads.values()) if (d.position >= to && d.id !== id) d.position += 1;
+      mine.position = to;
+      return;
+    }
     const positions = [...downloads.values()].map((d) => d.position);
     if (where === "first") mine.position = Math.min(...positions) - 1;
     else if (where === "last") mine.position = Math.max(...positions) + 1;

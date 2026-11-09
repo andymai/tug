@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 
-import { editable } from "../lib/dom";
+import { editable, ROW_DRAG } from "../lib/dom";
 import { findLinks, linksFromTransfer } from "../lib/links";
 import { useDownloads } from "../state/context";
 
 function carriesText(event: DragEvent): boolean {
   const types = Array.from(event.dataTransfer?.types ?? []);
-  return types.includes("text/uri-list") || types.includes("text/plain");
+  return !types.includes(ROW_DRAG) && (types.includes("text/uri-list") || types.includes("text/plain"));
 }
 
 export function LinkCapture() {
