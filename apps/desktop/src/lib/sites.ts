@@ -1,5 +1,7 @@
+import { trimmed } from "./rust";
+
 export function siteOf(input: string): string | null {
-  const bare = input.trim().replace(/^\*\./, "");
+  const bare = trimmed(input).replace(/^\*\./, "");
   if (bare === "") return null;
   try {
     const host = new URL(bare.includes("://") ? bare : `https://${bare}`).hostname.replace(/\.$/, "");

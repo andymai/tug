@@ -1,4 +1,5 @@
 import { nameOf, SCHEMES } from "../lib/links";
+import { byCodePoint, quoted, trimmed } from "../lib/rust";
 import { openAt } from "../lib/schedule";
 import { siteOf } from "../lib/sites";
 import {
@@ -15,6 +16,7 @@ import {
   type TorrentView,
   type ProgressBatch,
   type ProgressUpdate,
+  type Schedule,
   type Settings,
 } from "./backend";
 
@@ -144,10 +146,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   // As tug_core::Origin::new: trimmed, an http(s) referrer without its fragment
   // or credentials, and values a header can carry.
   const originOf = (referrer: string | null, cookies: string | null, userAgent: string | null) => {
-    const present = (value: string | null) => (value === null || value.trim() === "" ? null : value.trim());
+    const present = (value: string | null) => {
+      const plain = value === null ? "" : trimmed(value);
+      return plain === "" ? null : plain;
+    };
+    // As http's HeaderValue: no control characters but tab; other bytes past ASCII are fine.
     const header = (value: string | null, message: string) => {
       const plain = present(value);
-      if (plain !== null && !/^[\t\x20-\x7e]*$/.test(plain)) throw new BackendError("invalid", message);
+      const control = (char: string) => (char < " " && char !== "\t") || char === "\x7f";
+      if (plain !== null && Array.from(plain).some(control)) throw new BackendError("invalid", message);
       return plain;
     };
     let page = present(referrer);
@@ -201,7 +208,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   const addNow = (link: string, dir?: string): Download => {
     let url: URL;
     try {
-      url = new URL(link.trim());
+      url = new URL(trimmed(link));
     } catch {
       throw new BackendError("invalid", `${link} is not a link`);
     }
@@ -238,9 +245,9 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   };
 
   const fileName = (name: string) => {
-    const plain = name.trim();
-    if (plain === "" || plain === "." || plain === ".." || plain.includes("/") || new TextEncoder().encode(plain).length > 255) {
-      throw new BackendError("invalid", `${JSON.stringify(plain)} can't be a file name`);
+    const plain = trimmed(name);
+    if (plain === "" || plain === "." || plain === ".." || /[/\0]/.test(plain) || new TextEncoder().encode(plain).length > 255) {
+      throw new BackendError("invalid", `${quoted(plain)} can't be a file name`);
     }
     return plain;
   };
@@ -435,13 +442,13 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     add: (url, dir, options) =>
       attempt(() => {
         checkOwn(options?.connections ?? null, options?.speedLimit ?? null);
-        const named = options?.name == null || url.trim().startsWith("magnet:") ? null : fileName(options.name);
+        const named = options?.name == null || trimmed(url).startsWith("magnet:") ? null : fileName(options.name);
         const origin = options === undefined ? null : originOf(options.referrer, options.cookies, options.userAgent);
         if (dir !== undefined && !dir.startsWith("/")) {
           throw new BackendError("invalid", `the folder must be a full path, like /home/you/Downloads, not ${dir}`);
         }
         const download = addNow(url, dir);
-        if (!url.trim().startsWith("magnet:")) {
+        if (!trimmed(url).startsWith("magnet:")) {
           if (origin !== null && (origin.referrer ?? origin.cookies ?? origin.userAgent) !== null) origins.set(download.id, origin);
           download.connections = options?.connections ?? null;
           download.speedLimit = options?.speedLimit ?? null;
@@ -556,42 +563,53 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       }),
     inspect: (id) => attempt(() => inspection(find(id))),
     settings: () => Promise.resolve({ ...settings }),
-    updateSettings: (next) =>
+    updateSettings: (patch) =>
       attempt(() => {
-        if (next.connections < 1 || next.connections > 32) {
-          throw new BackendError("invalid", `connections must be between 1 and 32, not ${String(next.connections)}`);
+        // As SettingsDto::apply, then Settings::validate, in its order.
+        const next: Settings = { ...patch, excludedSites: patch.excludedSites.map((entry) => siteOf(entry) ?? entry) };
+        const invalid = (message: string) => new BackendError("invalid", message);
+        if (next.connections < 1 || next.connections > 32) throw invalid(`connections must be between 1 and 32, not ${String(next.connections)}`);
+        if (next.maxActive < 1 || next.maxActive > 16) throw invalid(`downloads at once must be between 1 and 16, not ${String(next.maxActive)}`);
+        const checkHours = ({ days, start, stop }: Schedule) => {
+          if ((days & 0b111_1111) === 0 || (days & ~0b111_1111) !== 0) throw invalid("a schedule needs at least one day");
+          for (const minute of [start, stop]) if (minute >= 1440) throw invalid(`${String(minute)} minutes is past the end of a day`);
+          if (start === stop) throw invalid("a schedule must start and stop at different times");
+        };
+        if (next.schedule !== null) checkHours(next.schedule);
+        if (next.slowHours !== null) {
+          if (next.slowHours.limit === 0) throw invalid("a speed limit must be above zero");
+          checkHours(next.slowHours.hours);
         }
-        if (next.speedLimit === 0) throw new BackendError("invalid", "a speed limit must be above zero");
-        if (next.maxActive < 1 || next.maxActive > 16) {
-          throw new BackendError("invalid", `downloads at once must be between 1 and 16, not ${String(next.maxActive)}`);
+        if (next.speedLimit === 0) throw invalid("a speed limit must be above zero");
+        if (!next.downloadDir.startsWith("/")) throw invalid(`the download folder must be an absolute path, not ${next.downloadDir}`);
+        for (const [at, site] of next.excludedSites.entries()) {
+          if (siteOf(site) !== site) throw invalid(`${quoted(site)} isn't a site, like example.org`);
+          if (next.excludedSites.indexOf(site) !== at) throw invalid(`${site} is in the list twice`);
         }
-        if (next.slowHours !== null && next.slowHours.limit <= 0) throw new BackendError("invalid", "a speed limit must be above zero");
-        for (const hours of [next.schedule, next.slowHours?.hours ?? null]) {
-          if (hours === null) continue;
-          const { days, start, stop } = hours;
-          if (days < 1 || days > 0b111_1111) throw new BackendError("invalid", "a schedule needs at least one day");
-          if (start >= 1440 || stop >= 1440) throw new BackendError("invalid", `${String(Math.max(start, stop))} minutes is past the end of a day`);
-          if (start === stop) throw new BackendError("invalid", "a schedule must start and stop at different times");
+        const column = (text: string) => /^[a-z]{1,20}$/.test(text);
+        if (next.columns.length > 24) throw invalid(`${quoted(next.columns.join(" "))} isn't a column`);
+        for (const [at, name] of next.columns.entries()) {
+          if (!column(name) || next.columns.indexOf(name) !== at) throw invalid(`${quoted(name)} isn't a column`);
         }
-        if (next.savedViews.length > 50) throw new BackendError("invalid", "Tug keeps at most 50 saved views");
-        for (const [column, px] of Object.entries(next.widths)) {
-          if (!/^[a-z]{1,20}$/.test(column)) throw new BackendError("invalid", `${JSON.stringify(column)} isn't a column`);
-          if (px < 40 || px > 800) throw new BackendError("invalid", `a column is between 40 and 800 pixels wide, not ${String(px)} (${column})`);
+        if (next.sort !== null && !column(next.sort.replace(/^-/, ""))) throw invalid(`${quoted(next.sort)} isn't a sort`);
+        const widths = Object.keys(next.widths).sort(byCodePoint);
+        if (widths.length > 24) throw invalid(`${quoted(widths.join(" "))} isn't a column`);
+        for (const name of widths) {
+          const px = next.widths[name] ?? 0;
+          if (!column(name)) throw invalid(`${quoted(name)} isn't a column`);
+          if (px < 40 || px > 800) throw invalid(`a column is between 40 and 800 pixels wide, not ${String(px)} (${name})`);
         }
+        if (next.savedViews.length > 50) throw invalid("Tug keeps at most 50 saved views");
         for (const [at, saved] of next.savedViews.entries()) {
-          const plain = (text: string) => text.trim() !== "" && !/\p{Cc}/u.test(text);
+          const plain = (text: string) => trimmed(text) !== "" && !/\p{Cc}/u.test(text);
           if (!plain(saved.name) || !plain(saved.query) || !/^[a-z]+$/.test(saved.view) || Array.from(saved.name).length > 60) {
-            throw new BackendError("invalid", `${JSON.stringify(saved.name)} can't be a saved view`);
+            throw invalid(`${quoted(saved.name)} can't be a saved view`);
           }
           if (next.savedViews.slice(0, at).some((other) => other.view === saved.view && other.query === saved.query)) {
-            throw new BackendError("invalid", `${JSON.stringify(saved.name)} is saved twice`);
+            throw invalid(`${quoted(saved.name)} is saved twice`);
           }
         }
-        for (const [at, site] of next.excludedSites.entries()) {
-          if (siteOf(site) !== site) throw new BackendError("invalid", `${JSON.stringify(site)} isn't a site, like example.org`);
-          if (next.excludedSites.indexOf(site) !== at) throw new BackendError("invalid", `${site} is in the list twice`);
-        }
-        settings = { ...next };
+        settings = next;
         fill();
       }),
     chooseDownloadFolder: () =>

@@ -1,0 +1,849 @@
+[
+  {
+    "outcome": {
+      "ok": {
+        "appearance": "system",
+        "columns": [],
+        "confirmCaptures": true,
+        "connections": 8,
+        "downloadDir": "/home/you/Downloads",
+        "excludedSites": [],
+        "maxActive": 3,
+        "savedViews": [],
+        "schedule": null,
+        "slowHours": null,
+        "sort": null,
+        "speedLimit": null,
+        "widths": {}
+      }
+    },
+    "patch": {}
+  },
+  {
+    "outcome": {
+      "ok": {
+        "appearance": "system",
+        "columns": [],
+        "confirmCaptures": true,
+        "connections": 32,
+        "downloadDir": "/home/you/Downloads",
+        "excludedSites": [],
+        "maxActive": 3,
+        "savedViews": [],
+        "schedule": null,
+        "slowHours": null,
+        "sort": null,
+        "speedLimit": null,
+        "widths": {}
+      }
+    },
+    "patch": {
+      "connections": 32
+    }
+  },
+  {
+    "outcome": {
+      "error": "connections must be between 1 and 32, not 0"
+    },
+    "patch": {
+      "connections": 0
+    }
+  },
+  {
+    "outcome": {
+      "error": "connections must be between 1 and 32, not 33"
+    },
+    "patch": {
+      "connections": 33
+    }
+  },
+  {
+    "outcome": {
+      "error": "downloads at once must be between 1 and 16, not 0"
+    },
+    "patch": {
+      "maxActive": 0
+    }
+  },
+  {
+    "outcome": {
+      "error": "downloads at once must be between 1 and 16, not 17"
+    },
+    "patch": {
+      "maxActive": 17
+    }
+  },
+  {
+    "outcome": {
+      "error": "a speed limit must be above zero"
+    },
+    "patch": {
+      "speedLimit": 0
+    }
+  },
+  {
+    "outcome": {
+      "error": "downloads at once must be between 1 and 16, not 0"
+    },
+    "patch": {
+      "maxActive": 0,
+      "speedLimit": 0
+    }
+  },
+  {
+    "outcome": {
+      "ok": {
+        "appearance": "system",
+        "columns": [],
+        "confirmCaptures": true,
+        "connections": 8,
+        "downloadDir": "/home/you/Downloads",
+        "excludedSites": [],
+        "maxActive": 3,
+        "savedViews": [],
+        "schedule": {
+          "days": 127,
+          "start": 60,
+          "stop": 120
+        },
+        "slowHours": null,
+        "sort": null,
+        "speedLimit": null,
+        "widths": {}
+      }
+    },
+    "patch": {
+      "schedule": {
+        "days": 127,
+        "start": 60,
+        "stop": 120
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "a schedule needs at least one day"
+    },
+    "patch": {
+      "schedule": {
+        "days": 0,
+        "start": 60,
+        "stop": 120
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "a schedule needs at least one day"
+    },
+    "patch": {
+      "schedule": {
+        "days": 128,
+        "start": 60,
+        "stop": 120
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "1440 minutes is past the end of a day"
+    },
+    "patch": {
+      "schedule": {
+        "days": 127,
+        "start": 1440,
+        "stop": 1500
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "1440 minutes is past the end of a day"
+    },
+    "patch": {
+      "schedule": {
+        "days": 127,
+        "start": 60,
+        "stop": 1440
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "a schedule must start and stop at different times"
+    },
+    "patch": {
+      "schedule": {
+        "days": 127,
+        "start": 60,
+        "stop": 60
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "a speed limit must be above zero"
+    },
+    "patch": {
+      "slowHours": {
+        "hours": {
+          "days": 127,
+          "start": 60,
+          "stop": 120
+        },
+        "limit": 0
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "a schedule must start and stop at different times"
+    },
+    "patch": {
+      "slowHours": {
+        "hours": {
+          "days": 127,
+          "start": 9,
+          "stop": 9
+        },
+        "limit": 1
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "the download folder must be an absolute path, not Downloads"
+    },
+    "patch": {
+      "downloadDir": "Downloads"
+    }
+  },
+  {
+    "outcome": {
+      "error": "the download folder must be an absolute path, not Downloads"
+    },
+    "patch": {
+      "downloadDir": "Downloads",
+      "excludedSites": [
+        "exa mple"
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "ok": {
+        "appearance": "system",
+        "columns": [],
+        "confirmCaptures": true,
+        "connections": 8,
+        "downloadDir": "/home/you/Downloads",
+        "excludedSites": [
+          "example.org",
+          "bank.example",
+          "mail.example.net",
+          "a.example"
+        ],
+        "maxActive": 3,
+        "savedViews": [],
+        "schedule": null,
+        "slowHours": null,
+        "sort": null,
+        "speedLimit": null,
+        "widths": {}
+      }
+    },
+    "patch": {
+      "excludedSites": [
+        "example.org",
+        "*.bank.example",
+        "https://Mail.Example.net/inbox",
+        "a.example"
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "example.org is in the list twice"
+    },
+    "patch": {
+      "excludedSites": [
+        "Example.org",
+        "example.org"
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"exa mple\" isn't a site, like example.org"
+    },
+    "patch": {
+      "excludedSites": [
+        "exa mple"
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "ok": {
+        "appearance": "system",
+        "columns": [
+          "size",
+          "speed"
+        ],
+        "confirmCaptures": true,
+        "connections": 8,
+        "downloadDir": "/home/you/Downloads",
+        "excludedSites": [],
+        "maxActive": 3,
+        "savedViews": [],
+        "schedule": null,
+        "slowHours": null,
+        "sort": "-size",
+        "speedLimit": null,
+        "widths": {}
+      }
+    },
+    "patch": {
+      "columns": [
+        "size",
+        "speed"
+      ],
+      "sort": "-size"
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"Size\" isn't a column"
+    },
+    "patch": {
+      "columns": [
+        "Size"
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"size\" isn't a column"
+    },
+    "patch": {
+      "columns": [
+        "size",
+        "size"
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"c cc ccc cccc ccccc cccccc ccccccc cccccccc ccccccccc cccccccccc ccccccccccc cccccccccccc ccccccccccccc cccccccccccccc ccccccccccccccc cccccccccccccccc ccccccccccccccccc cccccccccccccccccc ccccccccccccccccccc cccccccccccccccccccc c cc ccc cccc ccccc\" isn't a column"
+    },
+    "patch": {
+      "columns": [
+        "c",
+        "cc",
+        "ccc",
+        "cccc",
+        "ccccc",
+        "cccccc",
+        "ccccccc",
+        "cccccccc",
+        "ccccccccc",
+        "cccccccccc",
+        "ccccccccccc",
+        "cccccccccccc",
+        "ccccccccccccc",
+        "cccccccccccccc",
+        "ccccccccccccccc",
+        "cccccccccccccccc",
+        "ccccccccccccccccc",
+        "cccccccccccccccccc",
+        "ccccccccccccccccccc",
+        "cccccccccccccccccccc",
+        "c",
+        "cc",
+        "ccc",
+        "cccc",
+        "ccccc"
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"--size\" isn't a sort"
+    },
+    "patch": {
+      "sort": "--size"
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"\" isn't a sort"
+    },
+    "patch": {
+      "sort": ""
+    }
+  },
+  {
+    "outcome": {
+      "ok": {
+        "appearance": "system",
+        "columns": [],
+        "confirmCaptures": true,
+        "connections": 8,
+        "downloadDir": "/home/you/Downloads",
+        "excludedSites": [],
+        "maxActive": 3,
+        "savedViews": [],
+        "schedule": null,
+        "slowHours": null,
+        "sort": null,
+        "speedLimit": null,
+        "widths": {
+          "size": 120
+        }
+      }
+    },
+    "patch": {
+      "widths": {
+        "size": 120
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "a column is between 40 and 800 pixels wide, not 12 (size)"
+    },
+    "patch": {
+      "widths": {
+        "size": 12
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"Size\" isn't a column"
+    },
+    "patch": {
+      "widths": {
+        "Size": 120
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"Ａ\" isn't a column"
+    },
+    "patch": {
+      "widths": {
+        "Ａ": 100,
+        "😀": 100
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"w wx wxx wxxx wxxxx wxxxxx wxxxxxx wxxxxxxx wxxxxxxxx wxxxxxxxxx wxxxxxxxxxx wxxxxxxxxxxx wxxxxxxxxxxxx wxxxxxxxxxxxxx wxxxxxxxxxxxxxx wxxxxxxxxxxxxxxx wxxxxxxxxxxxxxxxx wxxxxxxxxxxxxxxxxx wxxxxxxxxxxxxxxxxxx wxxxxxxxxxxxxxxxxxxx wxxxxxxxxxxxxxxxxxxxx wxxxxxxxxxxxxxxxxxxxxx wxxxxxxxxxxxxxxxxxxxxxx wxxxxxxxxxxxxxxxxxxxxxxx wxxxxxxxxxxxxxxxxxxxxxxxx\" isn't a column"
+    },
+    "patch": {
+      "widths": {
+        "w": 100,
+        "wx": 100,
+        "wxx": 100,
+        "wxxx": 100,
+        "wxxxx": 100,
+        "wxxxxx": 100,
+        "wxxxxxx": 100,
+        "wxxxxxxx": 100,
+        "wxxxxxxxx": 100,
+        "wxxxxxxxxx": 100,
+        "wxxxxxxxxxx": 100,
+        "wxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxxxxxxxxxxx": 100,
+        "wxxxxxxxxxxxxxxxxxxxxxxxx": 100
+      }
+    }
+  },
+  {
+    "outcome": {
+      "ok": {
+        "appearance": "system",
+        "columns": [],
+        "confirmCaptures": true,
+        "connections": 8,
+        "downloadDir": "/home/you/Downloads",
+        "excludedSites": [],
+        "maxActive": 3,
+        "savedViews": [
+          {
+            "name": "Linux",
+            "query": "fedora iso",
+            "view": "all"
+          }
+        ],
+        "schedule": null,
+        "slowHours": null,
+        "sort": null,
+        "speedLimit": null,
+        "widths": {}
+      }
+    },
+    "patch": {
+      "savedViews": [
+        {
+          "name": "Linux",
+          "query": "fedora iso",
+          "view": "all"
+        }
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "\" \" can't be a saved view"
+    },
+    "patch": {
+      "savedViews": [
+        {
+          "name": " ",
+          "query": "x",
+          "view": "all"
+        }
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"tab\\t\\u{1}\\\"q\\\"\" can't be a saved view"
+    },
+    "patch": {
+      "savedViews": [
+        {
+          "name": "tab\t\u0001\"q\"",
+          "query": "x",
+          "view": "all"
+        }
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"A\" can't be a saved view"
+    },
+    "patch": {
+      "savedViews": [
+        {
+          "name": "A",
+          "query": "x",
+          "view": "All"
+        }
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\" can't be a saved view"
+    },
+    "patch": {
+      "savedViews": [
+        {
+          "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+          "query": "x",
+          "view": "all"
+        }
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"B\" is saved twice"
+    },
+    "patch": {
+      "savedViews": [
+        {
+          "name": "A",
+          "query": "x",
+          "view": "all"
+        },
+        {
+          "name": "B",
+          "query": "x",
+          "view": "all"
+        }
+      ]
+    }
+  },
+  {
+    "outcome": {
+      "error": "Tug keeps at most 50 saved views"
+    },
+    "patch": {
+      "savedViews": [
+        {
+          "name": "v0",
+          "query": "q0",
+          "view": "all"
+        },
+        {
+          "name": "v1",
+          "query": "q1",
+          "view": "all"
+        },
+        {
+          "name": "v2",
+          "query": "q2",
+          "view": "all"
+        },
+        {
+          "name": "v3",
+          "query": "q3",
+          "view": "all"
+        },
+        {
+          "name": "v4",
+          "query": "q4",
+          "view": "all"
+        },
+        {
+          "name": "v5",
+          "query": "q5",
+          "view": "all"
+        },
+        {
+          "name": "v6",
+          "query": "q6",
+          "view": "all"
+        },
+        {
+          "name": "v7",
+          "query": "q7",
+          "view": "all"
+        },
+        {
+          "name": "v8",
+          "query": "q8",
+          "view": "all"
+        },
+        {
+          "name": "v9",
+          "query": "q9",
+          "view": "all"
+        },
+        {
+          "name": "v10",
+          "query": "q10",
+          "view": "all"
+        },
+        {
+          "name": "v11",
+          "query": "q11",
+          "view": "all"
+        },
+        {
+          "name": "v12",
+          "query": "q12",
+          "view": "all"
+        },
+        {
+          "name": "v13",
+          "query": "q13",
+          "view": "all"
+        },
+        {
+          "name": "v14",
+          "query": "q14",
+          "view": "all"
+        },
+        {
+          "name": "v15",
+          "query": "q15",
+          "view": "all"
+        },
+        {
+          "name": "v16",
+          "query": "q16",
+          "view": "all"
+        },
+        {
+          "name": "v17",
+          "query": "q17",
+          "view": "all"
+        },
+        {
+          "name": "v18",
+          "query": "q18",
+          "view": "all"
+        },
+        {
+          "name": "v19",
+          "query": "q19",
+          "view": "all"
+        },
+        {
+          "name": "v20",
+          "query": "q20",
+          "view": "all"
+        },
+        {
+          "name": "v21",
+          "query": "q21",
+          "view": "all"
+        },
+        {
+          "name": "v22",
+          "query": "q22",
+          "view": "all"
+        },
+        {
+          "name": "v23",
+          "query": "q23",
+          "view": "all"
+        },
+        {
+          "name": "v24",
+          "query": "q24",
+          "view": "all"
+        },
+        {
+          "name": "v25",
+          "query": "q25",
+          "view": "all"
+        },
+        {
+          "name": "v26",
+          "query": "q26",
+          "view": "all"
+        },
+        {
+          "name": "v27",
+          "query": "q27",
+          "view": "all"
+        },
+        {
+          "name": "v28",
+          "query": "q28",
+          "view": "all"
+        },
+        {
+          "name": "v29",
+          "query": "q29",
+          "view": "all"
+        },
+        {
+          "name": "v30",
+          "query": "q30",
+          "view": "all"
+        },
+        {
+          "name": "v31",
+          "query": "q31",
+          "view": "all"
+        },
+        {
+          "name": "v32",
+          "query": "q32",
+          "view": "all"
+        },
+        {
+          "name": "v33",
+          "query": "q33",
+          "view": "all"
+        },
+        {
+          "name": "v34",
+          "query": "q34",
+          "view": "all"
+        },
+        {
+          "name": "v35",
+          "query": "q35",
+          "view": "all"
+        },
+        {
+          "name": "v36",
+          "query": "q36",
+          "view": "all"
+        },
+        {
+          "name": "v37",
+          "query": "q37",
+          "view": "all"
+        },
+        {
+          "name": "v38",
+          "query": "q38",
+          "view": "all"
+        },
+        {
+          "name": "v39",
+          "query": "q39",
+          "view": "all"
+        },
+        {
+          "name": "v40",
+          "query": "q40",
+          "view": "all"
+        },
+        {
+          "name": "v41",
+          "query": "q41",
+          "view": "all"
+        },
+        {
+          "name": "v42",
+          "query": "q42",
+          "view": "all"
+        },
+        {
+          "name": "v43",
+          "query": "q43",
+          "view": "all"
+        },
+        {
+          "name": "v44",
+          "query": "q44",
+          "view": "all"
+        },
+        {
+          "name": "v45",
+          "query": "q45",
+          "view": "all"
+        },
+        {
+          "name": "v46",
+          "query": "q46",
+          "view": "all"
+        },
+        {
+          "name": "v47",
+          "query": "q47",
+          "view": "all"
+        },
+        {
+          "name": "v48",
+          "query": "q48",
+          "view": "all"
+        },
+        {
+          "name": "v49",
+          "query": "q49",
+          "view": "all"
+        },
+        {
+          "name": "v50",
+          "query": "q50",
+          "view": "all"
+        }
+      ]
+    }
+  }
+]

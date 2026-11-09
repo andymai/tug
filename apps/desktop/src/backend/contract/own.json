@@ -1,0 +1,51 @@
+[
+  {
+    "connections": null,
+    "outcome": {
+      "ok": null
+    },
+    "speedLimit": null
+  },
+  {
+    "connections": 1,
+    "outcome": {
+      "ok": null
+    },
+    "speedLimit": null
+  },
+  {
+    "connections": 32,
+    "outcome": {
+      "ok": null
+    },
+    "speedLimit": null
+  },
+  {
+    "connections": 0,
+    "outcome": {
+      "error": "connections must be between 1 and 32, not 0"
+    },
+    "speedLimit": null
+  },
+  {
+    "connections": 33,
+    "outcome": {
+      "error": "connections must be between 1 and 32, not 33"
+    },
+    "speedLimit": null
+  },
+  {
+    "connections": null,
+    "outcome": {
+      "ok": null
+    },
+    "speedLimit": 1
+  },
+  {
+    "connections": null,
+    "outcome": {
+      "error": "a speed limit must be above zero"
+    },
+    "speedLimit": 0
+  }
+]

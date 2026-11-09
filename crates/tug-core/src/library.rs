@@ -87,7 +87,7 @@ pub struct AddOptions {
     pub name: Option<String>,
 }
 
-fn file_name(name: &str) -> Result<&str, LibraryError> {
+pub fn check_name(name: &str) -> Result<&str, LibraryError> {
     let name = name.trim();
     let plain = !name.is_empty()
         && name.len() <= 255
@@ -201,7 +201,7 @@ impl Library {
     // Before the download starts, Tug saves it under the name; after it finishes,
     // Tug renames the file. In between, the engine's state file holds the path.
     pub async fn rename(&self, id: DownloadId, name: &str) -> Result<(), LibraryError> {
-        let name = file_name(name)?;
+        let name = check_name(name)?;
         let running = self.running.lock().await;
         let download = self.get(id)?;
         if download.is_torrent() {
@@ -492,7 +492,7 @@ impl Library {
         options: &AddOptions,
     ) -> Result<DownloadId, LibraryError> {
         check_own(options.connections, options.speed_limit)?;
-        let name = options.name.as_deref().map(file_name).transpose()?;
+        let name = options.name.as_deref().map(check_name).transpose()?;
         let added = SystemTime::now();
         let store = self.store()?;
         let id = store.insert_as(

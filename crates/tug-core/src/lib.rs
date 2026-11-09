@@ -13,7 +13,7 @@ mod transfer;
 pub use category::Category;
 pub use disk::free_space;
 pub use inspect::{Connection, ConnectionStatus, Inspection, LogLine, Segment, Server};
-pub use library::{AddOptions, Cookies, Library, LibraryError, Tick};
+pub use library::{AddOptions, Cookies, Library, LibraryError, Tick, check_name};
 pub use origin::{Origin, OriginError};
 pub use progress::{
     Batch, MIN_INTERVAL, ProgressStream, Smoother, StreamOptions, Update, time_left,
@@ -21,7 +21,8 @@ pub use progress::{
 pub use schedule::{MINUTES_PER_DAY, Schedule, ScheduleError, local_now};
 pub use settings::{
     Appearance, DEFAULT_CONNECTIONS, DEFAULT_MAX_ACTIVE, MAX_ACTIVE, MAX_COLUMN_WIDTH,
-    MAX_SAVED_VIEWS, MIN_COLUMN_WIDTH, SavedView, Settings, SettingsError, SlowHours, site,
+    MAX_SAVED_VIEWS, MIN_COLUMN_WIDTH, SavedView, Settings, SettingsError, SlowHours, check_own,
+    site,
 };
 pub use store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Place, Store, StoreError,

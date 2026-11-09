@@ -60,11 +60,12 @@ jobs:
       - run: cargo nextest run --workspace
       # nextest does not run doctests, so they get their own step.
       - run: cargo test --workspace --doc
-      # The test run regenerates the TypeScript bindings (ts-rs); committed ones must match.
-      - name: Check the TypeScript bindings are current
+      # The test run regenerates the TypeScript bindings (ts-rs) and the mock's contract
+      # cases (bridge/contract.rs); committed ones must match.
+      - name: Check the TypeScript bindings and contract cases are current
         run: |
-          git diff --exit-code -- apps/desktop/src/backend/bindings
-          test -z "$(git status --porcelain -- apps/desktop/src/backend/bindings)"
+          git diff --exit-code -- apps/desktop/src/backend/bindings apps/desktop/src/backend/contract
+          test -z "$(git status --porcelain -- apps/desktop/src/backend/bindings apps/desktop/src/backend/contract)"
 
   msrv:
     name: MSRV (1.95)

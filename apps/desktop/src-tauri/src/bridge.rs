@@ -1237,8 +1237,12 @@ pub fn update_settings(
     state: tauri::State<'_, AppState>,
     settings: SettingsDto,
 ) -> Result<(), CommandError> {
-    let current = state.library.settings()?;
-    Ok(state.library.update_settings(settings.apply(&current))?)
+    save_settings(&state.library, settings)
+}
+
+fn save_settings(library: &Library, settings: SettingsDto) -> Result<(), CommandError> {
+    let current = library.settings()?;
+    Ok(library.update_settings(settings.apply(&current))?)
 }
 
 #[tauri::command(async)]
@@ -1439,6 +1443,9 @@ fn unix_ms(t: SystemTime) -> u64 {
     t.duration_since(UNIX_EPOCH)
         .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
+
+#[cfg(test)]
+mod contract;
 
 #[cfg(test)]
 mod tests {

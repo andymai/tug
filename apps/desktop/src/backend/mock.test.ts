@@ -136,18 +136,6 @@ describe("mock backend", () => {
     await expect(backend.remove(id, true)).rejects.toMatchObject({ kind: "notFound" });
   });
 
-  it("validates settings like the core does", async () => {
-    const backend = createMockBackend();
-    const settings = await backend.settings();
-    await expect(backend.updateSettings({ ...settings, connections: 0 })).rejects.toMatchObject({ kind: "invalid" });
-    await expect(backend.updateSettings({ ...settings, speedLimit: 0 })).rejects.toMatchObject({ kind: "invalid" });
-    await expect(backend.updateSettings({ ...settings, excludedSites: ["Example.org"] })).rejects.toMatchObject({ kind: "invalid" });
-    await expect(backend.updateSettings({ ...settings, excludedSites: ["a.example", "a.example"] })).rejects.toMatchObject({
-      kind: "invalid",
-    });
-    expect(await backend.settings()).toEqual(settings);
-  });
-
   it("stops calling a listener after it unsubscribes", async () => {
     const backend = createMockBackend();
     const { batches, stop } = await collect(backend);
