@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.19.0](https://github.com/andymai/tug/compare/v0.18.0...v0.19.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** sites that Tug leaves to the browser ([#80](https://github.com/andymai/tug/issues/80)) ([e97cda4](https://github.com/andymai/tug/commit/e97cda4345fa34d43e56100779642357abdb056e))
+
+
+### Bug Fixes
+
+* **extension:** referrer policy, strict replies, forms and containers stay right; untrack the build ([#81](https://github.com/andymai/tug/issues/81)) ([bf471e1](https://github.com/andymai/tug/commit/bf471e1b10d29b986e8083815a0283716157f7f7))
+
 ## [0.18.0](https://github.com/andymai/tug/compare/v0.17.0...v0.18.0) (2026-11-09)
 
 
