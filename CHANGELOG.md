@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/andymai/tug/compare/v0.15.0...v0.16.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** register the browser host, with a flatpak-spawn bridge for Flatpak browsers ([#70](https://github.com/andymai/tug/issues/70)) ([b5b9fc5](https://github.com/andymai/tug/commit/b5b9fc5f8602b9d2d8df2679d70094678fdafa66))
+
 ## [0.15.0](https://github.com/andymai/tug/compare/v0.14.1...v0.15.0) (2026-11-09)
 
 
