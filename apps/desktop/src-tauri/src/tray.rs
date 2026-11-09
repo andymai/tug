@@ -24,14 +24,9 @@ const RING_GLYPH: &str = "M7.5 6.5H13.5M10.5 6.5V15.5M7.5 12.5L10.5 15.5L13.5 12
 const PUBLISH_EVERY: Duration = Duration::from_secs(1);
 pub const NOTICE_EVENT: &str = "notice";
 
-pub fn failure_notice(pause: bool, failed: &[String]) -> Option<String> {
-    let first = failed.first()?;
+pub fn failure_notice(pause: bool, reason: &str) -> String {
     let verb = if pause { "pause" } else { "resume" };
-    Some(if failed.len() == 1 {
-        format!("couldn't {verb} a download: {first}")
-    } else {
-        format!("couldn't {verb} {} downloads: {first}", failed.len())
-    })
+    format!("couldn't {verb} every download: {reason}")
 }
 
 pub fn progress_icon(step: u8) -> String {
@@ -151,32 +146,21 @@ impl<R: Runtime> TugTray<R> {
         self.app.get_webview_window("main")
     }
 
-    fn each(&self, from: DownloadState, pause: bool) {
+    fn all(&self, pause: bool) {
         let library = Arc::clone(&self.library);
         let app = self.app.clone();
         tauri::async_runtime::spawn(async move {
-            let mut failed = Vec::new();
-            match library.list() {
-                Ok(downloads) => {
-                    for download in downloads.iter().filter(|d| d.state == from) {
-                        let result = if pause {
-                            library.pause(download.id).await
-                        } else {
-                            let resumed = library.resume(download.id).await;
-                            if resumed.is_ok() {
-                                crate::bridge::started(&app, download.id);
-                            }
-                            resumed
-                        };
-                        if let Err(e) = result {
-                            failed.push(e.to_string());
-                        }
+            let result = if pause {
+                library.pause_all().await
+            } else {
+                library.resume_all().await.map(|queued| {
+                    for id in queued {
+                        crate::bridge::started(&app, id);
                     }
-                }
-                Err(e) => failed.push(e.to_string()),
-            }
-            if let Some(message) = failure_notice(pause, &failed) {
-                let _sent = app.emit(NOTICE_EVENT, message);
+                })
+            };
+            if let Err(e) = result {
+                let _sent = app.emit(NOTICE_EVENT, failure_notice(pause, &e.to_string()));
             }
         });
     }
@@ -273,14 +257,14 @@ impl<R: Runtime> Tray for TugTray<R> {
             StandardItem {
                 label: "Pause all".into(),
                 enabled: self.summary.downloading > 0,
-                activate: Box::new(|tray: &mut Self| tray.each(DownloadState::Downloading, true)),
+                activate: Box::new(|tray: &mut Self| tray.all(true)),
                 ..StandardItem::default()
             }
             .into(),
             StandardItem {
                 label: "Resume all".into(),
                 enabled: self.summary.paused > 0,
-                activate: Box::new(|tray: &mut Self| tray.each(DownloadState::Paused, false)),
+                activate: Box::new(|tray: &mut Self| tray.all(false)),
                 ..StandardItem::default()
             }
             .into(),
@@ -480,15 +464,14 @@ mod tests {
     }
 
     #[test]
-    fn failures_from_pause_all_and_resume_all_become_one_notice() {
-        assert_eq!(failure_notice(true, &[]), None);
+    fn a_failed_pause_all_or_resume_all_becomes_one_notice() {
         assert_eq!(
-            failure_notice(false, &["the server refused".into()]).unwrap(),
-            "couldn't resume a download: the server refused"
+            failure_notice(false, "the server refused"),
+            "couldn't resume every download: the server refused"
         );
         assert_eq!(
-            failure_notice(true, &["disk full".into(), "disk full".into()]).unwrap(),
-            "couldn't pause 2 downloads: disk full"
+            failure_notice(true, "disk full"),
+            "couldn't pause every download: disk full"
         );
     }
 

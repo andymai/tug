@@ -156,24 +156,57 @@ impl Library {
         Ok(self.store()?.events(id)?)
     }
 
+    // A waiting download is held under the run lock, so a tick can't start it
+    // between the check and the write.
     pub async fn pause(&self, id: DownloadId) -> Result<(), LibraryError> {
+        let mut running = self.running.lock().await;
         let download = self.get(id)?;
-        let Some(running) = self.running.lock().await.remove(&id) else {
+        let Some(entry) = running.remove(&id) else {
             if download.state == DownloadState::Queued {
-                let now = SystemTime::now();
-                let store = self.store()?;
-                store.set_state(id, DownloadState::Paused, None, now)?;
-                store.add_event(
-                    id,
-                    &event(EventKind::Paused, now, Some(download.received), None),
-                )?;
+                self.hold(&download)?;
             }
+            drop(running);
             return Ok(());
         };
-        running.transfer.stop();
-        self.settle(id, running.transfer, DownloadState::Paused)
+        drop(running);
+        entry.transfer.stop();
+        self.settle(id, entry.transfer, DownloadState::Paused)
             .await?;
         self.pump().await
+    }
+
+    pub async fn pause_all(&self) -> Result<(), LibraryError> {
+        let mut running = self.running.lock().await;
+        let held = self.hold_queue();
+        let stopped: Vec<(DownloadId, Running)> = running.drain().collect();
+        drop(running);
+        for (_, entry) in &stopped {
+            entry.transfer.stop();
+        }
+        let mut first = held.err();
+        for (id, entry) in stopped {
+            if let Err(e) = self.settle(id, entry.transfer, DownloadState::Paused).await {
+                first.get_or_insert(e);
+            }
+        }
+        first.map_or(Ok(()), Err)
+    }
+
+    pub async fn resume_all(&self) -> Result<Vec<DownloadId>, LibraryError> {
+        let mut running = self.running.lock().await;
+        let now = SystemTime::now();
+        let mut queued = Vec::new();
+        let store = self.store()?;
+        for download in store.list()? {
+            if download.state == DownloadState::Paused {
+                store.set_state(download.id, DownloadState::Queued, None, now)?;
+                queued.push(download.id);
+            }
+        }
+        drop(store);
+        let filled = self.fill(&mut running);
+        drop(running);
+        filled.map(|()| queued)
     }
 
     pub fn place(&self, id: DownloadId, place: Place) -> Result<bool, LibraryError> {
@@ -197,8 +230,15 @@ impl Library {
     }
 
     pub async fn remove(&self, id: DownloadId, delete_file: bool) -> Result<(), LibraryError> {
+        let mut running = self.running.lock().await;
         let download = self.get(id)?;
-        let stopped = self.running.lock().await.remove(&id);
+        let stopped = running.remove(&id);
+        // Held first, so a tick can't start a waiting download while its files go.
+        if stopped.is_none() && download.state == DownloadState::Queued {
+            self.store()?
+                .set_state(id, DownloadState::Paused, None, SystemTime::now())?;
+        }
+        drop(running);
         if let Some(running) = stopped {
             running.transfer.stop();
             let _stopped = running.transfer.finish().await;
@@ -303,8 +343,36 @@ impl Library {
                 let reason = e.to_string();
                 let store = self.store()?;
                 store.set_state(id, DownloadState::Failed, Some(&reason), now)?;
-                store.add_event(id, &event(EventKind::Failed, now, None, Some(reason)))?;
+                store.add_event(
+                    id,
+                    &event(
+                        EventKind::Failed,
+                        now,
+                        Some(download.received),
+                        Some(reason),
+                    ),
+                )?;
             }
+        }
+        Ok(())
+    }
+
+    fn hold(&self, download: &Download) -> Result<(), LibraryError> {
+        let now = SystemTime::now();
+        let store = self.store()?;
+        store.set_state(download.id, DownloadState::Paused, None, now)?;
+        store.add_event(
+            download.id,
+            &event(EventKind::Paused, now, Some(download.received), None),
+        )?;
+        drop(store);
+        Ok(())
+    }
+
+    fn hold_queue(&self) -> Result<(), LibraryError> {
+        let waiting = self.store()?.queued()?;
+        for id in waiting {
+            self.hold(&self.get(id)?)?;
         }
         Ok(())
     }

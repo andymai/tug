@@ -55,6 +55,27 @@ describe("downloads store", () => {
     expect(store.getState().items.find((d) => d.name === "fedora.iso")?.state).toBe("done");
   });
 
+  it("reloads when a waiting download starts, not on each tick of a running one", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    let lists = 0;
+    const store = createDownloadsStore({
+      ...backend,
+      list: () => {
+        lists += 1;
+        return backend.list();
+      },
+    });
+    await store.getState().init();
+    const id = (state: string) => store.getState().items.find((d) => d.state === state)?.id ?? -1;
+    const update = (of: number) => ({ id: of, phase: "downloading" as const, received: MB, total: null, speed: MB, leftMs: null, connections: 1 });
+    const before = lists;
+
+    store.getState().applyBatch({ seq: 1, updates: [update(id("downloading"))], settled: [], error: null });
+    expect(lists).toBe(before);
+    store.getState().applyBatch({ seq: 2, updates: [update(id("queued"))], settled: [], error: null });
+    expect(lists).toBe(before + 1);
+  });
+
   it("retries a failed download", async () => {
     const { store } = await ready();
     const failed = store.getState().items.find((d) => d.state === "failed");

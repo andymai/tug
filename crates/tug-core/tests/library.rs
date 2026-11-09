@@ -364,6 +364,46 @@ async fn a_raised_limit_starts_the_waiting_on_the_next_tick_and_a_paused_wait_le
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn pause_all_holds_the_queue_too_and_resume_all_refills_it_in_order() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = limited(1).await;
+    let link = |name: &str| {
+        lab.url(&format!("/gen/4M/{name}?seed=71&rate=1M"))
+            .parse()
+            .unwrap()
+    };
+    let a = library.add(link("a.bin"), dir.path()).await.unwrap();
+    let b = library.add(link("b.bin"), dir.path()).await.unwrap();
+    let c = library.add(link("c.bin"), dir.path()).await.unwrap();
+    received_at_least(&library, a, 256 << 10).await;
+
+    library.pause_all().await.unwrap();
+    library.tick().await.unwrap();
+    assert_eq!(
+        [a, b, c].map(|id| state_of(&library, id)),
+        [DownloadState::Paused; 3],
+        "nothing took the freed place"
+    );
+    assert_eq!(
+        kinds(&library, b),
+        vec![EventKind::Added, EventKind::Paused]
+    );
+
+    let mut queued = library.resume_all().await.unwrap();
+    queued.sort();
+    assert_eq!(queued, vec![a, b, c]);
+    assert_eq!(
+        [a, b, c].map(|id| state_of(&library, id)),
+        [
+            DownloadState::Downloading,
+            DownloadState::Queued,
+            DownloadState::Queued
+        ]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn removing_with_delete_clears_the_partial_files() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();
