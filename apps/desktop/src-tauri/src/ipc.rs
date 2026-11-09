@@ -19,7 +19,7 @@ fn declined(settings: &Settings, link: &str, referrer: Option<&Url>) -> Option<S
 pub fn entry(d: &Download) -> Entry {
     Entry {
         id: d.id.get(),
-        name: bridge::display_name(d),
+        name: d.name(),
         url: d.url.to_string(),
         state: d.state.as_str().into(),
         received: d.received,

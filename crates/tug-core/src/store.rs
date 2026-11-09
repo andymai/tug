@@ -58,7 +58,16 @@ const MIGRATIONS: &[&str] = &[
     UPDATE downloads SET position = id;
     CREATE INDEX downloads_queue ON downloads (state, position);
 ",
+    r"
+    CREATE VIRTUAL TABLE search USING fts5 (name, url, tokenize = 'unicode61 remove_diacritics 2');
+    CREATE TRIGGER search_forget AFTER DELETE ON downloads BEGIN
+        DELETE FROM search WHERE rowid = old.id;
+    END;
+",
 ];
+
+// The search table's names come from Rust, so it fills the table when it adds it.
+const SEARCH_SCHEMA: i64 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Place {
@@ -205,6 +214,24 @@ pub struct Download {
     pub finished: Option<SystemTime>,
 }
 
+impl Download {
+    pub fn name(&self) -> String {
+        name_of(&self.url, self.file.as_deref())
+    }
+}
+
+pub fn name_of(url: &Url, file: Option<&Path>) -> String {
+    if let Some(name) = file.and_then(Path::file_name) {
+        return name.to_string_lossy().into_owned();
+    }
+    url.path_segments()
+        .and_then(|mut s| s.rfind(|seg| !seg.is_empty()))
+        .map_or_else(
+            || url.host_str().unwrap_or("download").to_owned(),
+            str::to_owned,
+        )
+}
+
 pub struct Store {
     conn: Connection,
 }
@@ -271,6 +298,10 @@ impl Store {
             ],
         )?;
         let id = tx.last_insert_rowid();
+        tx.execute(
+            "INSERT INTO search (rowid, name, url) VALUES (?1, ?2, ?3)",
+            params![id, name_of(&new.url, None), new.url.as_str()],
+        )?;
         if !origin.is_empty() {
             tx.execute(
                 "INSERT INTO origins (download_id, referrer, cookies, user_agent) VALUES (?1, ?2, ?3, ?4)",
@@ -426,11 +457,39 @@ impl Store {
     }
 
     pub fn set_file(&self, id: DownloadId, file: &Path) -> Result<bool, StoreError> {
-        let changed = self.conn.execute(
+        let tx = self.conn.unchecked_transaction()?;
+        let changed = tx.execute(
             "UPDATE downloads SET file = ?2 WHERE id = ?1",
             params![id.0, file.as_os_str().as_bytes()],
         )?;
+        if let Some(name) = file.file_name() {
+            tx.execute(
+                "UPDATE search SET name = ?2 WHERE rowid = ?1",
+                params![id.0, name.to_string_lossy()],
+            )?;
+        }
+        tx.commit()?;
         Ok(changed > 0)
+    }
+
+    // Each word matches the start of a word in the name or the link, in any order.
+    pub fn search(&self, query: &str) -> Result<Vec<DownloadId>, StoreError> {
+        let words: Vec<String> = query
+            .split_whitespace()
+            .map(|word| format!("\"{}\"*", word.replace('"', "\"\"")))
+            .collect();
+        if words.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut stmt = self
+            .conn
+            .prepare("SELECT rowid FROM search WHERE search MATCH ?1 ORDER BY rank")?;
+        let ids = stmt.query_map([words.join(" ")], |row| row.get(0))?;
+        Ok(ids
+            .collect::<rusqlite::Result<Vec<i64>>>()?
+            .into_iter()
+            .map(DownloadId)
+            .collect())
     }
 
     pub fn remove(&self, id: DownloadId) -> Result<bool, StoreError> {
@@ -561,9 +620,34 @@ fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
     }
     for (version, sql) in (1..).zip(MIGRATIONS).skip_while(|(v, _)| *v <= found) {
         tx.execute_batch(sql)?;
+        if version == SEARCH_SCHEMA {
+            index(&tx)?;
+        }
         tx.pragma_update(None, "user_version", version)?;
     }
     tx.commit()?;
+    Ok(())
+}
+
+fn index(conn: &Connection) -> Result<(), StoreError> {
+    let mut stmt = conn.prepare("SELECT id, url, file FROM downloads")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Option<Vec<u8>>>(2)?,
+        ))
+    })?;
+    for row in rows {
+        let (id, url, file) = row?;
+        let file = file.map(bytes_to_path);
+        let name = Url::parse(&url)
+            .map_or_else(|_| url.clone(), |parsed| name_of(&parsed, file.as_deref()));
+        conn.execute(
+            "INSERT INTO search (rowid, name, url) VALUES (?1, ?2, ?3)",
+            params![id, name, url],
+        )?;
+    }
     Ok(())
 }
 
@@ -637,7 +721,7 @@ mod tests {
     #[test]
     fn migrates_a_fresh_database_to_the_latest_schema() {
         let store = Store::open_in_memory().unwrap();
-        assert_eq!(store.schema_version().unwrap(), 4);
+        assert_eq!(store.schema_version().unwrap(), 5);
         assert!(store.list().unwrap().is_empty());
     }
 
@@ -650,7 +734,7 @@ mod tests {
             .insert(&new("https://example.org/a.iso", "/home/u/Downloads"))
             .unwrap();
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 4);
+        assert_eq!(store.schema_version().unwrap(), 5);
         assert_eq!(
             store.get(id).unwrap().unwrap().url.as_str(),
             "https://example.org/a.iso"
@@ -710,7 +794,7 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 4);
+        assert_eq!(store.schema_version().unwrap(), 5);
         let id = store
             .insert(&new("https://example.org/a.iso", "/d"))
             .unwrap();
@@ -850,6 +934,57 @@ mod tests {
             vec![c, d, a],
             "a paused download is no neighbor"
         );
+    }
+
+    #[test]
+    fn search_finds_words_at_the_start_of_the_name_or_the_link() {
+        let store = Store::open_in_memory().unwrap();
+        let fedora = store
+            .insert(&new("https://mirror.example.org/fedora-kde-44.iso", "/d"))
+            .unwrap();
+        let talk = store
+            .insert(&new("https://media.example.net/v/7f3a", "/d"))
+            .unwrap();
+        let find = |query: &str| store.search(query).unwrap();
+        assert_eq!(find("fedo"), [fedora]);
+        assert_eq!(find("KDE 44"), [fedora]);
+        assert_eq!(find("mirror"), [fedora]);
+        assert_eq!(find("example").len(), 2);
+        assert!(find("dora").is_empty(), "words match at their start");
+        assert!(find("   ").is_empty());
+
+        store
+            .set_file(talk, Path::new("/d/conférence-2026.mp4"))
+            .unwrap();
+        assert_eq!(find("conference"), [talk], "accents don't matter");
+        store.remove(fedora).unwrap();
+        assert!(find("fedora").is_empty());
+        for odd in ["\"", "a*", "-x", "AND", "(", "NEAR(a b)", "x:y"] {
+            store.search(odd).unwrap();
+        }
+    }
+
+    #[test]
+    fn a_version_4_database_gains_a_search_of_its_downloads() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("tug.db");
+        {
+            let mut conn = Connection::open(&db).unwrap();
+            let tx = conn.transaction().unwrap();
+            for sql in &MIGRATIONS[..4] {
+                tx.execute_batch(sql).unwrap();
+            }
+            tx.execute(
+                "INSERT INTO downloads (url, dir, file, state, added_ms) VALUES ('https://example.org/x/7', x'2f', CAST('/d/backup.tar' AS BLOB), 'done', 0)",
+                [],
+            )
+            .unwrap();
+            tx.pragma_update(None, "user_version", 4).unwrap();
+            tx.commit().unwrap();
+        }
+        let store = Store::open(&db).unwrap();
+        assert_eq!(store.schema_version().unwrap(), 5);
+        assert_eq!(store.search("backup").unwrap().len(), 1);
     }
 
     #[test]

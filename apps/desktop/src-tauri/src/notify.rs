@@ -63,7 +63,7 @@ fn escaped(text: &str) -> String {
 }
 
 pub fn notice(download: &Download) -> Option<Notice> {
-    let name = escaped(&bridge::display_name(download));
+    let name = escaped(&download.name());
     match download.state {
         DownloadState::Done => Some(Notice {
             summary: "Download finished",

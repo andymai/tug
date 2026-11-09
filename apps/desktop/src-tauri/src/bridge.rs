@@ -145,7 +145,7 @@ impl From<&Download> for DownloadDto {
         Self {
             id: d.id.get(),
             url: d.url.to_string(),
-            name: display_name(d),
+            name: d.name(),
             dir: d.dir.to_string_lossy().into_owned(),
             file: d.file.as_ref().map(|f| f.to_string_lossy().into_owned()),
             state: d.state.into(),
@@ -594,6 +594,23 @@ pub fn list_downloads(state: tauri::State<'_, AppState>) -> Result<Vec<DownloadD
 }
 
 #[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects State by value"
+)]
+pub fn search_downloads(
+    state: tauri::State<'_, AppState>,
+    query: String,
+) -> Result<Vec<i64>, CommandError> {
+    Ok(state
+        .library
+        .search(&query)?
+        .into_iter()
+        .map(DownloadId::get)
+        .collect())
+}
+
+#[tauri::command]
 pub async fn add_download(
     state: tauri::State<'_, AppState>,
     url: String,
@@ -812,7 +829,7 @@ pub fn finished_file(d: &Download) -> Result<&Path, CommandError> {
         (Some(file), DownloadState::Done) => Ok(file),
         _ => Err(CommandError::invalid(format!(
             "{} isn't finished yet",
-            display_name(d)
+            d.name()
         ))),
     }
 }
@@ -879,19 +896,6 @@ pub fn reveal_download<R: tauri::Runtime>(
             .open_url(file_url(&download.dir)?, None::<&str>)
             .map_err(|e| opener_error(&e)),
     }
-}
-
-pub fn display_name(d: &Download) -> String {
-    if let Some(name) = d.file.as_deref().and_then(Path::file_name) {
-        return name.to_string_lossy().into_owned();
-    }
-    d.url
-        .path_segments()
-        .and_then(|mut s| s.rfind(|seg| !seg.is_empty()))
-        .map_or_else(
-            || d.url.host_str().unwrap_or("download").to_owned(),
-            str::to_owned,
-        )
 }
 
 fn unix_ms(t: SystemTime) -> u64 {

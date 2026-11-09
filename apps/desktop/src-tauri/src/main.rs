@@ -65,6 +65,7 @@ fn main() -> Result<ExitCode, tauri::Error> {
         })
         .invoke_handler(tauri::generate_handler![
             bridge::list_downloads,
+            bridge::search_downloads,
             bridge::add_download,
             bridge::pause_download,
             bridge::resume_download,

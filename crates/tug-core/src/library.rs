@@ -168,6 +168,10 @@ impl Library {
         Ok(self.store()?.list()?)
     }
 
+    pub fn search(&self, query: &str) -> Result<Vec<DownloadId>, LibraryError> {
+        Ok(self.store()?.search(query)?)
+    }
+
     pub fn events(&self, id: DownloadId) -> Result<Vec<Event>, LibraryError> {
         self.get(id)?;
         Ok(self.store()?.events(id)?)
