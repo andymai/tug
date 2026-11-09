@@ -8,7 +8,7 @@ import { Keys } from "./Kbd";
 
 type Entry = Omit<Command, "group"> & { group: Group | "Go to download" };
 
-const GROUPS: readonly Entry["group"][] = ["Selected download", "Go to download", "Downloads", "Views", "Help"];
+const GROUPS: readonly Entry["group"][] = ["Selected download", "Selected downloads", "Go to download", "Downloads", "Views", "Help"];
 
 function Palette({ choose, labelId }: { choose: (run: () => void) => void; labelId: string }) {
   const store = useDownloadsStore();

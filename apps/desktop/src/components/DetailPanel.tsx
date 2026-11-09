@@ -17,7 +17,7 @@ import {
 import { focusRow } from "../lib/dom";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
-import { chosen, modalOpen } from "../state/downloads";
+import { chosen, modalOpen, single } from "../state/downloads";
 import { Button } from "./Button";
 import { ConnectionsPanel, InspectorTabs, LogPanel, tabIds, useInspection } from "./Inspector";
 
@@ -380,7 +380,7 @@ const NONE: readonly Download[] = [];
 export function DetailPanel() {
   // Sorting the view on every tick costs, so only for a real multiple selection.
   const list = useDownloads(useShallow((s) => (s.marked.length > 1 ? chosen(s) : NONE)));
-  const download = useDownloads((s) => s.items.find((item) => item.id === s.selected));
+  const download = useDownloads((s) => single(s));
   if (list.length > 1) return <SelectionPanel list={list} />;
   if (!download) return null;
   return <Panel key={download.id} download={download} />;

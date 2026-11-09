@@ -103,7 +103,15 @@ export function DownloadTable({ title }: { title: string }) {
   const settings = useDownloads((s) => s.settings);
   const allItems = useDownloads((s) => s.items);
   const savePreference = useDownloads((s) => s.savePreference);
+  const closeMenu = useDownloads((s) => s.closeMenu);
   const chosen = columnsOf(settings);
+  // The empty view can take the table's place while its menu is open.
+  useEffect(
+    () => () => {
+      closeMenu();
+    },
+    [closeMenu],
+  );
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
   useEffect(() => {

@@ -782,6 +782,16 @@ export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay" | "ca
   return state.adding.open || state.overlay !== null || state.captures.length > 0 || state.removing !== null || state.menu !== null;
 }
 
+// The download that the details and the commands for one act on: the selected
+// row, or of several marked, the only one that the view still shows.
+export function single(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live" | "marked" | "selected">): Download | undefined {
+  if (state.marked.length > 1) {
+    const list = chosen(state);
+    return list.length === 1 ? list[0] : undefined;
+  }
+  return state.items.find((item) => item.id === state.selected);
+}
+
 // The marked downloads that the view shows, in its order.
 export function chosen(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live" | "marked">): Download[] {
   return chosenOf(state, state.marked);
