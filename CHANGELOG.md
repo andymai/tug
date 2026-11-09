@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.1](https://github.com/andymai/tug/compare/v0.32.0...v0.32.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **desktop:** selection commands show in the command bar and act on the row in view ([#136](https://github.com/andymai/tug/issues/136)) ([dd9c73d](https://github.com/andymai/tug/commit/dd9c73ddb19b7f1c87478daebf30fdc5eec1ee46))
+
 ## [0.32.0](https://github.com/andymai/tug/compare/v0.31.0...v0.32.0) (2026-11-09)
 
 
