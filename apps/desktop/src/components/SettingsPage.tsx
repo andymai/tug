@@ -128,14 +128,14 @@ function AppearanceChoice({ value, onChange }: { value: Appearance; onChange: (v
   );
 }
 
-function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>) => void }) {
+// A speed in MB/s, saved when the field loses focus or on Enter.
+function LimitRow({ label, description, bytes, onChange }: { label: string; description: string; bytes: number; onChange: (bytes: number) => void }) {
   const fieldId = useId();
-  const [draft, setDraft] = useState(formatLimit(settings.speedLimit));
+  const [draft, setDraft] = useState(formatLimit(bytes));
   const [problem, setProblem] = useState<string | null>(null);
-  const limited = settings.speedLimit !== null;
 
   const commit = () => {
-    if (draft === formatLimit(settings.speedLimit)) {
+    if (draft === formatLimit(bytes)) {
       setProblem(null);
       return;
     }
@@ -145,9 +145,38 @@ function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Part
       return;
     }
     setProblem(null);
-    save({ speedLimit: Math.round(value * MB) });
+    onChange(Math.round(value * MB));
   };
 
+  return (
+    <Row
+      label={label}
+      labelFor={fieldId}
+      description={problem ?? description}
+      control={
+        <>
+          <input
+            id={fieldId}
+            inputMode="decimal"
+            value={draft}
+            aria-invalid={problem !== null}
+            onChange={(event) => {
+              setDraft(event.target.value);
+            }}
+            onBlur={commit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") commit();
+            }}
+            className="h-[30px] w-20 rounded-sm border border-control-border bg-surface px-2 text-right text-mono text-ink aria-invalid:border-state-error"
+          />
+          <span className="text-mono text-ink-muted">MB/s</span>
+        </>
+      }
+    />
+  );
+}
+
+function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>) => void }) {
   return (
     <>
       <Row
@@ -156,39 +185,21 @@ function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Part
         control={
           <Switch
             label="Limit download speed"
-            checked={limited}
+            checked={settings.speedLimit !== null}
             onChange={(on) => {
-              setDraft(on ? formatLimit(DEFAULT_LIMIT) : "");
-              setProblem(null);
               save({ speedLimit: on ? DEFAULT_LIMIT : null });
             }}
           />
         }
       />
-      {limited && (
-        <Row
+      {settings.speedLimit !== null && (
+        <LimitRow
           label="Speed limit"
-          labelFor={fieldId}
-          description={problem ?? "Shared by every download."}
-          control={
-            <>
-              <input
-                id={fieldId}
-                inputMode="decimal"
-                value={draft}
-                aria-invalid={problem !== null}
-                onChange={(event) => {
-                  setDraft(event.target.value);
-                }}
-                onBlur={commit}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") commit();
-                }}
-                className="h-[30px] w-20 rounded-sm border border-control-border bg-surface px-2 text-right text-mono text-ink aria-invalid:border-state-error"
-              />
-              <span className="text-mono text-ink-muted">MB/s</span>
-            </>
-          }
+          description="Shared by every download."
+          bytes={settings.speedLimit}
+          onChange={(speedLimit) => {
+            save({ speedLimit });
+          }}
         />
       )}
     </>
@@ -197,6 +208,8 @@ function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Part
 
 const EVERY_DAY = 0b111_1111;
 const NIGHTS: Schedule = { days: EVERY_DAY, start: 60, stop: 7 * 60 };
+const WORKDAYS: Schedule = { days: 0b001_1111, start: 9 * 60, stop: 17 * 60 };
+const SLOW_LIMIT = 2 * MB;
 const DAYS = [
   { name: "Monday", letter: "M" },
   { name: "Tuesday", letter: "T" },
@@ -207,13 +220,20 @@ const DAYS = [
   { name: "Sunday", letter: "S" },
 ] as const;
 
-function Hours({ schedule, save }: { schedule: Schedule | null; save: (patch: Partial<Settings>) => void }) {
+interface HoursNames {
+  hours: string;
+  until: string;
+  days: string;
+  during: string;
+}
+
+// Mounted fresh each time its section turns on, so the drafts start from the saved hours.
+function HoursRows({ schedule, names, onChange }: { schedule: Schedule; names: HoursNames; onChange: (schedule: Schedule) => void }) {
   const startId = useId();
-  const [drafts, setDrafts] = useState({ start: clock((schedule ?? NIGHTS).start), stop: clock((schedule ?? NIGHTS).stop) });
+  const [drafts, setDrafts] = useState({ start: clock(schedule.start), stop: clock(schedule.stop) });
   const [problem, setProblem] = useState<string | null>(null);
 
   const commit = (which: "start" | "stop") => {
-    if (schedule === null) return;
     const value = minutesOf(drafts[which]);
     if (value === null) {
       setProblem("Enter a time like 23:00.");
@@ -226,13 +246,13 @@ function Hours({ schedule, save }: { schedule: Schedule | null; save: (patch: Pa
     }
     setProblem(null);
     setDrafts((current) => ({ ...current, [which]: clock(value) }));
-    if (value !== schedule[which]) save({ schedule: next });
+    if (value !== schedule[which]) onChange(next);
   };
 
-  const field = (which: "start" | "stop", label: string, id?: string) => (
+  const field = (which: "start" | "stop", id?: string) => (
     <input
       id={id}
-      aria-label={id === undefined ? label : undefined}
+      aria-label={id === undefined ? names.until : undefined}
       inputMode="numeric"
       value={drafts[which]}
       aria-invalid={problem !== null}
@@ -252,6 +272,53 @@ function Hours({ schedule, save }: { schedule: Schedule | null; save: (patch: Pa
   return (
     <>
       <Row
+        label={names.hours}
+        labelFor={startId}
+        description={problem ?? (schedule.stop < schedule.start ? "These hours go on past midnight." : names.during)}
+        control={
+          <>
+            {field("start", startId)}
+            <span className="text-small text-ink-muted">to</span>
+            {field("stop")}
+          </>
+        }
+      />
+      <Row
+        label={names.days}
+        description="The days on which the hours start."
+        control={
+          <div role="group" aria-label={names.days} className="flex gap-0.5 rounded-sm border border-control-border bg-surface p-0.5">
+            {DAYS.map((day, index) => {
+              const bit = 1 << index;
+              const on = (schedule.days & bit) !== 0;
+              return (
+                <button
+                  key={day.name}
+                  type="button"
+                  aria-pressed={on}
+                  aria-label={day.name}
+                  title={day.name}
+                  disabled={on && schedule.days === bit}
+                  onClick={() => {
+                    onChange({ ...schedule, days: schedule.days ^ bit });
+                  }}
+                  className="h-6 w-7 rounded-xs text-small font-medium text-ink-muted transition-colors duration-(--duration-fast) ease-(--ease-out) hover:text-ink aria-pressed:bg-selection aria-pressed:text-ink"
+                >
+                  {day.letter}
+                </button>
+              );
+            })}
+          </div>
+        }
+      />
+    </>
+  );
+}
+
+function Hours({ schedule, save }: { schedule: Schedule | null; save: (patch: Partial<Settings>) => void }) {
+  return (
+    <>
+      <Row
         label="Download at set times"
         description="Outside these hours, downloads wait in the queue."
         control={
@@ -259,54 +326,57 @@ function Hours({ schedule, save }: { schedule: Schedule | null; save: (patch: Pa
             label="Download at set times"
             checked={schedule !== null}
             onChange={(on) => {
-              setDrafts({ start: clock(NIGHTS.start), stop: clock(NIGHTS.stop) });
-              setProblem(null);
               save({ schedule: on ? NIGHTS : null });
             }}
           />
         }
       />
       {schedule !== null && (
-        <>
-          <Row
-            label="Hours"
-            labelFor={startId}
-            description={problem ?? (schedule.stop < schedule.start ? "These hours go on past midnight." : "Downloads run from the first time until the second.")}
-            control={
-              <>
-                {field("start", "From", startId)}
-                <span className="text-small text-ink-muted">to</span>
-                {field("stop", "Until")}
-              </>
-            }
+        <HoursRows
+          schedule={schedule}
+          names={{ hours: "Hours", until: "Until", days: "Days", during: "Downloads run from the first time until the second." }}
+          onChange={(next) => {
+            save({ schedule: next });
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function SlowerHours({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>) => void }) {
+  const slow = settings.slowHours;
+  return (
+    <>
+      <Row
+        label="Slower at set hours"
+        description="A lower limit for busy hours, like the working day."
+        control={
+          <Switch
+            label="Slower at set hours"
+            checked={slow !== null}
+            onChange={(on) => {
+              save({ slowHours: on ? { limit: SLOW_LIMIT, hours: WORKDAYS } : null });
+            }}
           />
-          <Row
-            label="Days"
-            description="The days on which the hours start."
-            control={
-              <div role="group" aria-label="Days" className="flex gap-0.5 rounded-sm border border-control-border bg-surface p-0.5">
-                {DAYS.map((day, index) => {
-                  const bit = 1 << index;
-                  const on = (schedule.days & bit) !== 0;
-                  return (
-                    <button
-                      key={day.name}
-                      type="button"
-                      aria-pressed={on}
-                      aria-label={day.name}
-                      title={day.name}
-                      disabled={on && schedule.days === bit}
-                      onClick={() => {
-                        save({ schedule: { ...schedule, days: schedule.days ^ bit } });
-                      }}
-                      className="h-6 w-7 rounded-xs text-small font-medium text-ink-muted transition-colors duration-(--duration-fast) ease-(--ease-out) hover:text-ink aria-pressed:bg-selection aria-pressed:text-ink"
-                    >
-                      {day.letter}
-                    </button>
-                  );
-                })}
-              </div>
-            }
+        }
+      />
+      {slow !== null && (
+        <>
+          <LimitRow
+            label="Slower limit"
+            description="When both limits apply, the lower one holds."
+            bytes={slow.limit}
+            onChange={(limit) => {
+              save({ slowHours: { ...slow, limit } });
+            }}
+          />
+          <HoursRows
+            schedule={slow.hours}
+            names={{ hours: "Slower hours", until: "Slower until", days: "Slower days", during: "The lower limit holds from the first time until the second." }}
+            onChange={(hours) => {
+              save({ slowHours: { ...slow, hours } });
+            }}
           />
         </>
       )}
@@ -456,6 +526,7 @@ export function SettingsPage() {
                 Speed
               </h2>
               <SpeedLimit settings={settings} save={save} />
+              <SlowerHours settings={settings} save={save} />
             </section>
             <section aria-labelledby="settings-schedule">
               <h2 id="settings-schedule" className="pb-1 text-label text-ink-muted">

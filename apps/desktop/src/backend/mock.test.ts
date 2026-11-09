@@ -52,10 +52,24 @@ describe("mock backend", () => {
 
   it("honours the speed limit per tick", async () => {
     const backend = createMockBackend();
-    await backend.updateSettings({ downloadDir: "/d", connections: 4, speedLimit: 2 * MB, appearance: "system", excludedSites: ["example.org"], confirmCaptures: false, maxActive: 2, schedule: null });
+    await backend.updateSettings({ downloadDir: "/d", connections: 4, speedLimit: 2 * MB, appearance: "system", excludedSites: ["example.org"], confirmCaptures: false, maxActive: 2, schedule: null, slowHours: null });
     await backend.add("https://example.org/c.bin");
     backend.tick();
     expect((await backend.list())[0]?.received).toBe(Math.floor((2 * MB) / 10));
+  });
+
+  it("takes the lower limit in the slower hours", async () => {
+    const backend = createMockBackend({ now: () => new Date(2026, 10, 9, 12, 0).getTime() });
+    const settings = await backend.settings();
+    const hours = (start: number, stop: number) => ({ limit: MB, hours: { days: 0b111_1111, start, stop } });
+    await backend.updateSettings({ ...settings, speedLimit: 2 * MB, slowHours: hours(9 * 60, 17 * 60) });
+    await backend.add("https://example.org/c.bin");
+    backend.tick();
+    expect((await backend.list())[0]?.received).toBe(Math.floor(MB / 10));
+
+    await backend.updateSettings({ ...settings, speedLimit: 2 * MB, slowHours: hours(18 * 60, 23 * 60) });
+    backend.tick();
+    expect((await backend.list())[0]?.received).toBe(Math.floor(MB / 10) + Math.floor((2 * MB) / 10));
   });
 
   it("refuses what is not a download link, and unknown ids", async () => {

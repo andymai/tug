@@ -69,7 +69,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
   };
   const listeners = new Set<(batch: ProgressBatch) => void>();
-  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null };
+  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null, slowHours: null };
   let scheme = options.colorScheme ?? null;
   const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
   const noticeListeners = new Set<(message: string) => void>();
@@ -155,8 +155,14 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     }
   };
 
+  const limitNow = () => {
+    const slow = settings.slowHours;
+    if (slow === null || !openAt(slow.hours, new Date(now()))) return settings.speedLimit;
+    return Math.min(slow.limit, settings.speedLimit ?? slow.limit);
+  };
+
   const tick = () => {
-    const perTick = Math.floor((settings.speedLimit ?? RATE) / (1000 / TICK_MS));
+    const perTick = Math.floor((limitNow() ?? RATE) / (1000 / TICK_MS));
     const updates: ProgressUpdate[] = [];
     const settled: number[] = [];
     for (const download of downloads.values()) {
@@ -290,8 +296,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         if (next.maxActive < 1 || next.maxActive > 16) {
           throw new BackendError("invalid", `downloads at once must be between 1 and 16, not ${String(next.maxActive)}`);
         }
-        if (next.schedule !== null) {
-          const { days, start, stop } = next.schedule;
+        if (next.slowHours !== null && next.slowHours.limit <= 0) throw new BackendError("invalid", "a speed limit must be above zero");
+        for (const hours of [next.schedule, next.slowHours?.hours ?? null]) {
+          if (hours === null) continue;
+          const { days, start, stop } = hours;
           if (days < 1 || days > 0b111_1111) throw new BackendError("invalid", "a schedule needs at least one day");
           if (start >= 1440 || stop >= 1440) throw new BackendError("invalid", `${String(Math.max(start, stop))} minutes is past the end of a day`);
           if (start === stop) throw new BackendError("invalid", "a schedule must start and stop at different times");

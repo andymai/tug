@@ -8,8 +8,8 @@ use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
     Appearance, Batch, Download, DownloadId, DownloadState, Event, EventKind, Library,
-    LibraryError, Origin, Phase, Place, ProgressStream, Schedule, Settings, Store, StreamOptions,
-    Update,
+    LibraryError, Origin, Phase, Place, ProgressStream, Schedule, Settings, SlowHours, Store,
+    StreamOptions, Update,
 };
 use url::Url;
 
@@ -319,6 +319,33 @@ impl From<ScheduleDto> for Schedule {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "SlowHours")]
+pub struct SlowHoursDto {
+    #[ts(type = "number")]
+    pub limit: u64,
+    pub hours: ScheduleDto,
+}
+
+impl From<SlowHours> for SlowHoursDto {
+    fn from(s: SlowHours) -> Self {
+        Self {
+            limit: s.limit,
+            hours: s.hours.into(),
+        }
+    }
+}
+
+impl From<SlowHoursDto> for SlowHours {
+    fn from(s: SlowHoursDto) -> Self {
+        Self {
+            limit: s.limit,
+            hours: s.hours.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, rename = "Settings")]
@@ -332,6 +359,7 @@ pub struct SettingsDto {
     pub confirm_captures: bool,
     pub max_active: u32,
     pub schedule: Option<ScheduleDto>,
+    pub slow_hours: Option<SlowHoursDto>,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -345,6 +373,7 @@ impl From<&Settings> for SettingsDto {
             confirm_captures: s.confirm_captures,
             max_active: s.max_active,
             schedule: s.schedule.map(ScheduleDto::from),
+            slow_hours: s.slow_hours.map(SlowHoursDto::from),
         }
     }
 }
@@ -375,6 +404,7 @@ impl From<SettingsDto> for Settings {
             confirm_captures: s.confirm_captures,
             max_active: s.max_active,
             schedule: s.schedule.map(Schedule::from),
+            slow_hours: s.slow_hours.map(SlowHours::from),
         }
     }
 }
@@ -972,6 +1002,7 @@ mod tests {
             confirm_captures: true,
             max_active: 3,
             schedule: None,
+            slow_hours: None,
         };
         let dto = SettingsDto {
             connections: 4,
@@ -1113,6 +1144,14 @@ mod tests {
                 days: Schedule::EVERY_DAY,
                 start: 60,
                 stop: 7 * 60,
+            }),
+            slow_hours: Some(SlowHours {
+                limit: 1 << 20,
+                hours: Schedule {
+                    days: 0b001_1111,
+                    start: 9 * 60,
+                    stop: 17 * 60,
+                },
             }),
         };
         assert_eq!(Settings::from(SettingsDto::from(&settings)), settings);
