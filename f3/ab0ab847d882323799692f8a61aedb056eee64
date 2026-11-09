@@ -1,0 +1,64 @@
+crates/tug-core/tests/library.rs
+  s_b050dc8a593981::t_97bf32cab524cd 7-9,158-199
+  s_b050dc8a593981::t_b3b6bb77dcdfef 200-201
+crates/tug-host/tests/host.rs
+  s_b050dc8a593981::t_fac51d06babc56 10,32,47-63,122-152,154
+  s_b050dc8a593981::t_7c19523c9c21e6 153,155
+crates/tug-core/src/lib.rs
+  s_b050dc8a593981::t_314fe042ef5452 2,9
+crates/tug-ipc/src/lib.rs
+  s_b050dc8a593981::t_0f54751ec4a04c 72-76,80-87
+  s_b050dc8a593981::t_5d0540d40e63a9 88-89
+crates/tug-core/src/library.rs
+  s_b050dc8a593981::t_d7650e1b8a4cac 12,76-84,88-95,229,288
+crates/tug-core/src/transfer.rs
+  s_b050dc8a593981::t_d7650e1b8a4cac 9-10,51,55,59,72,82,120
+crates/tug-core/src/store.rs
+  s_b050dc8a593981::t_314fe042ef5452 2-3,13-14,47-54,72-73,201,226-228,234-235,244-277,287-293,443-461,550,563,623
+  s_b050dc8a593981::t_97bf32cab524cd 5,229-233,278-286,665,680-682
+  s_b050dc8a593981::t_20d80c79a9d7ee 641-664,666-679,683-692
+scripts/tray/slow_server.py
+  s_b050dc8a593981::t_85c976fa89b2cb 2,11,27-30
+crates/tug-core/src/origin.rs
+  s_b050dc8a593981::t_97bf32cab524cd 81-85,121-126
+  s_b050dc8a593981::t_5a05a360f2ffda 149
+  s_b050dc8a593981::t_3f2498a064846d 1-80,86-120,127-148,150-163
+crates/tug-ipc/tests/ipc.rs
+  s_b050dc8a593981::t_10f9fbc535a503 175-176
+  s_b050dc8a593981::t_fac51d06babc56 8,27,66,173-174,177-205,243
+apps/desktop/src-tauri/src/cli.rs
+  s_b050dc8a593981::t_0f54751ec4a04c 184-188
+scripts/ipc/check.sh
+  s_b050dc8a593981::t_85c976fa89b2cb 45-46,76-89
+  s_b050dc8a593981::t_b729365fdaa8fe 90
+apps/desktop/src-tauri/src/ipc.rs
+  s_b050dc8a593981::t_8578b94112c9db 5,39,42-46,48-51
+  s_b050dc8a593981::t_b611e40ad6f68d 52
+apps/desktop/src-tauri/src/bridge.rs
+  s_b050dc8a593981::t_106ddc5969c28e 321,857-859
+  s_b050dc8a593981::t_b611e40ad6f68d 11
+  s_b050dc8a593981::t_8578b94112c9db 395,409,428
+crates/tug-core/tests/engine.rs
+  s_b050dc8a593981::t_97bf32cab524cd 7,113-150
+  s_b050dc8a593981::t_410f5d884bad76 151
+crates/tug-host/src/lib.rs
+  s_b050dc8a593981::t_0f54751ec4a04c 8,47-51,205
+CLAUDE.md
+  s_b050dc8a593981::t_106ae60133d41e 23,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3ab0ab847d882323799692f8a61aedb056eee64",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
