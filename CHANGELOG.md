@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/andymai/tug/compare/v0.28.0...v0.29.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** the download list as a dense table with sortable columns you pick ([#125](https://github.com/andymai/tug/issues/125)) ([c211048](https://github.com/andymai/tug/commit/c2110480730a3ac29d492196cc17b3dc1d9c75c7))
+
 ## [0.28.0](https://github.com/andymai/tug/compare/v0.27.0...v0.28.0) (2026-11-09)
 
 
