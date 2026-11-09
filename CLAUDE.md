@@ -37,7 +37,7 @@ distrobox enter dev -- bash -lc 'cd ~/Git/tug && PKG_CONFIG=/usr/bin/pkg-config 
 ```
 
 - `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`
-- `python3 scripts/check-deps.py`, `taplo fmt --check`, `cargo machete`, `cargo deny check`, `cargo audit`
+- `python3 scripts/check-deps.py`, `python3 scripts/check-commands.py` (each Tauri command is registered, and async unless its `SYNC` entry gives a reason), `taplo fmt --check`, `cargo machete`, `cargo deny check`, `cargo audit`
 - `brand/export.sh` after changing `brand/build.py`; `python3 scripts/gen-tokens.py` after changing `design/tokens.json`
 - `scripts/install-data.sh <prefix>` installs the desktop file, the AppStream metainfo and the hicolor icons (`packaging/`, `brand/`); CI validates them with `desktop-file-validate` and `appstreamcli validate`
 - Frontend, on the host with pnpm: `pnpm install`, then `pnpm --filter @tug/desktop dev | typecheck | lint | test | test:visual | build`

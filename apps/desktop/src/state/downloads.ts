@@ -22,6 +22,7 @@ import {
   type Settings,
 } from "../backend/backend";
 import { isCategory } from "../lib/categories";
+import { covering } from "../lib/covering";
 import { queueRanks, sortItems, sortOf } from "../lib/columns";
 
 export type StateView = "all" | "active" | "done" | "failed";
@@ -38,12 +39,12 @@ function patched(settings: Settings, patch: SettingsPatch): Settings {
 }
 export type View = StateView | Category;
 
-export const VIEWS: readonly { id: StateView; label: string; states: readonly DownloadState[] }[] = [
+export const VIEWS: readonly { id: StateView; label: string; states: readonly DownloadState[] }[] = covering<StateView>().by<"id">()([
   { id: "all", label: "All", states: ["queued", "downloading", "paused", "done", "failed"] },
   { id: "active", label: "Active", states: ["queued", "downloading", "paused"] },
   { id: "done", label: "Done", states: ["done"] },
   { id: "failed", label: "Failed", states: ["failed"] },
-];
+]);
 
 export interface DownloadsState {
   items: Download[];

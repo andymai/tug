@@ -1162,7 +1162,6 @@ pub fn started<R: tauri::Runtime>(app: &AppHandle<R>, id: DownloadId) {
     }
 }
 
-#[tauri::command]
 pub fn emit_captures<R: tauri::Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AppState>();
     let _sent = app.emit(CAPTURES_EVENT, state.captures());
@@ -1372,17 +1371,27 @@ fn opener_error(e: &tauri_plugin_opener::Error) -> CommandError {
     }
 }
 
+// The launcher and the file manager answer in their own time, and a file check
+// on a stalled mount blocks: both wait on a blocking thread, not the window's.
+async fn off_window<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, CommandError> + Send + 'static,
+) -> Result<T, CommandError> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| CommandError {
+            kind: ErrorKind::Internal,
+            message: e.to_string(),
+        })?
+}
+
 #[tauri::command]
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "Tauri injects AppHandle and State by value"
-)]
-pub fn open_file(
+pub async fn open_file(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<(), CommandError> {
-    open_download(&app, &state.library.get(DownloadId::from(id))?)
+    let download = state.library.get(DownloadId::from(id))?;
+    off_window(move || open_download(&app, &download)).await
 }
 
 pub fn open_download<R: tauri::Runtime>(
@@ -1396,16 +1405,13 @@ pub fn open_download<R: tauri::Runtime>(
 }
 
 #[tauri::command]
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "Tauri injects AppHandle and State by value"
-)]
-pub fn show_in_folder(
+pub async fn show_in_folder(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<(), CommandError> {
-    reveal_download(&app, &state.library.get(DownloadId::from(id))?)
+    let download = state.library.get(DownloadId::from(id))?;
+    off_window(move || reveal_download(&app, &download)).await
 }
 
 pub fn reveal_download<R: tauri::Runtime>(

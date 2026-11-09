@@ -107,6 +107,7 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 scripts/check-deps.py
+      - run: python3 scripts/check-commands.py
 
   deny:
     name: Cargo Deny

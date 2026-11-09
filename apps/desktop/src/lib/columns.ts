@@ -1,5 +1,6 @@
 import type { Download, ProgressUpdate, Settings } from "../backend/backend";
 import { CATEGORIES } from "./categories";
+import { covering } from "./covering";
 import { percentOf } from "./format";
 
 export type ColumnId = "name" | "status" | "progress" | "size" | "speed" | "left" | "connections" | "source" | "type" | "added" | "queue";
@@ -15,7 +16,7 @@ export interface Column {
   down: boolean;
 }
 
-export const COLUMNS: readonly Column[] = [
+export const COLUMNS: readonly Column[] = covering<ColumnId>().by<"id">()([
   { id: "name", label: "Name", numeric: false, down: false },
   { id: "status", label: "Status", px: 112, numeric: false, down: false },
   { id: "progress", label: "Progress", px: 144, numeric: false, down: true },
@@ -27,7 +28,7 @@ export const COLUMNS: readonly Column[] = [
   { id: "type", label: "Type", px: 112, numeric: false, down: false },
   { id: "added", label: "Added", px: 144, numeric: true, down: true },
   { id: "queue", label: "Queue", px: 64, numeric: true, down: false },
-];
+]);
 
 // In a narrow list the chosen columns leave in this order, so the name keeps room to read.
 const DROP_ORDER: readonly ColumnId[] = ["source", "type", "added", "connections", "left", "queue", "speed", "size", "progress"];

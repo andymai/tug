@@ -2,13 +2,14 @@ import { Search } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { type Command, commands, type Group, rank } from "../lib/commands";
+import { covering } from "../lib/covering";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
 import { Keys } from "./Kbd";
 
 type Entry = Omit<Command, "group"> & { group: Group | "Go to download" };
 
-const GROUPS: readonly Entry["group"][] = ["Selected download", "Selected downloads", "Go to download", "Downloads", "Views", "Help"];
+const GROUPS = covering<Entry["group"]>().names(["Selected download", "Selected downloads", "Go to download", "Downloads", "Views", "Help"]);
 
 function Palette({ choose, labelId }: { choose: (run: () => void) => void; labelId: string }) {
   const store = useDownloadsStore();
