@@ -3,6 +3,7 @@ mod browsers;
 mod cli;
 mod format;
 mod ipc;
+mod notify;
 mod tray;
 
 use std::process::ExitCode;
@@ -42,6 +43,7 @@ fn main() -> Result<ExitCode, tauri::Error> {
                 state.library(),
                 state.subscribe(),
             );
+            notify::spawn(app.handle(), state.library(), state.subscribe());
             if let Some(server) = server {
                 ipc::serve(app.handle(), state.library(), server);
             }

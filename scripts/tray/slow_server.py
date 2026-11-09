@@ -26,17 +26,22 @@ def pace(n):
 
 class Slow(http.server.BaseHTTPRequestHandler):
     def send_range(self, body):
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        if "status" in query:
+            self.send_error(int(query["status"][0]))
+            return
+        size = int(query.get("size", [SIZE])[0])
         if LOG:
             fields = [self.path] + [self.headers.get(h, "") for h in ("Cookie", "Referer", "User-Agent", "Sec-Fetch-Mode")]
             with lock, open(LOG, "a") as log:
                 log.write("\t".join(fields) + "\n")
-        start, end = 0, SIZE - 1
+        start, end = 0, size - 1
         match = re.match(r"bytes=(\d+)-(\d*)", self.headers.get("Range", ""))
         if match:
             start = int(match.group(1))
-            end = int(match.group(2)) if match.group(2) else SIZE - 1
+            end = int(match.group(2)) if match.group(2) else size - 1
             self.send_response(206)
-            self.send_header("Content-Range", f"bytes {start}-{end}/{SIZE}")
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
         else:
             self.send_response(200)
         self.send_header("Accept-Ranges", "bytes")

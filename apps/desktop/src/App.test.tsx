@@ -382,6 +382,23 @@ describe("capture sheet", () => {
   });
 });
 
+describe("notifications", () => {
+  it("goes to the download a notification shows, from any page", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    const done = (await backend.list()).find((d) => d.state === "done");
+    expect(done).toBeDefined();
+
+    act(() => {
+      backend.focus(done?.id ?? 0);
+    });
+    expect(await screen.findByRole("complementary", { name: done?.name ?? "" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1, name: "Settings" })).not.toBeInTheDocument();
+  });
+});
+
 describe("command bar and keyboard", () => {
   it("opens on Ctrl+K and runs the chosen command", async () => {
     const { user } = open();

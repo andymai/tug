@@ -40,6 +40,7 @@ export interface Backend {
   pendingCaptures(): Promise<Download[]>;
   answerCapture(id: number, answer: CaptureAnswer): Promise<void>;
   onCaptures(listener: (captures: Download[]) => void): Promise<() => void>;
+  onFocusDownload(listener: (id: number) => void): Promise<() => void>;
 }
 
 export function isCommandError(error: unknown): error is CommandError {

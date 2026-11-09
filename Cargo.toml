@@ -35,6 +35,7 @@ ts-rs = "12"
 tug-core = {path = "crates/tug-core"}
 tug-ipc = {path = "crates/tug-ipc"}
 url = "2"
+zbus = {version = "5", default-features = false, features = ["tokio"]}
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

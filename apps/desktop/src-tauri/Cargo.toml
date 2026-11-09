@@ -27,6 +27,7 @@ ts-rs.workspace = true
 tug-core.workspace = true
 tug-ipc.workspace = true
 url.workspace = true
+zbus.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
