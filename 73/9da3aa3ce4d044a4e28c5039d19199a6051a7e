@@ -1,0 +1,62 @@
+apps/desktop/src-tauri/src/bridge.rs
+  s_b321718d129a1e::t_75509572e972b3 1376-1386,1388,1411
+  s_b321718d129a1e::t_58e1f36c0fe403 975,989,992,1028,1042,1169,1196,1231,1244,1393,1396,1401-1407,1416,1419,1423-1425,1434-1435
+  s_b321718d129a1e::t_ec7e70f7ef3cfe 1373-1375
+apps/desktop/src/lib/commands.ts
+  s_b321718d129a1e::t_555992b6e9d71a 30,57
+  s_b321718d129a1e::t_6c425c6bc2f109 52
+apps/desktop/src/lib/categories.ts
+  s_b321718d129a1e::t_6c425c6bc2f109 13
+  s_b321718d129a1e::t_555992b6e9d71a 4,6-12,22
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_86c619fc36949a 25,47
+  s_b321718d129a1e::t_6c425c6bc2f109 42
+  s_b321718d129a1e::t_126fa964ffce2a 71,162-165,186-208,720,722,724,728,811,816
+.github/workflows/ci.yml
+  s_b321718d129a1e::t_87923b5498ccc6 110
+apps/desktop/src/lib/columns.ts
+  s_b321718d129a1e::t_555992b6e9d71a 3,31
+  s_b321718d129a1e::t_6c425c6bc2f109 19
+apps/desktop/eslint.config.js
+  s_b321718d129a1e::t_2357cd9756d54a 18,19-20
+  s_b321718d129a1e::t_c424dc61b8bc1a 29-43
+apps/desktop/src/lib/covering.ts
+  s_b321718d129a1e::t_087f9bfe224d0f 1-2,16-17,20,23-25
+  s_b321718d129a1e::t_6c425c6bc2f109 19,21
+  s_b321718d129a1e::t_8e107c908bdfc5 3-9,12-15
+apps/desktop/src/lib/covering.test.ts
+  s_b321718d129a1e::t_b9435e88d43ac8 1-7,9-14,25-26
+  s_b321718d129a1e::t_8e107c908bdfc5 8,15-18
+apps/desktop/src/components/CommandBar.tsx
+  s_b321718d129a1e::t_555992b6e9d71a 12
+  s_b321718d129a1e::t_86c619fc36949a 5
+scripts/check-commands.py
+  s_b321718d129a1e::t_d6d782b0d75b0a 1,6-13,15,17-18,23-24,45,48,72-73,75,78,81,83,87,90-93,95-99
+  s_b321718d129a1e::t_ec7e70f7ef3cfe 2-5,14,16,37-39,42-44,48,57-58,62-71,74,76-77,79-80,82,84
+.husky/pre-commit
+  s_b321718d129a1e::t_87923b5498ccc6 21
+CLAUDE.md
+  s_b321718d129a1e::t_9068bf11fda6e3 53
+apps/desktop/src-tauri/src/notify.rs
+  s_b321718d129a1e::t_58e1f36c0fe403 132,141-142,193
+apps/desktop/src/components/DetailPanel.tsx
+  s_b321718d129a1e::t_73696a35df2aad 51
+apps/desktop/src/state/downloads.test.ts
+  s_b321718d129a1e::t_ca6789b7650897 522,550
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "739da3aa3ce4d044a4e28c5039d19199a6051a7e",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
