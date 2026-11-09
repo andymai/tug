@@ -1,0 +1,43 @@
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_fda9fbbd175445 15,50-58,139-152,156-174,210-214,248-252,255-256,262,264,274,276-284,681-682
+crates/tug-core/src/settings.rs
+  s_b321718d129a1e::t_3dc7b61bb10829 468
+  s_b321718d129a1e::t_fda9fbbd175445 467,469-479
+crates/tug-core/tests/library.rs
+  s_b321718d129a1e::t_3dc7b61bb10829 8-9,636,640-641,676-679,684-688
+  s_b321718d129a1e::t_00fafdd1ca9776 634-635,637-639,642-675,680-683,689-701
+  s_b321718d129a1e::t_325abde2f9acf6 702-704
+crates/tug-core/tests/settings.rs
+  s_b321718d129a1e::t_fcfa990de1a83a 162,172-180
+  s_b321718d129a1e::t_3dc7b61bb10829 168-171
+  s_b321718d129a1e::t_00fafdd1ca9776 9-10,148-161,163-167,181-211
+  s_b321718d129a1e::t_fbd0e6e73b5055 212-213
+crates/tug-core/src/transfer.rs
+  s_b321718d129a1e::t_fda9fbbd175445 73-74,83,210-215,276
+apps/desktop/src-tauri/src/bridge.rs
+  s_b321718d129a1e::t_8d422bbc784e03 1165-1166
+apps/desktop/src-tauri/src/notify.rs
+  s_b321718d129a1e::t_8d422bbc784e03 240-241
+crates/tug-core/src/store.rs
+  s_b321718d129a1e::t_8d422bbc784e03 1261-1262
+  s_b321718d129a1e::t_a0dc6fb858d51b 76-78,233-235,523-536,749,803-804,822-827,871,884,944,1147
+  s_b321718d129a1e::t_e944f96e1c46c8 75
+crates/tug-core/src/lib.rs
+  s_b321718d129a1e::t_fda9fbbd175445 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b040da20b9010ea1a851c0f99486a0248c6e6441",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
