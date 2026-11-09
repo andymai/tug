@@ -75,7 +75,6 @@ impl Swarm {
     }
 }
 
-// What a torrent holds and who shares it, in Tug's own words.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TorrentView {
     pub files: Vec<TorrentFile>,

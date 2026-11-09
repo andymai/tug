@@ -100,9 +100,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   const history = new Map<number, DownloadEvent[]>();
   const origins = new Map<number, { referrer: string | null; cookies: string | null; userAgent: string | null }>();
   const chosenFiles = new Map<number, number[]>();
+  // The whole torrent's size, apart from the chosen files' size the row shows.
+  const fullSizes = new Map<number, number>();
   // A torrent of three files, the first most of it, as many are.
   const torrentFiles = (download: Download) => {
-    const size = download.size ?? 0;
+    if (!fullSizes.has(download.id)) fullSizes.set(download.id, download.size ?? 0);
+    const size = fullSizes.get(download.id) ?? 0;
     const stem = download.name.replace(/\.[^.]+$/, "");
     return [
       { index: 0, path: `${stem}.mkv`, size: Math.round(size * 0.97) },

@@ -696,6 +696,42 @@ describe("detail panel", () => {
     expect(plain.getByRole("tab", { name: "Overview" }), "a tab the download lacks shows its Overview").toHaveAttribute("aria-selected", "true");
   });
 
+  it("takes one file choice at a time, and keeps the peer totals with no peer", async () => {
+    const magnet = "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056&dn=Open%20Movie";
+    const backend = createMockBackend({ seed: [{ url: magnet, state: "paused", progress: 0.4, size: 2 * 1024 * MB }] });
+    const answers: (() => void)[] = [];
+    const slow = {
+      ...backend,
+      chooseFiles: (id: number, files: number[]) =>
+        new Promise<Awaited<ReturnType<typeof backend.chooseFiles>>>((resolve) => {
+          answers.push(() => {
+            resolve(backend.chooseFiles(id, files));
+          });
+        }),
+    };
+    render(<App store={createDownloadsStore(slow)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^Open Movie/ }));
+    const panel = within(screen.getByRole("complementary", { name: "Open Movie" }));
+    await user.click(panel.getByRole("tab", { name: "Files" }));
+    const files = within(await panel.findByRole("region", { name: "Files" }));
+    await user.click(files.getByRole("checkbox", { name: "README.txt" }));
+    expect(files.getByRole("checkbox", { name: "Subtitles/en.srt" }), "no second choice during a save").toBeDisabled();
+    await act(async () => {
+      answers.shift()?.();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => {
+      expect(files.getByRole("checkbox", { name: "Subtitles/en.srt" })).toBeEnabled();
+    });
+
+    await user.click(panel.getByRole("tab", { name: "Peers" }));
+    const peers = within(await panel.findByRole("region", { name: "Peers" }));
+    expect(peers.getByText("0 connected · 0 seen")).toBeInTheDocument();
+    expect(peers.getByText("Tug shows the peers while the torrent runs.")).toBeInTheDocument();
+    expect(peers.getByText(/Sent to peers/)).toBeInTheDocument();
+  });
+
   it("closes with its button and with Escape", async () => {
     const { user } = open();
     const row = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });

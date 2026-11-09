@@ -63,6 +63,10 @@ pub enum LibraryError {
     BadFiles,
     #[error("a finished torrent's files are there already")]
     TorrentDone,
+    #[error(
+        "Tug can change the files while the torrent runs or waits, not while it starts or ends"
+    )]
+    TorrentBusy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -328,6 +332,11 @@ impl Library {
         let swarm = self.swarm.as_ref().ok_or(LibraryError::NoTorrents)?;
         let (hash, bytes) = self.store()?.torrent(id)?.ok_or(LibraryError::NoFileList)?;
         let session = swarm.session().await?;
+        // A running transfer outside the session is still adding the torrent, with
+        // the choice it began with, or has finished it: a new choice would be lost.
+        if running.contains_key(&id) && !session.has(&hash) {
+            return Err(LibraryError::TorrentBusy);
+        }
         let entries = match session.files(&hash) {
             Some((entries, _, _)) => entries,
             None => {
@@ -347,11 +356,22 @@ impl Library {
         let all = entries.iter().filter(|e| !e.padding).count() == chosen.len();
         self.store()?
             .set_torrent_files(id, (!all).then_some(chosen.as_slice()))?;
-        if session.has(&hash) {
+        // The list and the window show the chosen files' size at once, paused too.
+        let (received, total) = if session.has(&hash) {
             session
                 .choose(&hash, &chosen.iter().copied().collect())
                 .await?;
-        }
+            let stats = session.stats(&hash)?;
+            (stats.done, stats.total)
+        } else {
+            let total = chosen
+                .iter()
+                .filter_map(|i| entries.get(*i))
+                .map(|e| e.size)
+                .sum();
+            (download.received.min(total), total)
+        };
+        self.store()?.set_progress(id, received, Some(total))?;
         drop(running);
         self.changed(id);
         Ok(())

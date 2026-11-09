@@ -797,7 +797,8 @@ impl From<LibraryError> for CommandError {
             | LibraryError::Origin(_)
             | LibraryError::NoFileList
             | LibraryError::BadFiles
-            | LibraryError::TorrentDone => ErrorKind::Invalid,
+            | LibraryError::TorrentDone
+            | LibraryError::TorrentBusy => ErrorKind::Invalid,
             LibraryError::Store(_) | LibraryError::Delete { .. } | LibraryError::Rename { .. } => {
                 ErrorKind::Storage
             }

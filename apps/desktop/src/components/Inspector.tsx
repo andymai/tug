@@ -312,8 +312,11 @@ export function useTorrentView(download: Download, watching: boolean): TorrentVi
 
 const NO_LIST = "Tug shows a torrent's files and peers once its peers send its list of files.";
 
+// One choice at a time: each builds on the last saved one, so a second click
+// during a save could tick a file again.
 export function FilesPanel({ download, view }: { download: Download; view: TorrentView | null | undefined }) {
   const chooseFiles = useDownloads((s) => s.chooseFiles);
+  const [saving, setSaving] = useState(false);
   const headingId = useId();
   if (view === undefined) return null;
   if (view === null) return <Empty>{NO_LIST}</Empty>;
@@ -321,7 +324,10 @@ export function FilesPanel({ download, view }: { download: Download; view: Torre
   const size = chosen.reduce((sum, file) => sum + file.size, 0);
   const done = download.state === "done";
   const choose = (files: number[]) => {
-    void chooseFiles(download.id, files);
+    setSaving(true);
+    void chooseFiles(download.id, files).finally(() => {
+      setSaving(false);
+    });
   };
   const files = [...view.files].sort((a, b) => a.path.localeCompare(b.path));
   return (
@@ -334,6 +340,7 @@ export function FilesPanel({ download, view }: { download: Download; view: Torre
           <Button
             size="sm"
             variant="quiet"
+            disabled={saving}
             onClick={() => {
               choose(view.files.map((file) => file.index));
             }}
@@ -351,7 +358,7 @@ export function FilesPanel({ download, view }: { download: Download; view: Torre
                 type="checkbox"
                 aria-label={file.path}
                 checked={file.chosen}
-                disabled={done || only}
+                disabled={done || only || saving}
                 title={only ? "A torrent needs at least one file" : undefined}
                 onChange={() => {
                   choose(chosen.map((c) => c.index).filter((index) => index !== file.index).concat(file.chosen ? [] : [file.index]));
@@ -377,48 +384,51 @@ export function PeersPanel({ download, view }: { download: Download; view: Torre
   const headingId = useId();
   if (view === undefined) return null;
   if (view === null) return <Empty>{NO_LIST}</Empty>;
-  if (view.peers.length === 0) {
-    return <Empty>{download.state === "downloading" ? "No peer is connected yet." : "Tug shows the peers while the torrent runs."}</Empty>;
-  }
   return (
     <section aria-labelledby={headingId} className="px-4 py-4">
       <Heading id={headingId} end={`${String(view.peersLive)} connected · ${String(view.peersSeen)} seen`}>
         Peers
       </Heading>
-      <table aria-labelledby={headingId} className="w-full table-fixed border-collapse text-small">
-        <colgroup>
-          <col />
-          <col className="w-20" />
-          <col className="w-16" />
-        </colgroup>
-        <thead>
-          <tr className="text-label text-ink-muted">
-            <th scope="col" className="h-6 text-left font-medium">
-              Peer
-            </th>
-            <th scope="col" className="text-right font-medium">
-              Received
-            </th>
-            <th scope="col" className="text-right font-medium">
-              Sent
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {view.peers.map((peer) => (
-            <tr key={peer.address} className="border-t border-line">
-              <td className="py-1">
-                <span className="block truncate text-mono text-ink">{peer.address}</span>
-                <span className="block truncate text-ink-muted">
-                  {[peer.client ?? "Unknown client", peer.transport?.toUpperCase()].filter((part) => part !== undefined).join(" · ")}
-                </span>
-              </td>
-              <td className="text-right text-mono text-ink">{formatBytes(peer.received)}</td>
-              <td className="text-right text-mono text-ink-muted">{peer.sent > 0 ? formatBytes(peer.sent) : ""}</td>
+      {view.peers.length === 0 ? (
+        <p className="text-small text-ink-muted">
+          {download.state === "downloading" ? "No peer is connected now." : "Tug shows the peers while the torrent runs."}
+        </p>
+      ) : (
+        <table aria-labelledby={headingId} className="w-full table-fixed border-collapse text-small">
+          <colgroup>
+            <col />
+            <col className="w-20" />
+            <col className="w-16" />
+          </colgroup>
+          <thead>
+            <tr className="text-label text-ink-muted">
+              <th scope="col" className="h-6 text-left font-medium">
+                Peer
+              </th>
+              <th scope="col" className="text-right font-medium">
+                Received
+              </th>
+              <th scope="col" className="text-right font-medium">
+                Sent
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {view.peers.map((peer) => (
+              <tr key={peer.address} className="border-t border-line">
+                <td className="py-1" title={[peer.address, peer.client, peer.transport?.toUpperCase()].filter((part) => part != null).join(" · ")}>
+                  <span className="block truncate text-mono text-ink">{peer.address}</span>
+                  <span className="block truncate text-ink-muted">
+                    {[peer.client ?? "Unknown client", peer.transport?.toUpperCase()].filter((part) => part !== undefined).join(" · ")}
+                  </span>
+                </td>
+                <td className="text-right text-mono text-ink">{formatBytes(peer.received)}</td>
+                <td className="text-right text-mono text-ink-muted">{peer.sent > 0 ? formatBytes(peer.sent) : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       <p className="pt-2 text-small text-ink-muted">
         Sent to peers: <span className="text-mono text-ink">{formatBytes(view.uploaded)}</span>
       </p>

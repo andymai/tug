@@ -198,6 +198,11 @@ async fn a_torrent_downloads_only_the_files_chosen_for_it() {
     library.choose_files(id, &[a]).await.unwrap();
     let chosen = library.torrent_view(id).await.unwrap().unwrap();
     assert!(file(&chosen, "a.bin").chosen && !file(&chosen, "b.bin").chosen);
+    assert_eq!(
+        library.get(id).unwrap().size,
+        Some(64 * 1024),
+        "a paused torrent's size follows the choice"
+    );
 
     library.resume(id).await.unwrap();
     tick_until(&library, id, DownloadState::Done).await;
