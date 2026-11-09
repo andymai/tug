@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.27.0](https://github.com/andymai/tug/compare/v0.26.0...v0.27.0) (2026-11-09)
+
+
+### Features
+
+* **core:** download torrents and magnet links through mdm-torrent ([#120](https://github.com/andymai/tug/issues/120)) ([4542a2d](https://github.com/andymai/tug/commit/4542a2d02c2a2442354e1ceda19daf0224ec4f90))
+
+
+### Bug Fixes
+
+* **core:** keep a torrent that a Tug without torrents can't delete ([#121](https://github.com/andymai/tug/issues/121)) ([cdf4411](https://github.com/andymai/tug/commit/cdf4411e1e6b32cf4c4a75e454df3864b71a6f6b))
+
 ## [0.26.0](https://github.com/andymai/tug/compare/v0.25.1...v0.26.0) (2026-11-09)
 
 
