@@ -161,7 +161,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     return Math.min(slow.limit, settings.speedLimit ?? slow.limit);
   };
 
-  // With a schedule, each tick stops or starts downloads at the hours' edges, as Tug does.
+  // Only a schedule moves downloads on a tick, so without one the seeded states stay for the screenshots.
   const keepHours = () => {
     if (settings.schedule === null) return 0;
     if (openAt(settings.schedule, new Date(now()))) {
