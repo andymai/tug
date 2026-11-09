@@ -72,10 +72,13 @@ impl SystemLauncher {
 
 impl Default for SystemLauncher {
     fn default() -> Self {
-        Self::new(vec![
-            vec!["tug".into()],
-            vec!["flatpak".into(), "run".into(), tug_ipc::APP_ID.into()],
-        ])
+        let beside = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent()?.join("tug").to_str().map(str::to_owned));
+        let mut commands: Vec<Vec<String>> = beside.into_iter().map(|tug| vec![tug]).collect();
+        commands.push(vec!["tug".into()]);
+        commands.push(vec!["flatpak".into(), "run".into(), tug_ipc::APP_ID.into()]);
+        Self::new(commands)
     }
 }
 
