@@ -223,6 +223,16 @@ describe("downloads store", () => {
     expect((await backend.settings()).savedViews).toHaveLength(50);
   });
 
+  it("knows a saved search however its spaces are typed", async () => {
+    const { backend, store } = await ready();
+    store.getState().setSearch(" report  june ");
+    store.getState().saveView();
+    await vi.waitFor(async () => {
+      expect((await backend.settings()).savedViews.map((v) => v.query)).toEqual(["report june"]);
+    });
+    expect(savedViewOf(store.getState())?.query).toBe("report june");
+  });
+
   it("says why a view didn't save, and a failed save doesn't take the next one down", async () => {
     const backend = createMockBackend({ seed: showcase });
     let fail = true;
