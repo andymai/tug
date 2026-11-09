@@ -200,6 +200,33 @@ async fn a_browser_origin_survives_a_restart_and_is_forgotten_when_done() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_paused_add_waits_for_resume_then_downloads_with_its_origin() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(Store::open_in_memory().unwrap())
+        .await
+        .unwrap();
+    let origin = Origin::new(None, Some("session=wait"), None).unwrap();
+
+    let url = lab.url("/gen/2M/held.bin?seed=37").parse().unwrap();
+    let id = library.add_paused(url, dir.path(), &origin).unwrap();
+    assert_eq!(state_of(&library, id), DownloadState::Paused);
+    assert_eq!(kinds(&library, id), vec![EventKind::Added]);
+    library.tick().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(lab.log().is_empty(), "a paused add sent {:?}", lab.log());
+
+    library.resume(id).await.unwrap();
+    tick_until(&library, |l| state_of(l, id) == DownloadState::Done).await;
+    assert_intact(&library.get(id).unwrap().file.unwrap(), 37, 2 << 20);
+    assert!(
+        lab.log()
+            .iter()
+            .all(|e| e.cookie.as_deref() == Some("session=wait"))
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn removing_with_delete_clears_the_partial_files() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();

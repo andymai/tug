@@ -62,6 +62,8 @@ impl<R: Runtime> Handler for DesktopHandler<R> {
                     } else {
                         None
                     };
+                    let ask = settings.as_ref().is_some_and(|s| s.confirm_captures);
+                    let mut asked = false;
                     for url in urls {
                         let excluded = settings.as_ref().and_then(|settings| {
                             let referrer = origin.as_ref().ok().and_then(Origin::referrer);
@@ -69,16 +71,30 @@ impl<R: Runtime> Handler for DesktopHandler<R> {
                         });
                         let result = match (&origin, excluded) {
                             (_, Some(reason)) => Err(bridge::CommandError::invalid(reason)),
-                            (Ok(origin), None) => bridge::add(&library, &url, None, origin).await,
+                            (Ok(origin), None) => {
+                                bridge::add(&library, &url, None, origin, ask).await
+                            }
                             (Err(e), None) => Err(bridge::CommandError::invalid(e.to_string())),
                         }
                         .and_then(|dto| Ok(library.get(DownloadId::from(dto.id))?));
                         match result {
-                            Ok(download) => added.push(entry(&download)),
+                            Ok(download) => {
+                                if ask {
+                                    app.state::<bridge::AppState>().ask(download.id);
+                                    asked = true;
+                                }
+                                added.push(entry(&download));
+                            }
                             Err(e) => failed.push(Failure {
                                 url,
                                 reason: e.message,
                             }),
+                        }
+                    }
+                    if asked {
+                        bridge::emit_captures(&app);
+                        if let Some(window) = app.get_webview_window("main") {
+                            tray::show(&window);
                         }
                     }
                     Response::Added { added, failed }

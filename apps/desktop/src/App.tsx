@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { AddDialog } from "./components/AddDialog";
+import { CaptureSheet } from "./components/CaptureSheet";
 import { CommandBar } from "./components/CommandBar";
 import { DownloadList } from "./components/DownloadList";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
@@ -39,6 +40,7 @@ export function App({ store }: { store: DownloadsStore }) {
       <CommandBar />
       <ShortcutsDialog />
       <LinkCapture />
+      <CaptureSheet />
       <KeyboardShortcuts />
       <Theme />
     </DownloadsContext>

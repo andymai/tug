@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import {
   type Backend,
   BackendError,
+  type CaptureAnswer,
   type ColorScheme,
   type Download,
   type DownloadEvent,
@@ -14,6 +15,7 @@ import {
 export const PROGRESS_EVENT = "progress";
 export const COLOR_SCHEME_EVENT = "color-scheme";
 export const NOTICE_EVENT = "notice";
+export const CAPTURES_EVENT = "captures";
 
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   try {
@@ -46,6 +48,12 @@ export const tauriBackend: Backend = {
     }),
   onProgress: (listener) =>
     listen<ProgressBatch>(PROGRESS_EVENT, (event) => {
+      listener(event.payload);
+    }),
+  pendingCaptures: () => call<Download[]>("pending_captures"),
+  answerCapture: (id, answer: CaptureAnswer) => call("answer_capture", { id, answer }),
+  onCaptures: (listener) =>
+    listen<Download[]>(CAPTURES_EVENT, (event) => {
       listener(event.payload);
     }),
 };

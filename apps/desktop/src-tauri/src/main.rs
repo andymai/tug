@@ -65,6 +65,8 @@ fn main() -> Result<ExitCode, tauri::Error> {
             bridge::pause_download,
             bridge::resume_download,
             bridge::remove_download,
+            bridge::pending_captures,
+            bridge::answer_capture,
             bridge::get_settings,
             bridge::update_settings,
             bridge::open_file,

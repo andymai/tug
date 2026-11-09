@@ -88,7 +88,7 @@ assert bad[\"failed\"] == [{\"url\": \"http://127.0.0.1:8766/bad.bin\", \"reason
     sent=$(awk -F "\t" "\$1 == \"/origin.bin\"" "$requests")
     [ -n "$sent" ] || fail "the server never saw origin.bin"
     expect "every origin.bin request carries the origin" \
-      "$(cut -f2- <<<"$sent" | sort -u)" "$(printf "session=abc123\thttp://127.0.0.1:8766/page\tMozilla/5.0 TugCheck")"
+      "$(cut -f2-4 <<<"$sent" | sort -u)" "$(printf "session=abc123\thttp://127.0.0.1:8766/page\tMozilla/5.0 TugCheck")"
     echo "ok: a bad origin fails that link with the reason"
 
     root=$(dirname "$XDG_CONFIG_HOME")

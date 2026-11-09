@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,16 @@ use url::Url;
 
 pub const PROGRESS_EVENT: &str = "progress";
 pub const COLOR_SCHEME_EVENT: &str = "color-scheme";
+pub const CAPTURES_EVENT: &str = "captures";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum CaptureAnswer {
+    Download,
+    Cancel,
+    Later,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
@@ -265,6 +275,7 @@ pub struct SettingsDto {
     pub speed_limit: Option<u64>,
     pub appearance: AppearanceDto,
     pub excluded_sites: Vec<String>,
+    pub confirm_captures: bool,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -275,6 +286,7 @@ impl From<&Settings> for SettingsDto {
             speed_limit: s.speed_limit,
             appearance: s.appearance.into(),
             excluded_sites: s.excluded_sites.clone(),
+            confirm_captures: s.confirm_captures,
         }
     }
 }
@@ -302,6 +314,7 @@ impl From<SettingsDto> for Settings {
                 .into_iter()
                 .map(|entry| tug_core::site(&entry).unwrap_or(entry))
                 .collect(),
+            confirm_captures: s.confirm_captures,
         }
     }
 }
@@ -352,11 +365,38 @@ impl From<LibraryError> for CommandError {
 pub struct AppState {
     library: Arc<Library>,
     stream: ProgressStream,
+    captures: Mutex<Vec<DownloadId>>,
 }
 
 impl AppState {
     pub fn library(&self) -> Arc<Library> {
         Arc::clone(&self.library)
+    }
+
+    pub fn ask(&self, id: DownloadId) {
+        if let Ok(mut captures) = self.captures.lock() {
+            captures.push(id);
+        }
+    }
+
+    fn answered(&self, id: DownloadId) {
+        if let Ok(mut captures) = self.captures.lock() {
+            captures.retain(|&waiting| waiting != id);
+        }
+    }
+
+    pub fn captures(&self) -> Vec<DownloadDto> {
+        let waiting = self
+            .captures
+            .lock()
+            .map(|captures| captures.clone())
+            .unwrap_or_default();
+        waiting
+            .into_iter()
+            .filter_map(|id| self.library.get(id).ok())
+            .filter(|download| download.state == DownloadState::Paused)
+            .map(|download| DownloadDto::from(&download))
+            .collect()
     }
 
     pub fn subscribe(&self) -> tokio::sync::watch::Receiver<Arc<Batch>> {
@@ -375,7 +415,11 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     })?;
     forward_progress(app.handle().clone(), &stream);
     forward_color_scheme(app.handle().clone());
-    app.manage(AppState { library, stream });
+    app.manage(AppState {
+        library,
+        stream,
+        captures: Mutex::default(),
+    });
     Ok(())
 }
 
@@ -400,6 +444,7 @@ pub async fn add(
     url: &str,
     dir: Option<&str>,
     origin: &Origin,
+    paused: bool,
 ) -> Result<DownloadDto, CommandError> {
     let url = Url::parse(url.trim())
         .map_err(|e| CommandError::invalid(format!("{url} is not a link: {e}")))?;
@@ -413,7 +458,11 @@ pub async fn add(
         Some(dir) => PathBuf::from(dir),
         None => library.settings()?.download_dir,
     };
-    let id = library.add_from(url, &dir, origin).await?;
+    let id = if paused {
+        library.add_paused(url, &dir, origin)?
+    } else {
+        library.add_from(url, &dir, origin).await?
+    };
     Ok(DownloadDto::from(&library.get(id)?))
 }
 
@@ -432,7 +481,14 @@ pub async fn add_download(
     url: String,
     dir: Option<String>,
 ) -> Result<DownloadDto, CommandError> {
-    add(&state.library, &url, dir.as_deref(), &Origin::default()).await
+    add(
+        &state.library,
+        &url,
+        dir.as_deref(),
+        &Origin::default(),
+        false,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -449,6 +505,39 @@ pub async fn resume_download(
     id: i64,
 ) -> Result<(), CommandError> {
     Ok(state.library.resume(DownloadId::from(id)).await?)
+}
+
+#[tauri::command]
+pub fn emit_captures<R: tauri::Runtime>(app: &AppHandle<R>) {
+    let state = app.state::<AppState>();
+    let _sent = app.emit(CAPTURES_EVENT, state.captures());
+}
+
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects State by value"
+)]
+pub fn pending_captures(state: tauri::State<'_, AppState>) -> Vec<DownloadDto> {
+    state.captures()
+}
+
+#[tauri::command]
+pub async fn answer_capture(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    answer: CaptureAnswer,
+) -> Result<(), CommandError> {
+    let id = DownloadId::from(id);
+    state.answered(id);
+    let result = match answer {
+        CaptureAnswer::Download => state.library.resume(id).await,
+        CaptureAnswer::Cancel => state.library.remove(id, true).await,
+        CaptureAnswer::Later => Ok(()),
+    };
+    emit_captures(&app);
+    Ok(result?)
 }
 
 #[tauri::command]
@@ -751,6 +840,7 @@ mod tests {
             speed_limit: None,
             appearance: Appearance::System,
             excluded_sites: Vec::new(),
+            confirm_captures: true,
         };
         let dto = SettingsDto {
             connections: 4,
@@ -855,6 +945,7 @@ mod tests {
             speed_limit: Some(1 << 20),
             appearance: Appearance::System,
             excluded_sites: vec!["example.org".into()],
+            confirm_captures: false,
         };
         assert_eq!(Settings::from(SettingsDto::from(&settings)), settings);
         let typed = SettingsDto {
@@ -872,7 +963,7 @@ mod tests {
     async fn adding_refuses_what_is_not_a_download_link() {
         let library = library().await;
         for url in ["not a link", "mailto:a@example.org", "file:///etc/passwd"] {
-            let err = add(&library, url, Some("/tmp"), &Origin::default())
+            let err = add(&library, url, Some("/tmp"), &Origin::default(), false)
                 .await
                 .unwrap_err();
             assert_eq!(err.kind, ErrorKind::Invalid, "{url}");

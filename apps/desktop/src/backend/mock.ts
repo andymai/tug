@@ -18,6 +18,7 @@ const RATE = 18.4 * MB;
 
 export interface MockBackend extends Backend {
   tick(): void;
+  capture(url: string): Promise<void>;
   setColorScheme(scheme: ColorScheme | null): void;
   notice(message: string): void;
   dispose(): void;
@@ -38,6 +39,7 @@ export interface MockOptions {
   now?: () => number;
   folder?: string;
   colorScheme?: ColorScheme | null;
+  captures?: readonly string[];
 }
 
 function attempt<T>(action: () => T): Promise<T> {
@@ -62,10 +64,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
   };
   const listeners = new Set<(batch: ProgressBatch) => void>();
-  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [] };
+  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true };
   let scheme = options.colorScheme ?? null;
   const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
   const noticeListeners = new Set<(message: string) => void>();
+  const captureListeners = new Set<(captures: Download[]) => void>();
+  let waiting: number[] = [];
   let nextId = 1;
   let seq = 0;
 
@@ -156,6 +160,23 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     if (state === "done") log(download.id, "finished", start + 30_000, size);
     if (state === "failed") log(download.id, "failed", start + 20_000, download.received, download.error);
   });
+  const pending = () =>
+    waiting.flatMap((id) => {
+      const download = downloads.get(id);
+      return download?.state === "paused" ? [{ ...download }] : [];
+    });
+  const announce = () => {
+    const captures = pending();
+    for (const listener of captureListeners) listener(captures);
+  };
+  const ask = (url: string) => {
+    const download = addNow(url);
+    download.state = "paused";
+    history.set(download.id, []);
+    log(download.id, "added", download.addedMs);
+    waiting.push(download.id);
+  };
+  for (const url of options.captures ?? []) ask(url);
   const timer = options.autoTick ? setInterval(tick, TICK_MS) : undefined;
 
   return {
@@ -243,12 +264,38 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         listeners.delete(listener);
       });
     },
+    pendingCaptures: () => Promise.resolve(pending()),
+    answerCapture: (id, answer) =>
+      attempt(() => {
+        const download = find(id);
+        waiting = waiting.filter((entry) => entry !== id);
+        if (answer === "download") {
+          download.state = "downloading";
+          log(id, "started", now());
+        } else if (answer === "cancel") {
+          downloads.delete(id);
+          history.delete(id);
+        }
+        announce();
+      }),
+    onCaptures: (listener) => {
+      captureListeners.add(listener);
+      return Promise.resolve(() => {
+        captureListeners.delete(listener);
+      });
+    },
+    capture: (url) =>
+      attempt(() => {
+        ask(url);
+        announce();
+      }),
     tick,
     dispose: () => {
       if (timer !== undefined) clearInterval(timer);
       listeners.clear();
       schemeListeners.clear();
       noticeListeners.clear();
+      captureListeners.clear();
     },
   };
 }

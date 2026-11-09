@@ -52,7 +52,7 @@ describe("mock backend", () => {
 
   it("honours the speed limit per tick", async () => {
     const backend = createMockBackend();
-    await backend.updateSettings({ downloadDir: "/d", connections: 4, speedLimit: 2 * MB, appearance: "system", excludedSites: ["example.org"] });
+    await backend.updateSettings({ downloadDir: "/d", connections: 4, speedLimit: 2 * MB, appearance: "system", excludedSites: ["example.org"], confirmCaptures: false });
     await backend.add("https://example.org/c.bin");
     backend.tick();
     expect((await backend.list())[0]?.received).toBe(Math.floor((2 * MB) / 10));
@@ -134,5 +134,19 @@ describe("mock backend", () => {
   it("starts with the seed links", async () => {
     const backend = createMockBackend({ seed: ["https://example.org/one.zip", "https://example.org/two.zip"] });
     expect((await backend.list()).map((d) => d.name)).toEqual(["one.zip", "two.zip"]);
+  });
+
+  it("asks for captures, and answers them", async () => {
+    const backend = createMockBackend({ captures: ["https://example.org/a.iso"] });
+    const seen: number[][] = [];
+    await backend.onCaptures((captures) => seen.push(captures.map((c) => c.id)));
+    const [first] = await backend.pendingCaptures();
+    expect(first?.state).toBe("paused");
+
+    await backend.capture("https://example.org/b.iso");
+    expect(seen.at(-1)).toHaveLength(2);
+    await backend.answerCapture(first?.id ?? 0, "later");
+    expect(seen.at(-1)).toHaveLength(1);
+    expect((await backend.list()).find((d) => d.id === first?.id)?.state).toBe("paused");
   });
 });
