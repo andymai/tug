@@ -16,7 +16,6 @@ export default defineConfig([
       jsxA11y.flatConfigs.recommended,
     ],
     rules: {
-      // A new variant must reach every switch over its union.
       "@typescript-eslint/switch-exhaustiveness-check": ["error", { considerDefaultExhaustiveForUnions: false }],
     },
     languageOptions: {
