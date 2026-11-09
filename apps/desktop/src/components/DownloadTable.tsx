@@ -7,6 +7,7 @@ import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { visibleItems } from "../state/downloads";
 import { DownloadRow } from "./DownloadRow";
+import { RowMenu } from "./RowMenu";
 
 function ColumnMenu({ shown, onChange }: { shown: readonly Column[]; onChange: (ids: string[]) => void }) {
   const [open, setOpen] = useState(false);
@@ -123,7 +124,7 @@ export function DownloadTable({ title }: { title: string }) {
 
   return (
     <div ref={box} className="min-h-0 flex-1 overflow-auto">
-      <table role="grid" aria-label={title} className="w-full table-fixed border-collapse">
+      <table role="grid" aria-label={title} aria-multiselectable="true" className="w-full table-fixed border-collapse">
         <colgroup>
           {columns.map((column) => (
             <col key={column.id} style={column.px === undefined ? undefined : { width: column.px }} />
@@ -170,7 +171,6 @@ export function DownloadTable({ title }: { title: string }) {
             <DownloadRow
               key={download.id}
               download={download}
-              selected={download.id === selected}
               columns={columns}
               rank={ranks.get(download.id)}
               tabbable={download.id === tabbable}
@@ -178,6 +178,7 @@ export function DownloadTable({ title }: { title: string }) {
           ))}
         </tbody>
       </table>
+      <RowMenu />
     </div>
   );
 }

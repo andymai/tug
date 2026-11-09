@@ -767,6 +767,108 @@ describe("status bar", () => {
   });
 });
 
+describe("selection", () => {
+  const rowOf = (name: string) => screen.getByRole("row", { name: new RegExp(`^${name.replaceAll(".", "\\.")}`) });
+
+  it("selects more with Ctrl, a range with Shift, and shows what they hold", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    fireEvent.click(rowOf("conference-talk-1080p.mp4"), { ctrlKey: true });
+    expect(rowOf("fedora-kde-44-x86_64.iso")).toHaveAttribute("aria-selected", "true");
+    expect(rowOf("conference-talk-1080p.mp4")).toHaveAttribute("aria-selected", "true");
+    let panel = within(screen.getByRole("complementary", { name: "2 downloads" }));
+    expect(panel.getByText("1 downloading · 1 paused")).toBeInTheDocument();
+    expect(panel.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    expect(panel.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(within(panel.getByRole("list", { name: "Selected downloads" })).getAllByRole("listitem")).toHaveLength(2);
+
+    fireEvent.click(rowOf("dataset-shard-07.parquet"), { shiftKey: true });
+    panel = within(screen.getByRole("complementary", { name: "3 downloads" }));
+    expect(panel.getByText("1 paused · 1 failed · 1 done")).toBeInTheDocument();
+    expect(rowOf("fedora-kde-44-x86_64.iso")).toHaveAttribute("aria-selected", "false");
+
+    await user.click(panel.getByRole("button", { name: "Resume" }));
+    expect(await within(rowOf("dataset-shard-07.parquet")).findByText("Queued")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("complementary", { name: /downloads$/ })).not.toBeInTheDocument();
+  });
+
+  it("selects all with Ctrl+A and a range with Shift and the arrows", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.keyboard("{Control>}a{/Control}");
+    expect(screen.getByRole("complementary", { name: "5 downloads" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(rowOf("blender-5.1-linux-x64.tar.xz"));
+    await user.keyboard("{Shift>}{ArrowDown}{ArrowDown}{/Shift}");
+    expect(screen.getByRole("complementary", { name: "3 downloads" })).toBeInTheDocument();
+    expect(rowOf("noto-fonts-2026.11.zip")).toHaveFocus();
+  });
+
+  it("opens a menu on a right-click, moves through it with the keys, and pauses from it", async () => {
+    const { user } = open();
+    const fedora = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
+    fireEvent.contextMenu(fedora, { clientX: 300, clientY: 200 });
+    let menu = within(screen.getByRole("menu", { name: "fedora-kde-44-x86_64.iso" }));
+    expect(menu.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Open folder", "Copy link", "Pause", "Remove…"]);
+    expect(menu.getByRole("menuitem", { name: "Open folder" })).toHaveFocus();
+    await user.keyboard("{End}");
+    expect(menu.getByRole("menuitem", { name: "Remove…" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(fedora).toHaveFocus();
+    expect(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" }), "Escape closes only the menu").toBeInTheDocument();
+
+    fireEvent.contextMenu(fedora, { clientX: 300, clientY: 200 });
+    menu = within(screen.getByRole("menu"));
+    await user.click(menu.getByRole("menuitem", { name: "Pause" }));
+    expect(await within(fedora).findByText("Paused")).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("opens the menu for every selected row from the keyboard", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    fireEvent.click(rowOf("blender-5.1-linux-x64.tar.xz"), { ctrlKey: true });
+    rowOf("blender-5.1-linux-x64.tar.xz").focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    const menu = within(screen.getByRole("menu", { name: "2 downloads" }));
+    expect(menu.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Copy links", "Start next", "Move to the end", "Pause", "Remove…"]);
+  });
+
+  it("removes after asking, with the file when chosen, and keeps everything on Cancel", async () => {
+    const { backend, user } = open();
+    const remove = vi.spyOn(backend, "remove");
+    await user.click(await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
+    await user.keyboard("{Delete}");
+    let dialog = within(screen.getByRole("dialog", { name: "Remove noto-fonts-2026.11.zip?" }));
+    expect(dialog.getByText("Tug takes it off the list.")).toBeInTheDocument();
+    await user.click(dialog.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: /^Remove/ })).not.toBeInTheDocument();
+    expect(remove).not.toHaveBeenCalled();
+
+    await user.keyboard("{Delete}");
+    dialog = within(screen.getByRole("dialog", { name: "Remove noto-fonts-2026.11.zip?" }));
+    expect(dialog.getByRole("button", { name: "Remove" })).toHaveFocus();
+    await user.click(dialog.getByRole("checkbox", { name: "Delete its file too" }));
+    await user.click(dialog.getByRole("button", { name: "Remove" }));
+    expect(remove).toHaveBeenCalledWith(expect.any(Number), true);
+    await vi.waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1, name: "All downloads" })).toHaveFocus();
+    });
+    expect(screen.queryByText("noto-fonts-2026.11.zip")).not.toBeInTheDocument();
+  });
+
+  it("says that a running download stops when several go", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.keyboard("{Control>}a{/Control}{Delete}");
+    const dialog = within(screen.getByRole("dialog", { name: "Remove 5 downloads?" }));
+    expect(dialog.getByText("Tug stops the running ones and takes them all off the list.")).toBeInTheDocument();
+    expect(dialog.getByRole("checkbox", { name: "Delete their files too" })).not.toBeChecked();
+  });
+});
+
 describe("table", () => {
   it("sorts by a column's header, down first for numbers, and keeps the sort", async () => {
     const { backend, user } = open();

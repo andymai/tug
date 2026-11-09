@@ -44,7 +44,12 @@ export interface DownloadsState {
   items: Download[];
   live: Record<number, ProgressUpdate>;
   view: View;
+  // The current row: it has the focus, and its details show when it is the only one marked.
   selected: number | null;
+  // Every selected row; bulk actions take the ones the view shows (`chosen`).
+  marked: number[];
+  menu: { x: number; y: number } | null;
+  removing: number[] | null;
   status: "loading" | "ready" | "error";
   loadError: string | null;
   notice: string | null;
@@ -80,7 +85,18 @@ export interface DownloadsState {
   savePreference: (patch: SettingsPatch, what: string) => Promise<void>;
   chooseFolder: () => Promise<void>;
   select: (id: number | null) => void;
-  step: (delta: number) => number | null;
+  toggleMark: (id: number) => void;
+  markTo: (id: number) => void;
+  markAll: () => void;
+  step: (delta: number, extend?: boolean) => number | null;
+  openMenu: (at: { x: number; y: number }) => void;
+  closeMenu: () => void;
+  askRemove: (ids: readonly number[]) => void;
+  cancelRemove: () => void;
+  pauseMany: (ids: readonly number[]) => Promise<void>;
+  resumeMany: (ids: readonly number[]) => Promise<void>;
+  moveMany: (ids: readonly number[], to: "first" | "last") => Promise<void>;
+  removeMany: (ids: readonly number[], deleteFiles: boolean) => Promise<void>;
   setOverlay: (overlay: Overlay) => void;
   requestFocus: (id: number | null) => void;
   setSearch: (text: string) => void;
@@ -133,9 +149,28 @@ export type DownloadsStore = ReturnType<typeof createDownloadsStore>;
 export function createDownloadsStore(backend: Backend) {
   return createStore<DownloadsState>()((set, get) => {
     let historyRequest = 0;
+    // Where a Shift-click or Shift+arrow range starts.
+    let anchor: number | null = null;
     let disk: Promise<void> | null = null;
     let diskAsked = 0;
     let inspectRequest = 0;
+
+    // One by one, then one reload, and one notice for what failed.
+    const many = async (order: readonly Download[], verb: string, action: (id: number) => Promise<void>) => {
+      const failed: string[] = [];
+      for (const item of order) {
+        try {
+          await action(item.id);
+        } catch (error) {
+          failed.push(BackendError.from(error).message);
+        }
+      }
+      set({ menu: null });
+      await get().reload();
+      const [first] = failed;
+      if (first === undefined) return;
+      set({ notice: failed.length === 1 ? first : `couldn't ${verb} ${String(failed.length)} downloads: ${first}` });
+    };
 
     const act = async (action: () => Promise<void>) => {
       try {
@@ -201,6 +236,9 @@ export function createDownloadsStore(backend: Backend) {
       live: {},
       view: "all",
       selected: null,
+      marked: [],
+      menu: null,
+      removing: null,
       status: "loading",
       loadError: null,
       notice: null,
@@ -341,7 +379,8 @@ export function createDownloadsStore(backend: Backend) {
       },
 
       setView: (view) => {
-        set({ view, selected: null, page: "downloads" });
+        anchor = null;
+        set({ view, selected: null, marked: [], menu: null, page: "downloads" });
       },
 
       setPage: (page) => {
@@ -392,18 +431,100 @@ export function createDownloadsStore(backend: Backend) {
         }),
 
       select: (id) => {
-        set({ selected: id });
+        anchor = id;
+        set({ selected: id, marked: id === null ? [] : [id] });
       },
 
-      step: (delta) => {
+      toggleMark: (id) => {
+        const { marked } = get();
+        if (marked.includes(id)) {
+          const rest = marked.filter((other) => other !== id);
+          anchor = rest.at(-1) ?? null;
+          set({ marked: rest, selected: anchor });
+        } else {
+          anchor = id;
+          set({ marked: [...marked, id], selected: id });
+        }
+      },
+
+      markTo: (id) => {
+        const visible = visibleItems(get()).map((item) => item.id);
+        const from = visible.indexOf(anchor ?? id);
+        const to = visible.indexOf(id);
+        if (from === -1 || to === -1) {
+          get().select(id);
+          return;
+        }
+        set({ marked: visible.slice(Math.min(from, to), Math.max(from, to) + 1), selected: id });
+      },
+
+      markAll: () => {
+        const visible = visibleItems(get()).map((item) => item.id);
+        if (visible.length === 0) return;
+        const selected = get().selected ?? visible[0] ?? null;
+        anchor ??= selected;
+        set({ marked: visible, selected });
+      },
+
+      step: (delta, extend = false) => {
         const visible = visibleItems(get());
         if (visible.length === 0) return null;
         const at = visible.findIndex((item) => item.id === get().selected);
         const next =
           at === -1 ? (delta > 0 ? 0 : visible.length - 1) : Math.min(visible.length - 1, Math.max(0, at + delta));
         const id = visible[next]?.id ?? null;
-        set({ selected: id });
+        if (id === null) return null;
+        if (extend) get().markTo(id);
+        else get().select(id);
         return id;
+      },
+
+      openMenu: (at) => {
+        set({ menu: at });
+      },
+
+      closeMenu: () => {
+        set({ menu: null });
+      },
+
+      askRemove: (ids) => {
+        if (ids.length > 0) set({ removing: [...ids], menu: null });
+      },
+
+      cancelRemove: () => {
+        set({ removing: null });
+      },
+
+      pauseMany: (ids) => {
+        // The waiting ones first, so a slot that a pause frees doesn't start one of them.
+        const waiting = (state: Download["state"]) => (state === "queued" ? 0 : 1);
+        const order = chosenOf(get(), ids)
+          .filter((item) => item.state === "downloading" || item.state === "queued")
+          .sort((a, b) => waiting(a.state) - waiting(b.state));
+        return many(order, "pause", (id) => backend.pause(id));
+      },
+
+      resumeMany: (ids) => {
+        const order = chosenOf(get(), ids).filter((item) => item.state === "paused" || item.state === "failed");
+        return many(order, "resume", (id) => backend.resume(id));
+      },
+
+      // To the top in reverse and to the end in order, so the moved keep their order.
+      moveMany: (ids, to) => {
+        const waiting = chosenOf(get(), ids)
+          .filter((item) => item.state === "queued")
+          .sort((a, b) => a.position - b.position);
+        return many(to === "first" ? waiting.reverse() : waiting, "move", (id) => backend.place(id, to));
+      },
+
+      removeMany: async (ids, deleteFiles) => {
+        const order = chosenOf(get(), ids);
+        set({ removing: null });
+        if (order.some((item) => item.id === get().selected) || order.some((item) => get().marked.includes(item.id))) {
+          anchor = null;
+          set({ selected: null, marked: [] });
+        }
+        await many(order, "remove", (id) => backend.remove(id, deleteFiles));
       },
 
       setOverlay: (overlay) => {
@@ -657,6 +778,16 @@ export function countFor(items: readonly Download[], view: View): number {
   return items.filter((item) => inView(view, item)).length;
 }
 
-export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay" | "captures">): boolean {
-  return state.adding.open || state.overlay !== null || state.captures.length > 0;
+export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay" | "captures" | "removing" | "menu">): boolean {
+  return state.adding.open || state.overlay !== null || state.captures.length > 0 || state.removing !== null || state.menu !== null;
+}
+
+// The marked downloads that the view shows, in its order.
+export function chosen(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live" | "marked">): Download[] {
+  return chosenOf(state, state.marked);
+}
+
+function chosenOf(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">, ids: readonly number[]): Download[] {
+  const wanted = new Set(ids);
+  return visibleItems(state).filter((item) => wanted.has(item.id));
 }

@@ -6,6 +6,7 @@ import { CommandBar } from "./components/CommandBar";
 import { DownloadList } from "./components/DownloadList";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { LinkCapture } from "./components/LinkCapture";
+import { RemoveDialog } from "./components/RemoveDialog";
 import { ShortcutsDialog } from "./components/ShortcutsDialog";
 import { ResizeEdges } from "./components/WindowControls";
 import { SettingsPage } from "./components/SettingsPage";
@@ -39,6 +40,7 @@ export function App({ store }: { store: DownloadsStore }) {
       </Frame>
       <ResizeEdges />
       <AddDialog />
+      <RemoveDialog />
       <CommandBar />
       <ShortcutsDialog />
       <LinkCapture />
