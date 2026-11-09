@@ -1,0 +1,24 @@
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_79d06b0d892e64 63-65,77,184-185,245-248,409-413,419-427,448-451,655-684
+  s_b321718d129a1e::t_7c7b8a01e18501 685
+apps/desktop/src/backend/mock.ts
+  s_b321718d129a1e::t_57992f27febf27 164-180,182
+apps/desktop/src/backend/mock.test.ts
+  s_b321718d129a1e::t_57992f27febf27 61-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf0c1e0e5ccaba6cd0f08091a55839e5818bd838",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
