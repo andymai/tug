@@ -1,8 +1,8 @@
-import { FileDown } from "lucide-react";
+import { CircleAlert, FileDown } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 
 import type { Download } from "../backend/backend";
-import { formatBytes, shortDir } from "../lib/format";
+import { formatBytes, sentence, shortDir } from "../lib/format";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { Button } from "./Button";
@@ -19,6 +19,7 @@ function Ask({ capture, count, titleId }: { capture: Download; count: number; ti
   const answer = useDownloads((s) => s.answerCapture);
   const asking = useDownloads((s) => s.settings?.confirmCaptures ?? true);
   const saveSettings = useDownloads((s) => s.saveSettings);
+  const saveError = useDownloads((s) => s.settingsError);
 
   return (
     <div className="flex flex-col gap-4">
@@ -51,6 +52,12 @@ function Ask({ capture, count, titleId }: { capture: Download; count: number; ti
         />
         Ask before each browser download
       </label>
+      {saveError !== null && (
+        <p role="alert" className="flex items-center gap-2 text-small text-ink">
+          <CircleAlert {...ICON} className="shrink-0 text-state-error" />
+          {sentence(saveError)}
+        </p>
+      )}
       <div className="flex items-center justify-between gap-3">
         <p className="min-w-0 truncate text-small text-ink-muted">Saves to {shortDir(capture.dir)}</p>
         <div className="flex gap-2">

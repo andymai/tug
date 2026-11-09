@@ -106,17 +106,20 @@ impl Library {
     ) -> Result<DownloadId, LibraryError> {
         let added = SystemTime::now();
         let store = self.store()?;
-        let id = store.insert_from(
+        let state = if paused {
+            DownloadState::Paused
+        } else {
+            DownloadState::Queued
+        };
+        let id = store.insert_as(
             &NewDownload {
                 url,
                 dir: dir.to_owned(),
                 added,
             },
             origin,
+            state,
         )?;
-        if paused {
-            store.set_state(id, DownloadState::Paused, None, added)?;
-        }
         store.add_event(id, &event(EventKind::Added, added, None, None))?;
         drop(store);
         Ok(id)

@@ -359,12 +359,42 @@ describe("capture sheet", () => {
     await user.click(within(sheet).getByRole("checkbox", { name: "Ask before each browser download" }));
     expect((await backend.settings()).confirmCaptures).toBe(false);
     await user.click(within(sheet).getByRole("button", { name: "Download" }));
+    await act(async () => {
+      await backend.capture(TALK);
+    });
+    expect(screen.queryByRole("dialog", { name: "Download this file?" })).not.toBeInTheDocument();
+    expect((await backend.list()).find((d) => d.url === TALK)?.state).toBe("downloading");
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
     const ask = screen.getByRole("switch", { name: "Ask before each browser download" });
     expect(ask).toHaveAttribute("aria-checked", "false");
     await user.click(ask);
     expect((await backend.settings()).confirmCaptures).toBe(true);
+  });
+
+  it("stops asking about a capture that starts from the list", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE, captures: [REPORT] });
+    render(<App store={createDownloadsStore(backend)} />);
+    await screen.findByRole("dialog", { name: "Download this file?" });
+    const waiting = (await backend.pendingCaptures())[0];
+    await act(async () => {
+      await backend.resume(waiting?.id ?? 0);
+    });
+    expect(screen.queryByRole("dialog", { name: "Download this file?" })).not.toBeInTheDocument();
+  });
+
+  it("says so in the sheet when it can't save the checkbox", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE, captures: [REPORT] });
+    const store = createDownloadsStore({
+      ...backend,
+      updateSettings: () => Promise.reject(new BackendError("internal", "the disk is full")),
+    });
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    const sheet = await screen.findByRole("dialog", { name: "Download this file?" });
+    await user.click(within(sheet).getByRole("checkbox", { name: "Ask before each browser download" }));
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent("The disk is full");
+    expect(within(sheet).getByRole("checkbox", { name: "Ask before each browser download" })).toBeChecked();
   });
 
   it("keeps Escape for the sheet while it is open", async () => {
