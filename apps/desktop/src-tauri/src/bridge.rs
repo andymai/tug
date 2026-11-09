@@ -8,13 +8,34 @@ use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
     Appearance, Batch, Download, DownloadId, DownloadState, Event, EventKind, Library,
-    LibraryError, Origin, Phase, ProgressStream, Settings, Store, StreamOptions, Update,
+    LibraryError, Origin, Phase, Place, ProgressStream, Settings, Store, StreamOptions, Update,
 };
 use url::Url;
 
 pub const PROGRESS_EVENT: &str = "progress";
 pub const COLOR_SCHEME_EVENT: &str = "color-scheme";
 pub const CAPTURES_EVENT: &str = "captures";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, rename = "Place")]
+pub enum PlaceDto {
+    First,
+    Last,
+    Up,
+    Down,
+}
+
+impl From<PlaceDto> for Place {
+    fn from(place: PlaceDto) -> Self {
+        match place {
+            PlaceDto::First => Self::First,
+            PlaceDto::Last => Self::Last,
+            PlaceDto::Up => Self::Up,
+            PlaceDto::Down => Self::Down,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
@@ -276,6 +297,7 @@ pub struct SettingsDto {
     pub appearance: AppearanceDto,
     pub excluded_sites: Vec<String>,
     pub confirm_captures: bool,
+    pub max_active: u32,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -287,6 +309,7 @@ impl From<&Settings> for SettingsDto {
             appearance: s.appearance.into(),
             excluded_sites: s.excluded_sites.clone(),
             confirm_captures: s.confirm_captures,
+            max_active: s.max_active,
         }
     }
 }
@@ -315,6 +338,7 @@ impl From<SettingsDto> for Settings {
                 .map(|entry| tug_core::site(&entry).unwrap_or(entry))
                 .collect(),
             confirm_captures: s.confirm_captures,
+            max_active: s.max_active,
         }
     }
 }
@@ -581,6 +605,20 @@ pub async fn answer_capture(
     };
     emit_captures(&app);
     Ok(result?)
+}
+
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects State by value"
+)]
+pub fn place_download(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    place: PlaceDto,
+) -> Result<(), CommandError> {
+    state.library.place(DownloadId::from(id), place.into())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -896,6 +934,7 @@ mod tests {
             appearance: Appearance::System,
             excluded_sites: Vec::new(),
             confirm_captures: true,
+            max_active: 3,
         };
         let dto = SettingsDto {
             connections: 4,
@@ -1030,6 +1069,7 @@ mod tests {
             appearance: Appearance::System,
             excluded_sites: vec!["example.org".into()],
             confirm_captures: false,
+            max_active: 3,
         };
         assert_eq!(Settings::from(SettingsDto::from(&settings)), settings);
         let typed = SettingsDto {

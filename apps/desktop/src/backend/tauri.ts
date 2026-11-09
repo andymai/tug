@@ -33,6 +33,7 @@ export const tauriBackend: Backend = {
   pause: (id) => call("pause_download", { id }),
   resume: (id) => call("resume_download", { id }),
   remove: (id, deleteFile) => call("remove_download", { id, deleteFile }),
+  place: (id, place) => call("place_download", { id, place }),
   openFile: (id) => call("open_file", { id }),
   showInFolder: (id) => call("show_in_folder", { id }),
   events: (id) => call<DownloadEvent[]>("download_events", { id }),

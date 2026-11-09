@@ -22,6 +22,7 @@ export interface MockBackend extends Backend {
   focus(id: number): void;
   windowCalls: string[];
   setMaximized(maximized: boolean): void;
+  placed: string[];
   setColorScheme(scheme: ColorScheme | null): void;
   notice(message: string): void;
   dispose(): void;
@@ -67,7 +68,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
   };
   const listeners = new Set<(batch: ProgressBatch) => void>();
-  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true };
+  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3 };
   let scheme = options.colorScheme ?? null;
   const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
   const noticeListeners = new Set<(message: string) => void>();
@@ -80,6 +81,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     maximized = next;
     for (const listener of maximizedListeners) listener(next);
   };
+  const placed: string[] = [];
   let waiting: number[] = [];
   let nextId = 1;
   let seq = 0;
@@ -196,7 +198,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     pause: (id) =>
       attempt(() => {
         const download = find(id);
-        if (download.state === "downloading") {
+        if (download.state === "downloading" || download.state === "queued") {
           download.state = "paused";
           log(id, "paused", now(), download.received);
         }
@@ -242,6 +244,9 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           throw new BackendError("invalid", `connections must be between 1 and 32, not ${String(next.connections)}`);
         }
         if (next.speedLimit === 0) throw new BackendError("invalid", "a speed limit must be above zero");
+        if (next.maxActive < 1 || next.maxActive > 16) {
+          throw new BackendError("invalid", `downloads at once must be between 1 and 16, not ${String(next.maxActive)}`);
+        }
         for (const [at, site] of next.excludedSites.entries()) {
           if (siteOf(site) !== site) throw new BackendError("invalid", `${JSON.stringify(site)} isn't a site, like example.org`);
           if (next.excludedSites.indexOf(site) !== at) throw new BackendError("invalid", `${site} is in the list twice`);
@@ -333,6 +338,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     },
     windowCalls,
     setMaximized,
+    placed,
+    place: (id, where) =>
+      attempt(() => {
+        find(id);
+        placed.push(`${String(id)} ${where}`);
+      }),
     focus: (id) => {
       for (const listener of focusListeners) listener(id);
     },

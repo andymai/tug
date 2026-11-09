@@ -4,6 +4,7 @@ import type { CommandError } from "./bindings/CommandError";
 import type { ErrorKind } from "./bindings/ErrorKind";
 import type { Download } from "./bindings/Download";
 import type { DownloadEvent } from "./bindings/DownloadEvent";
+import type { Place } from "./bindings/Place";
 import type { ProgressBatch } from "./bindings/ProgressBatch";
 import type { Settings } from "./bindings/Settings";
 
@@ -17,6 +18,7 @@ export type { EventKind } from "./bindings/EventKind";
 export type { DownloadState } from "./bindings/DownloadState";
 export type { ErrorKind } from "./bindings/ErrorKind";
 export type { Phase } from "./bindings/Phase";
+export type { Place } from "./bindings/Place";
 export type { ProgressBatch } from "./bindings/ProgressBatch";
 export type { ProgressUpdate } from "./bindings/ProgressUpdate";
 export type { Settings } from "./bindings/Settings";
@@ -38,6 +40,7 @@ export interface Backend {
   pause(id: number): Promise<void>;
   resume(id: number): Promise<void>;
   remove(id: number, deleteFile: boolean): Promise<void>;
+  place(id: number, place: Place): Promise<void>;
   openFile(id: number): Promise<void>;
   showInFolder(id: number): Promise<void>;
   events(id: number): Promise<DownloadEvent[]>;

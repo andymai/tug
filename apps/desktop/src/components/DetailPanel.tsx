@@ -1,4 +1,4 @@
-import { Check, Copy, ExternalLink, FolderOpen, Pause, Play, RotateCw, X } from "lucide-react";
+import { Check, Copy, ExternalLink, FolderOpen, ListStart, Pause, Play, RotateCw, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import type { Download, DownloadEvent } from "../backend/backend";
@@ -92,6 +92,7 @@ function Panel({ download }: { download: Download }) {
   const select = useDownloads((s) => s.select);
   const pause = useDownloads((s) => s.pause);
   const resume = useDownloads((s) => s.resume);
+  const startNext = useDownloads((s) => s.startNext);
   const openFile = useDownloads((s) => s.openFile);
   const showInFolder = useDownloads((s) => s.showInFolder);
   const notify = useDownloads((s) => s.notify);
@@ -202,7 +203,12 @@ function Panel({ download }: { download: Download }) {
             Open
           </Button>
         )}
-        {download.state === "downloading" && (
+        {download.state === "queued" && (
+          <Button icon={ListStart} onClick={() => void startNext(download.id)}>
+            Start next
+          </Button>
+        )}
+        {(download.state === "downloading" || download.state === "queued") && (
           <Button icon={Pause} onClick={() => void pause(download.id)}>
             Pause
           </Button>
