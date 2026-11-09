@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.35.0](https://github.com/andymai/tug/compare/v0.34.0...v0.35.0) (2026-11-09)
+
+
+### Features
+
+* **core:** set a download's folder, connections, limit and start when adding, and change them later ([#141](https://github.com/andymai/tug/issues/141)) ([be2e522](https://github.com/andymai/tug/commit/be2e5221ad7d69c3c7cf66ece64b0b9db0e41192))
+
 ## [0.34.0](https://github.com/andymai/tug/compare/v0.33.0...v0.34.0) (2026-11-09)
 
 
