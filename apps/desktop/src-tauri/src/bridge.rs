@@ -8,8 +8,8 @@ use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
     Appearance, Batch, Category, Download, DownloadId, DownloadState, Event, EventKind, Library,
-    LibraryError, Origin, Phase, Place, ProgressStream, Schedule, Settings, SlowHours, Store,
-    StreamOptions, Update,
+    LibraryError, Origin, Phase, Place, ProgressStream, SavedView, Schedule, Settings, SlowHours,
+    Store, StreamOptions, Update,
 };
 use url::Url;
 
@@ -379,6 +379,15 @@ impl From<SlowHoursDto> for SlowHours {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, rename = "SavedView")]
+pub struct SavedViewDto {
+    pub name: String,
+    pub view: String,
+    pub query: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 #[ts(export, rename = "Settings")]
 pub struct SettingsDto {
     pub download_dir: String,
@@ -391,6 +400,7 @@ pub struct SettingsDto {
     pub max_active: u32,
     pub schedule: Option<ScheduleDto>,
     pub slow_hours: Option<SlowHoursDto>,
+    pub saved_views: Vec<SavedViewDto>,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -405,6 +415,15 @@ impl From<&Settings> for SettingsDto {
             max_active: s.max_active,
             schedule: s.schedule.map(ScheduleDto::from),
             slow_hours: s.slow_hours.map(SlowHoursDto::from),
+            saved_views: s
+                .saved_views
+                .iter()
+                .map(|saved| SavedViewDto {
+                    name: saved.name.clone(),
+                    view: saved.view.clone(),
+                    query: saved.query.clone(),
+                })
+                .collect(),
         }
     }
 }
@@ -436,6 +455,15 @@ impl From<SettingsDto> for Settings {
             max_active: s.max_active,
             schedule: s.schedule.map(Schedule::from),
             slow_hours: s.slow_hours.map(SlowHours::from),
+            saved_views: s
+                .saved_views
+                .into_iter()
+                .map(|saved| SavedView {
+                    name: saved.name,
+                    view: saved.view,
+                    query: saved.query,
+                })
+                .collect(),
         }
     }
 }
@@ -1038,6 +1066,7 @@ mod tests {
             max_active: 3,
             schedule: None,
             slow_hours: None,
+            saved_views: Vec::new(),
         };
         let dto = SettingsDto {
             connections: 4,
@@ -1193,6 +1222,11 @@ mod tests {
                     stop: 17 * 60,
                 },
             }),
+            saved_views: vec![SavedView {
+                name: "Linux images".into(),
+                view: "disk".into(),
+                query: "fedora iso".into(),
+            }],
         };
         assert_eq!(Settings::from(SettingsDto::from(&settings)), settings);
         let typed = SettingsDto {

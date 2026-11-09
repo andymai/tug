@@ -1,6 +1,8 @@
 import {
   ArrowDown,
   ArrowUp,
+  Bookmark,
+  BookmarkPlus,
   Check,
   CircleAlert,
   Copy,
@@ -19,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 
-import type { DownloadsStore, StateView } from "../state/downloads";
+import { type DownloadsStore, savedViewOf, type StateView } from "../state/downloads";
 import { CATEGORIES } from "./categories";
 import { focusRow } from "./dom";
 
@@ -94,7 +96,29 @@ export function commands(store: DownloadsStore): Command[] {
         },
       }),
     ),
+    ...(state.settings?.savedViews ?? []).map(
+      (saved): Command => ({
+        id: `saved-${saved.view}-${saved.query}`,
+        title: `Open ${saved.name}`,
+        group: "Views",
+        icon: Bookmark,
+        run: () => {
+          state.openView(saved);
+        },
+      }),
+    ),
   ];
+  if (state.search.trim() !== "" && savedViewOf(state) === null) {
+    list.push({
+      id: "save-view",
+      title: "Save this search as a view",
+      group: "Views",
+      icon: BookmarkPlus,
+      run: () => {
+        state.saveView();
+      },
+    });
+  }
 
   const selected = state.items.find((item) => item.id === state.selected);
   if (selected) {

@@ -66,7 +66,7 @@ describe("mock backend", () => {
 
   it("honours the speed limit per tick", async () => {
     const backend = createMockBackend();
-    await backend.updateSettings({ downloadDir: "/d", connections: 4, speedLimit: 2 * MB, appearance: "system", excludedSites: ["example.org"], confirmCaptures: false, maxActive: 2, schedule: null, slowHours: null });
+    await backend.updateSettings({ downloadDir: "/d", connections: 4, speedLimit: 2 * MB, appearance: "system", excludedSites: ["example.org"], confirmCaptures: false, maxActive: 2, schedule: null, slowHours: null, savedViews: [] });
     await backend.add("https://example.org/c.bin");
     backend.tick();
     expect((await backend.list())[0]?.received).toBe(Math.floor((2 * MB) / 10));

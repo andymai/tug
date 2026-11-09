@@ -1,4 +1,4 @@
-import { CircleAlert, Plus, Search, X } from "lucide-react";
+import { BookmarkPlus, CircleAlert, Plus, Search, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/shallow";
 
@@ -9,7 +9,7 @@ import { CATEGORIES, isCategory } from "../lib/categories";
 import { openAt } from "../lib/schedule";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
-import { type StateView, type View, visibleItems } from "../state/downloads";
+import { savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
 import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
@@ -62,6 +62,8 @@ function SearchField() {
   const search = useDownloads((s) => s.search);
   const setSearch = useDownloads((s) => s.setSearch);
   const request = useDownloads((s) => s.searchRequest);
+  const saveView = useDownloads((s) => s.saveView);
+  const savable = useDownloads((s) => s.search.trim() !== "" && savedViewOf(s) === null);
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (request > 0) field.current?.focus();
@@ -86,8 +88,19 @@ function SearchField() {
             setSearch("");
           }
         }}
-        className="h-[30px] w-44 min-w-0 rounded-sm @max-xl/main:w-28 border border-control-border bg-surface pr-2 pl-8 text-body text-ink placeholder:text-ink-faint [&::-webkit-search-cancel-button]:appearance-none"
+        className={`h-[30px] w-44 min-w-0 rounded-sm @max-xl/main:w-28 border border-control-border bg-surface pl-8 text-body text-ink placeholder:text-ink-faint [&::-webkit-search-cancel-button]:appearance-none ${savable ? "pr-8" : "pr-2"}`}
       />
+      {savable && (
+        <button
+          type="button"
+          aria-label="Save view"
+          title="Save view"
+          onClick={saveView}
+          className="absolute right-1 inline-flex size-6 items-center justify-center rounded-xs text-ink-muted hover:bg-hover hover:text-ink"
+        >
+          <BookmarkPlus {...ICON} size={14} />
+        </button>
+      )}
     </div>
   );
 }

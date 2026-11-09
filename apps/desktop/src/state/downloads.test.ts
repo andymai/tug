@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { DownloadEvent, Settings } from "../backend/backend";
 import { createMockBackend } from "../backend/mock";
-import { countFor, createDownloadsStore, visibleItems } from "./downloads";
+import { countFor, createDownloadsStore, savedViewOf, visibleItems } from "./downloads";
 
 const MB = 1 << 20;
 
@@ -185,6 +185,22 @@ describe("downloads store", () => {
     answers[1]?.([1]);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(store.getState().search, "an older answer that showed it doesn't count").toBe("");
+  });
+
+  it("saves a search once, and opens a view the window doesn't know as All", async () => {
+    const { backend, store } = await ready();
+    store.getState().setView("done");
+    store.getState().setSearch("  fonts ");
+    store.getState().saveView();
+    store.getState().saveView();
+    await vi.waitFor(async () => {
+      expect((await backend.settings()).savedViews).toEqual([{ name: "fonts", view: "done", query: "fonts" }]);
+    });
+    expect(savedViewOf(store.getState())?.name).toBe("fonts");
+
+    store.getState().openView({ name: "old", view: "gone", query: "iso" });
+    expect(store.getState()).toMatchObject({ view: "all", search: "iso" });
+    expect(savedViewOf(store.getState())).toBeNull();
   });
 
   it("retries a failed download", async () => {

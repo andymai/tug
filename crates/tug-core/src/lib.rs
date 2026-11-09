@@ -15,8 +15,8 @@ pub use progress::{
 };
 pub use schedule::{MINUTES_PER_DAY, Schedule, ScheduleError, local_now};
 pub use settings::{
-    Appearance, DEFAULT_CONNECTIONS, DEFAULT_MAX_ACTIVE, MAX_ACTIVE, Settings, SettingsError,
-    SlowHours, site,
+    Appearance, DEFAULT_CONNECTIONS, DEFAULT_MAX_ACTIVE, MAX_ACTIVE, MAX_SAVED_VIEWS, SavedView,
+    Settings, SettingsError, SlowHours, site,
 };
 pub use store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Place, Store, StoreError,

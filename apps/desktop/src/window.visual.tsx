@@ -132,6 +132,23 @@ describe("main window", () => {
     await capture(window, "search");
   });
 
+  it("keeps saved searches in the sidebar", async () => {
+    const { store, window } = await showcase();
+    await act(async () => {
+      await store.getState().saveSettings({
+        savedViews: [
+          { name: "mirror", view: "all", query: "mirror" },
+          { name: "fonts", view: "done", query: "fonts" },
+        ],
+      });
+      store.getState().openView({ name: "mirror", view: "all", query: "mirror" });
+    });
+    await vi.waitFor(() => {
+      expect(store.getState().matches).not.toBeNull();
+    });
+    await capture(window, "saved");
+  });
+
   it("shows a running download's details beside the list", async () => {
     const { window } = await showcase("fedora-kde-44-x86_64.iso");
     await capture(window, "detail");

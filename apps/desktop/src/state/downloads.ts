@@ -12,8 +12,10 @@ import {
   type ProgressBatch,
   type ProgressUpdate,
   type ResizeEdge,
+  type SavedView,
   type Settings,
 } from "../backend/backend";
+import { isCategory } from "../lib/categories";
 
 export type StateView = "all" | "active" | "done" | "failed";
 export type View = StateView | Category;
@@ -61,6 +63,9 @@ export interface DownloadsState {
   requestFocus: (id: number | null) => void;
   setSearch: (text: string) => void;
   reveal: (id: number) => void;
+  saveView: () => void;
+  openView: (saved: SavedView) => void;
+  removeView: (saved: SavedView) => void;
   openSearch: () => void;
   pause: (id: number) => Promise<void>;
   resume: (id: number) => Promise<void>;
@@ -370,6 +375,24 @@ export function createDownloadsStore(backend: Backend) {
         state.requestFocus(id);
       },
 
+      saveView: () => {
+        const { settings, search, view } = get();
+        const query = search.trim();
+        if (settings === null || query === "" || settings.savedViews.some((saved) => sameView(saved, { view, query }))) return;
+        void get().saveSettings({ savedViews: [...settings.savedViews, { name: query, view, query }] });
+      },
+
+      openView: (saved) => {
+        get().setView(isView(saved.view) ? saved.view : "all");
+        get().setSearch(saved.query);
+      },
+
+      removeView: (saved) => {
+        const { settings } = get();
+        if (settings === null) return;
+        void get().saveSettings({ savedViews: settings.savedViews.filter((other) => !sameView(other, saved)) });
+      },
+
       openSearch: () => {
         set((state) => ({ page: "downloads", searchRequest: state.searchRequest + 1 }));
       },
@@ -497,6 +520,19 @@ export function createDownloadsStore(backend: Backend) {
       },
     };
   });
+}
+
+export function isView(value: string): value is View {
+  return VIEWS.some((v) => v.id === value) || isCategory(value);
+}
+
+export function sameView(a: Pick<SavedView, "view" | "query">, b: Pick<SavedView, "view" | "query">): boolean {
+  return a.view === b.view && a.query === b.query;
+}
+
+export function savedViewOf(state: Pick<DownloadsState, "settings" | "view" | "search" | "page">): SavedView | null {
+  if (state.page !== "downloads") return null;
+  return state.settings?.savedViews.find((saved) => sameView(saved, { view: state.view, query: state.search.trim() })) ?? null;
 }
 
 export function inView(view: View, item: Download): boolean {

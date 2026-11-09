@@ -22,6 +22,7 @@ export type { Phase } from "./bindings/Phase";
 export type { Place } from "./bindings/Place";
 export type { ProgressBatch } from "./bindings/ProgressBatch";
 export type { ProgressUpdate } from "./bindings/ProgressUpdate";
+export type { SavedView } from "./bindings/SavedView";
 export type { Schedule } from "./bindings/Schedule";
 export type { Settings } from "./bindings/Settings";
 

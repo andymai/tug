@@ -1,13 +1,14 @@
-import { ArrowDown, Check, CircleAlert, Layers, type LucideIcon, Search, Settings } from "lucide-react";
+import { ArrowDown, Bookmark, Check, CircleAlert, Layers, type LucideIcon, Search, Settings, X } from "lucide-react";
 import { useShallow } from "zustand/shallow";
 
 import lockupDark from "../../../../brand/svg/lockup-dark.svg";
 import lockup from "../../../../brand/svg/lockup.svg";
+import type { SavedView } from "../backend/backend";
 import { CATEGORIES } from "../lib/categories";
 import { PALETTE_KEYS } from "../lib/commands";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
-import { countFor, type StateView, VIEWS } from "../state/downloads";
+import { countFor, sameView, savedViewOf, type StateView, VIEWS } from "../state/downloads";
 import { useTheme } from "../state/theme";
 import { Keys } from "./Kbd";
 
@@ -18,9 +19,23 @@ const VIEW_ICONS: Record<StateView, LucideIcon> = {
   failed: CircleAlert,
 };
 
-function ViewItem({ label, icon: Icon, count, current, onClick }: { label: string; icon: LucideIcon; count: number; current: boolean; onClick: () => void }) {
+function ViewItem({
+  label,
+  icon: Icon,
+  count,
+  current,
+  onClick,
+  onRemove,
+}: {
+  label: string;
+  icon: LucideIcon;
+  count?: number;
+  current: boolean;
+  onClick: () => void;
+  onRemove?: () => void;
+}) {
   return (
-    <li>
+    <li className="group/item relative">
       <button
         type="button"
         aria-current={current ? "page" : undefined}
@@ -28,12 +43,25 @@ function ViewItem({ label, icon: Icon, count, current, onClick }: { label: strin
         className="group flex h-8 w-full items-center gap-2 rounded-sm px-2 text-body text-ink transition-colors duration-(--duration-fast) ease-(--ease-out) hover:bg-hover aria-[current=page]:bg-selection aria-[current=page]:font-medium"
       >
         <Icon {...ICON} className="text-ink-muted group-hover:text-ink group-aria-[current=page]:text-ink" />
-        <span className="flex-1 text-left">{label}</span>
-        <span className="text-mono text-ink-muted">{count}</span>
+        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+        {count !== undefined && <span className="text-mono text-ink-muted">{count}</span>}
       </button>
+      {onRemove !== undefined && (
+        <button
+          type="button"
+          aria-label={`Remove ${label}`}
+          title={`Remove ${label}`}
+          onClick={onRemove}
+          className="absolute top-1 right-1 inline-flex size-6 items-center justify-center rounded-xs text-ink-muted opacity-0 transition-opacity duration-(--duration-fast) ease-(--ease-out) group-hover/item:opacity-100 hover:bg-hover hover:text-ink focus-visible:opacity-100"
+        >
+          <X {...ICON} size={14} />
+        </button>
+      )}
     </li>
   );
 }
+
+const NO_VIEWS: readonly SavedView[] = [];
 
 export function Sidebar() {
   const view = useDownloads((s) => s.view);
@@ -44,6 +72,10 @@ export function Sidebar() {
   const setPage = useDownloads((s) => s.setPage);
   const counts = useDownloads(useShallow((s) => VIEWS.map((v) => countFor(s.items, v.id))));
   const types = useDownloads(useShallow((s) => CATEGORIES.map((category) => countFor(s.items, category.id))));
+  const saved = useDownloads((s) => s.settings?.savedViews ?? NO_VIEWS);
+  const openSaved = useDownloads((s) => savedViewOf(s));
+  const openView = useDownloads((s) => s.openView);
+  const removeView = useDownloads((s) => s.removeView);
 
   return (
     <aside className="flex w-(--sidebar-width) shrink-0 flex-col border-r border-line bg-bg">
@@ -62,7 +94,7 @@ export function Sidebar() {
                 label={v.label}
                 icon={VIEW_ICONS[v.id]}
                 count={counts[index] ?? 0}
-                current={page === "downloads" && v.id === view}
+                current={openSaved === null && page === "downloads" && v.id === view}
                 onClick={() => {
                   setView(v.id);
                 }}
@@ -83,13 +115,36 @@ export function Sidebar() {
                     label={category.label}
                     icon={category.icon}
                     count={types[index] ?? 0}
-                    current={page === "downloads" && category.id === view}
+                    current={openSaved === null && page === "downloads" && category.id === view}
                     onClick={() => {
                       setView(category.id);
                     }}
                   />
                 ) : null,
               )}
+            </ul>
+          </nav>
+        )}
+        {saved.length > 0 && (
+          <nav aria-labelledby="saved-label" className="flex flex-col gap-1 px-2 pt-4">
+            <h2 id="saved-label" className="text-label px-2 pb-1 text-ink-muted">
+              Saved
+            </h2>
+            <ul className="flex flex-col gap-0.5">
+              {saved.map((entry) => (
+                <ViewItem
+                  key={`${entry.view} ${entry.query}`}
+                  label={entry.name}
+                  icon={Bookmark}
+                  current={openSaved !== null && sameView(openSaved, entry)}
+                  onClick={() => {
+                    openView(entry);
+                  }}
+                  onRemove={() => {
+                    removeView(entry);
+                  }}
+                />
+              ))}
             </ul>
           </nav>
         )}
