@@ -39,7 +39,7 @@ export function StatusBar() {
   );
   const speeds = useDownloads((s) => s.speeds);
   const settings = useDownloads((s) => s.settings);
-  const saveSettings = useDownloads((s) => s.saveSettings);
+  const savePreference = useDownloads((s) => s.savePreference);
   const diskFree = useDownloads((s) => s.diskFree);
   const checkDisk = useDownloads((s) => s.checkDisk);
   const folder = settings?.downloadDir;
@@ -83,7 +83,7 @@ export function StatusBar() {
         aria-pressed={limit !== null}
         title={limit === null ? "Turn the speed limit on" : "Turn the speed limit off"}
         onClick={() => {
-          void saveSettings({ speedLimit: limit === null ? lastLimit.current : null });
+          void savePreference({ speedLimit: limit === null ? lastLimit.current : null }, "the speed limit");
         }}
         className="flex h-6 items-center gap-1.5 rounded-xs px-1.5 hover:bg-hover hover:text-ink"
       >

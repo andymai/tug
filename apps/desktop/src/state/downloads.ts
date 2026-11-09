@@ -70,6 +70,8 @@ export interface DownloadsState {
   setView: (view: View) => void;
   setPage: (page: Page) => void;
   saveSettings: (patch: SettingsPatch) => Promise<boolean>;
+  // For a choice made outside the Settings page, whose error shows only there.
+  savePreference: (patch: SettingsPatch, what: string) => Promise<void>;
   chooseFolder: () => Promise<void>;
   select: (id: number | null) => void;
   step: (delta: number) => number | null;
@@ -348,6 +350,11 @@ export function createDownloadsStore(backend: Backend) {
             showSettings();
           }
         }).then(() => saved);
+      },
+
+      savePreference: async (patch, what) => {
+        const saved = await get().saveSettings(patch);
+        if (!saved) set({ notice: `couldn't save ${what}: ${get().settingsError ?? "the settings didn't save"}` });
       },
 
       chooseFolder: () =>

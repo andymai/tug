@@ -12,6 +12,15 @@ function ColumnMenu({ shown, onChange }: { shown: readonly Column[]; onChange: (
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const box = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const items = () => [...(box.current?.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]') ?? [])];
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+  useEffect(() => {
+    if (open) items()[0]?.focus();
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const close = (event: MouseEvent) => {
@@ -26,6 +35,7 @@ function ColumnMenu({ shown, onChange }: { shown: readonly Column[]; onChange: (
   return (
     <div ref={box} className="relative flex justify-end">
       <button
+        ref={trigger}
         type="button"
         aria-label="Columns"
         title="Columns"
@@ -46,9 +56,17 @@ function ColumnMenu({ shown, onChange }: { shown: readonly Column[]; onChange: (
           aria-label="Columns"
           tabIndex={-1}
           onKeyDown={(event) => {
-            if (event.key === "Escape") {
+            const all = items();
+            const at = all.findIndex((item) => item === document.activeElement);
+            const to = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: all.length - 1 }[event.key];
+            if (event.key === "Escape" || event.key === "Tab") {
               event.stopPropagation();
-              setOpen(false);
+              if (event.key === "Escape") event.preventDefault();
+              close();
+            } else if (to !== undefined) {
+              event.preventDefault();
+              event.stopPropagation();
+              all[(to + all.length) % all.length]?.focus();
             }
           }}
           className="absolute top-7 right-0 z-20 flex w-48 flex-col gap-0.5 rounded-md border border-line bg-surface-raised p-1 shadow-dialog"
@@ -83,7 +101,7 @@ export function DownloadTable({ title }: { title: string }) {
   const selected = useDownloads((s) => s.selected);
   const settings = useDownloads((s) => s.settings);
   const allItems = useDownloads((s) => s.items);
-  const saveSettings = useDownloads((s) => s.saveSettings);
+  const savePreference = useDownloads((s) => s.savePreference);
   const chosen = columnsOf(settings);
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
@@ -127,7 +145,7 @@ export function DownloadTable({ title }: { title: string }) {
                   <button
                     type="button"
                     onClick={() => {
-                      void saveSettings({ sort: sortText(nextSort(sort, column)) });
+                      void savePreference({ sort: sortText(nextSort(sort, column)) }, "the sort");
                     }}
                     className={`flex w-full items-center gap-1 text-label ${active ? "text-ink" : "text-ink-muted"} hover:text-ink ${column.numeric ? "justify-end" : "justify-start"}`}
                   >
@@ -141,7 +159,7 @@ export function DownloadTable({ title }: { title: string }) {
               <ColumnMenu
                 shown={chosen}
                 onChange={(ids) => {
-                  void saveSettings({ columns: ids });
+                  void savePreference({ columns: ids }, "the columns");
                 }}
               />
             </th>

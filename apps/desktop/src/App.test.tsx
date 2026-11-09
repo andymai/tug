@@ -682,6 +682,34 @@ describe("table", () => {
     expect(screen.getByRole("columnheader", { name: "Name" })).toHaveAttribute("aria-sort", "none");
   });
 
+  it("moves through the Columns menu with the keyboard and gives focus back", async () => {
+    const { store, user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const trigger = screen.getByRole("button", { name: "Columns" });
+    await user.click(trigger);
+    const menu = within(screen.getByRole("menu", { name: "Columns" }));
+    expect(menu.getByRole("menuitemcheckbox", { name: "Progress" })).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(menu.getByRole("menuitemcheckbox", { name: "Size" })).toHaveFocus();
+    await user.keyboard("{End}");
+    expect(menu.getByRole("menuitemcheckbox", { name: "Queue" })).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(menu.getByRole("menuitemcheckbox", { name: "Progress" })).toHaveFocus();
+    expect(store.getState().selected, "the arrows stay in the menu").toBeNull();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu", { name: "Columns" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("says why a sort didn't save", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore({ ...backend, updateSettings: () => Promise.reject(new BackendError("storage", "the disk is full")) })} />);
+    const user = userEvent.setup();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.click(within(screen.getByRole("columnheader", { name: "Size" })).getByRole("button"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save the sort: the disk is full");
+  });
+
   it("picks the columns it shows, and always keeps name and status", async () => {
     const { backend, user } = open();
     await screen.findByText("fedora-kde-44-x86_64.iso");
