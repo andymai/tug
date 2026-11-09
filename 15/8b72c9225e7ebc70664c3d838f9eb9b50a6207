@@ -1,0 +1,20 @@
+apps/desktop/src/window.visual.tsx
+  s_b321718d129a1e::t_574fddae443612 50-51
+  s_b321718d129a1e::t_d09bc83e15cf1e 3,42-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "158b72c9225e7ebc70664c3d838f9eb9b50a6207",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
