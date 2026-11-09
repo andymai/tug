@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.1](https://github.com/andymai/tug/compare/v0.25.0...v0.25.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **desktop:** a jump clears a search whose answer is still on its way ([#114](https://github.com/andymai/tug/issues/114)) ([3216aae](https://github.com/andymai/tug/commit/3216aae7ccfa5e6147bdf60c922b54825e80683e))
+
 ## [0.25.0](https://github.com/andymai/tug/compare/v0.24.0...v0.25.0) (2026-11-09)
 
 
