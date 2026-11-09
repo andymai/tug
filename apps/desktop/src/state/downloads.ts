@@ -387,7 +387,7 @@ export function createDownloadsStore(backend: Backend) {
 
       saveView: () => {
         const { settings, search, view } = get();
-        const query = search.trim().replace(/\s+/gu, " ");
+        const query = queryOf(search);
         if (settings === null || query === "" || settings.savedViews.some((saved) => sameView(saved, { view, query }))) return;
         if (settings.savedViews.length >= MAX_SAVED_VIEWS) {
           set({ notice: `Tug keeps at most ${String(MAX_SAVED_VIEWS)} saved views. Remove one to save this search.` });
@@ -551,13 +551,17 @@ export function isView(value: string): value is View {
   return VIEWS.some((v) => v.id === value) || isCategory(value);
 }
 
+export function queryOf(search: string): string {
+  return search.trim().replace(/\s+/gu, " ");
+}
+
 export function sameView(a: Pick<SavedView, "view" | "query">, b: Pick<SavedView, "view" | "query">): boolean {
   return a.view === b.view && a.query === b.query;
 }
 
 export function savedViewOf(state: Pick<DownloadsState, "settings" | "view" | "search" | "page">): SavedView | null {
   if (state.page !== "downloads") return null;
-  return state.settings?.savedViews.find((saved) => sameView(saved, { view: state.view, query: state.search.trim() })) ?? null;
+  return state.settings?.savedViews.find((saved) => sameView(saved, { view: state.view, query: queryOf(state.search) })) ?? null;
 }
 
 export function inView(view: View, item: Download): boolean {
