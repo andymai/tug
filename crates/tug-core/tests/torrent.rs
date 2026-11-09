@@ -147,11 +147,97 @@ async fn a_torrent_file_downloads_its_files_from_a_seeder() {
         [EventKind::Added, EventKind::Started, EventKind::Finished]
     );
 
+    std::fs::write(got.join("set").join("notes.txt"), b"mine").unwrap();
     library.remove(id, true).await.unwrap();
+    assert!(!got.join("set").join("a.bin").exists());
+    assert!(!got.join("set").join("b.bin").exists());
     assert!(
-        !got.join("set").exists(),
-        "a finished torrent's folder goes when asked"
+        got.join("set").join("notes.txt").exists(),
+        "only the torrent's own files go"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_finished_torrent_takes_its_empty_folder_along() {
+    let tmp = tempfile::tempdir().unwrap();
+    let seeder = seeder(
+        tmp.path(),
+        vec![("a.bin", bytes(40_000, 251)), ("b.bin", bytes(30_000, 13))],
+    )
+    .await;
+    let library = leecher(tmp.path(), Some(&seeder)).await;
+    let got = tmp.path().join("got");
+    let id = library
+        .add_torrent(TorrentSource::File(seeder.torrent.clone()), &got)
+        .await
+        .unwrap();
+    tick_until(&library, id, DownloadState::Done).await;
+    library.remove(id, true).await.unwrap();
+    assert!(!got.join("set").exists(), "its own folder goes once empty");
+    assert!(got.exists(), "the download folder stays");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_same_torrent_waits_in_the_list_once() {
+    let tmp = tempfile::tempdir().unwrap();
+    let seeder = seeder(tmp.path(), vec![("one.bin", bytes(64_000, 7))]).await;
+    let library = leecher(tmp.path(), None).await;
+    let first = library
+        .add_torrent(TorrentSource::File(seeder.torrent.clone()), tmp.path())
+        .await
+        .unwrap();
+    let magnet = TorrentSource::File(seeder.torrent.clone()).link().unwrap();
+    let hash = magnet
+        .split("btih:")
+        .nth(1)
+        .unwrap()
+        .split('&')
+        .next()
+        .unwrap()
+        .to_owned();
+    for again in [
+        TorrentSource::File(seeder.torrent.clone()),
+        TorrentSource::Magnet(magnet.clone()),
+        TorrentSource::Magnet(format!("magnet:?xt=urn:btih:{}", base32(&hash))),
+    ] {
+        assert!(
+            matches!(
+                library.add_torrent(again, tmp.path()).await,
+                Err(LibraryError::DuplicateTorrent(_))
+            ),
+            "{hash}"
+        );
+    }
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    library.tick().await.unwrap();
+    assert_eq!(
+        library.get(first).unwrap().state,
+        DownloadState::Downloading,
+        "a .torrent file waits for peers; it never asks the swarm for its file list"
+    );
+}
+
+fn base32(hex: &str) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let bytes: Vec<u8> = (0..hex.len())
+        .step_by(2)
+        .map(|at| u8::from_str_radix(&hex[at..at + 2], 16).unwrap())
+        .collect();
+    let mut bits = 0u64;
+    let mut held = 0;
+    let mut out = String::new();
+    for byte in bytes {
+        bits = (bits << 8) | u64::from(byte);
+        held += 8;
+        while held >= 5 {
+            held -= 5;
+            out.push(char::from(
+                ALPHABET[usize::try_from((bits >> held) & 31).unwrap()],
+            ));
+        }
+    }
+    out
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

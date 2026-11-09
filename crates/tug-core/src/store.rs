@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::fmt::Write as _;
 use std::fs::{OpenOptions, Permissions};
 use std::io;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
@@ -236,14 +237,40 @@ impl Download {
     }
 }
 
-// The info hash in a magnet link, as librqbit writes it.
+// The info hash in a magnet link as librqbit writes it: 40 hex digits, also
+// when the link gives the 32-letter base32 form.
 pub fn info_hash(magnet: &str) -> Option<String> {
     let url = Url::parse(magnet).ok()?;
-    url.query_pairs().find_map(|(key, value)| {
+    let given = url.query_pairs().find_map(|(key, value)| {
         (key == "xt")
-            .then(|| value.strip_prefix("urn:btih:").map(str::to_ascii_lowercase))
+            .then(|| value.strip_prefix("urn:btih:").map(str::to_owned))
             .flatten()
-    })
+    })?;
+    match given.len() {
+        40 if given.chars().all(|c| c.is_ascii_hexdigit()) => Some(given.to_ascii_lowercase()),
+        32 => base32_hex(&given),
+        _ => None,
+    }
+}
+
+fn base32_hex(text: &str) -> Option<String> {
+    let mut bits: u64 = 0;
+    let mut held = 0;
+    let mut hex = String::with_capacity(40);
+    for c in text.chars() {
+        let value = match c.to_ascii_uppercase() {
+            letter @ 'A'..='Z' => u64::from(letter) - u64::from('A'),
+            digit @ '2'..='7' => u64::from(digit) - u64::from('2') + 26,
+            _ => return None,
+        };
+        bits = (bits << 5) | value;
+        held += 5;
+        if held >= 8 {
+            held -= 8;
+            write!(hex, "{:02x}", (bits >> held) & 0xff).ok()?;
+        }
+    }
+    (hex.len() == 40).then_some(hex)
 }
 
 pub fn name_of(url: &Url, file: Option<&Path>) -> String {
@@ -1042,6 +1069,25 @@ mod tests {
         let store = Store::open(&db).unwrap();
         assert_eq!(store.schema_version().unwrap(), 6);
         assert_eq!(store.search("backup").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_magnet_hash_reads_the_same_in_hex_and_in_base32() {
+        let hex = "e4be9e4db876e3e3179778b03e906297be5c8dbe";
+        for magnet in [
+            format!("magnet:?xt=urn:btih:{hex}&dn=x"),
+            format!("magnet:?xt=urn:btih:{}", hex.to_ascii_uppercase()),
+            "magnet:?xt=urn:btih:4S7J4TNYO3R6GF4XPCYD5EDCS67FZDN6".to_owned(),
+        ] {
+            assert_eq!(info_hash(&magnet).as_deref(), Some(hex), "{magnet}");
+        }
+        for odd in [
+            "magnet:?xt=urn:btih:00",
+            "magnet:?dn=x",
+            "https://example.org/",
+        ] {
+            assert_eq!(info_hash(odd), None, "{odd}");
+        }
     }
 
     #[test]

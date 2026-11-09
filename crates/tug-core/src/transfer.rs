@@ -206,6 +206,29 @@ impl Transfer {
     }
 
     pub async fn finish(self) -> Result<Finished, TransferError> {
+        self.end().await.0
+    }
+
+    // The outcome, and what a torrent's run learned and no tick saved yet.
+    pub async fn end(self) -> (Result<Finished, TransferError>, Option<(String, Vec<u8>)>) {
+        match self.work {
+            Work::Http(_) => (self.finish_http().await, None),
+            Work::Torrent(run) => {
+                let outcome = run
+                    .task
+                    .await
+                    .unwrap_or_else(|e| Err(TransferError::Lost(e.to_string())));
+                let learned = run
+                    .learned
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .take();
+                (outcome, learned)
+            }
+        }
+    }
+
+    async fn finish_http(self) -> Result<Finished, TransferError> {
         match self.work {
             Work::Http(download) => download
                 .wait()
