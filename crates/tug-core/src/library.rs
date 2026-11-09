@@ -285,7 +285,6 @@ fn record(
             store.set_progress(id, done.size, Some(done.size))?;
             store.set_state(id, DownloadState::Done, None, now)?;
             store.add_event(id, &event(EventKind::Finished, now, Some(done.size), None))?;
-            store.forget_origin(id)?;
         }
         Err(error) => {
             store.set_progress(id, last.received, last.total)?;
