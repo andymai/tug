@@ -152,6 +152,16 @@ describe("main window", () => {
     await capture(window, "settings-sites");
   });
 
+  it("sets the hours and days on which downloads run", async () => {
+    const { store, window } = await open(SHOWCASE);
+    await act(async () => {
+      await store.getState().saveSettings({ schedule: { days: 0b001_1111, start: 23 * 60, stop: 7 * 60 } });
+      store.getState().setPage("settings");
+    });
+    document.getElementById("settings-schedule")?.scrollIntoView({ block: "start" });
+    await capture(window, "settings-schedule");
+  });
+
   it("asks before a download from the browser", async () => {
     const { window } = await open(
       SHOWCASE,

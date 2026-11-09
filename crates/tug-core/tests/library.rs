@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer, content};
 use tug_core::{
-    Download, DownloadId, DownloadState, EventKind, Library, LibraryError, Origin, Place, Settings,
-    Store,
+    Download, DownloadId, DownloadState, EventKind, Library, LibraryError, MINUTES_PER_DAY, Origin,
+    Place, Schedule, Settings, Store,
 };
 
 fn assert_intact(path: &Path, seed: u64, len: usize) {
@@ -275,6 +275,60 @@ async fn limited(max_active: u32) -> Library {
         })
         .unwrap();
     library
+}
+
+// Hours that hold the present local minute, or that start two hours from now.
+fn hours(open: bool) -> Schedule {
+    let now = jiff::Zoned::now();
+    let minute = i32::from(now.hour()) * 60 + i32::from(now.minute());
+    let shift =
+        |by: i32| u16::try_from((minute + by).rem_euclid(i32::from(MINUTES_PER_DAY))).unwrap();
+    let (start, stop) = if open { (-60, 60) } else { (120, 180) };
+    Schedule {
+        days: Schedule::EVERY_DAY,
+        start: shift(start),
+        stop: shift(stop),
+    }
+}
+
+fn schedule(library: &Library, schedule: Schedule) {
+    library
+        .update_settings(Settings {
+            schedule: Some(schedule),
+            ..library.settings().unwrap()
+        })
+        .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn downloads_wait_for_the_scheduled_hours_and_go_back_to_the_queue_after_them() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = limited(3).await;
+    schedule(&library, hours(false));
+    let url = lab
+        .url("/gen/4M/night.bin?seed=91&rate=1M")
+        .parse()
+        .unwrap();
+    let id = library.add(url, dir.path()).await.unwrap();
+    library.tick().await.unwrap();
+    assert_eq!(state_of(&library, id), DownloadState::Queued);
+    assert!(lab.log().is_empty(), "it sent {:?}", lab.log());
+
+    schedule(&library, hours(true));
+    library.tick().await.unwrap();
+    assert_eq!(state_of(&library, id), DownloadState::Downloading);
+    received_at_least(&library, id, 256 << 10).await;
+
+    schedule(&library, hours(false));
+    let tick = library.tick().await.unwrap();
+    assert_eq!(state_of(&library, id), DownloadState::Queued);
+    assert_eq!(tick.changed, vec![id]);
+    assert_eq!(
+        kinds(&library, id),
+        [EventKind::Added, EventKind::Started, EventKind::Paused]
+    );
+    assert!(library.get(id).unwrap().received >= 256 << 10);
 }
 
 #[tokio::test(flavor = "multi_thread")]

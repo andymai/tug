@@ -4,6 +4,7 @@ import { useShallow } from "zustand/shallow";
 import markDark from "../../../../brand/svg/mark-dark.svg";
 import mark from "../../../../brand/svg/mark.svg";
 import { formatSpeed, sentence } from "../lib/format";
+import { openAt } from "../lib/schedule";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { type View, visibleItems } from "../state/downloads";
@@ -28,16 +29,20 @@ const EMPTY: Record<View, { title: string; body: string }> = {
 };
 
 function Summary() {
-  const { count, speed } = useDownloads(
+  const { count, speed, waiting } = useDownloads(
     useShallow((s) => {
       const running = s.items.filter((item) => item.state === "downloading");
+      const schedule = s.settings?.schedule ?? null;
       return {
         count: running.length,
         speed: running.reduce((sum, item) => sum + (s.live[item.id]?.speed ?? 0), 0),
+        waiting: schedule !== null && s.items.some((item) => item.state === "queued") && !openAt(schedule, new Date()),
       };
     }),
   );
-  if (count === 0) return null;
+  if (count === 0) {
+    return waiting ? <p className="truncate text-small text-ink-muted @max-xl/main:hidden">Outside the scheduled hours</p> : null;
+  }
   return (
     <p className="truncate text-small text-ink-muted @max-xl/main:hidden">
       {count} downloading

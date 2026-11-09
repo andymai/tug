@@ -34,6 +34,7 @@ async fn settings_survive_a_reopen() {
         excluded_sites: vec!["example.org".into()],
         confirm_captures: true,
         max_active: 3,
+        schedule: None,
     };
     Library::open(Store::open(&db).unwrap())
         .await
@@ -78,6 +79,7 @@ async fn the_global_speed_limit_holds_downloads_back() {
             excluded_sites: Vec::new(),
             confirm_captures: true,
             max_active: 3,
+            schedule: None,
         })
         .unwrap();
 
@@ -105,6 +107,7 @@ async fn lifting_the_limit_speeds_up_a_running_download() {
         excluded_sites: Vec::new(),
         confirm_captures: true,
         max_active: 3,
+        schedule: None,
     };
     library.update_settings(limited.clone()).unwrap();
 

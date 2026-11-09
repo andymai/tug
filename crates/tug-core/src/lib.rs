@@ -1,6 +1,7 @@
 mod library;
 mod origin;
 mod progress;
+mod schedule;
 mod settings;
 mod store;
 mod transfer;
@@ -10,6 +11,7 @@ pub use origin::{Origin, OriginError};
 pub use progress::{
     Batch, MIN_INTERVAL, ProgressStream, Smoother, StreamOptions, Update, time_left,
 };
+pub use schedule::{MINUTES_PER_DAY, Schedule, ScheduleError};
 pub use settings::{
     Appearance, DEFAULT_CONNECTIONS, DEFAULT_MAX_ACTIVE, MAX_ACTIVE, Settings, SettingsError, site,
 };

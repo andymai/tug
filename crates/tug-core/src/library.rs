@@ -10,6 +10,7 @@ use mdm_engine::state::state_path;
 use url::Url;
 
 use crate::origin::Origin;
+use crate::schedule::Schedule;
 use crate::settings::{Settings, SettingsError};
 use crate::store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Place, Store, StoreError,
@@ -313,6 +314,9 @@ impl Library {
             }
             settled.push(id);
         }
+        if let Err(e) = self.close_hours().await {
+            error.get_or_insert_with(|| e.to_string());
+        }
         // Also picks up a raised limit and a download that a failed start left behind.
         if let Err(e) = self.pump().await {
             error.get_or_insert_with(|| e.to_string());
@@ -349,8 +353,9 @@ impl Library {
     // Starts waiting downloads in queue order while fewer than the limit run.
     // A download that can't start fails on its own and doesn't hold up the rest.
     fn fill(&self, running: &mut HashMap<DownloadId, Running>) -> Result<(), LibraryError> {
-        let limit = usize::try_from(self.settings()?.max_active).unwrap_or(usize::MAX);
-        if running.len() >= limit {
+        let settings = self.settings()?;
+        let limit = usize::try_from(settings.max_active).unwrap_or(usize::MAX);
+        if running.len() >= limit || !within_hours(&settings) {
             return Ok(());
         }
         let waiting = self.store()?.queued()?;
@@ -381,6 +386,26 @@ impl Library {
             }
         }
         Ok(())
+    }
+
+    // Outside the schedule's hours, running downloads go back to the queue and
+    // keep their place, so they go on when the hours come again.
+    async fn close_hours(&self) -> Result<(), LibraryError> {
+        if within_hours(&self.settings()?) {
+            return Ok(());
+        }
+        let stopped: Vec<(DownloadId, Running)> = self.running.lock().await.drain().collect();
+        for (_, entry) in &stopped {
+            entry.transfer.stop();
+        }
+        let mut first = None;
+        for (id, entry) in stopped {
+            if let Err(e) = self.settle(id, entry.transfer, DownloadState::Queued).await {
+                first.get_or_insert(e);
+            }
+            self.changed(id);
+        }
+        first.map_or(Ok(()), Err)
     }
 
     fn hold(&self, download: &Download) -> Result<(), LibraryError> {
@@ -464,6 +489,10 @@ impl Library {
     fn store(&self) -> Result<MutexGuard<'_, Store>, LibraryError> {
         self.store.lock().map_err(|_| LibraryError::Poisoned)
     }
+}
+
+fn within_hours(settings: &Settings) -> bool {
+    settings.schedule.is_none_or(Schedule::is_open_now)
 }
 
 fn delete_files(download: &Download) -> Result<(), LibraryError> {

@@ -8,7 +8,8 @@ use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
     Appearance, Batch, Download, DownloadId, DownloadState, Event, EventKind, Library,
-    LibraryError, Origin, Phase, Place, ProgressStream, Settings, Store, StreamOptions, Update,
+    LibraryError, Origin, Phase, Place, ProgressStream, Schedule, Settings, Store, StreamOptions,
+    Update,
 };
 use url::Url;
 
@@ -289,6 +290,35 @@ pub const fn scheme_of(scheme: ashpd::desktop::settings::ColorScheme) -> Option<
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "Schedule")]
+pub struct ScheduleDto {
+    pub days: u8,
+    pub start: u16,
+    pub stop: u16,
+}
+
+impl From<Schedule> for ScheduleDto {
+    fn from(s: Schedule) -> Self {
+        Self {
+            days: s.days,
+            start: s.start,
+            stop: s.stop,
+        }
+    }
+}
+
+impl From<ScheduleDto> for Schedule {
+    fn from(s: ScheduleDto) -> Self {
+        Self {
+            days: s.days,
+            start: s.start,
+            stop: s.stop,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, rename = "Settings")]
@@ -301,6 +331,7 @@ pub struct SettingsDto {
     pub excluded_sites: Vec<String>,
     pub confirm_captures: bool,
     pub max_active: u32,
+    pub schedule: Option<ScheduleDto>,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -313,6 +344,7 @@ impl From<&Settings> for SettingsDto {
             excluded_sites: s.excluded_sites.clone(),
             confirm_captures: s.confirm_captures,
             max_active: s.max_active,
+            schedule: s.schedule.map(ScheduleDto::from),
         }
     }
 }
@@ -342,6 +374,7 @@ impl From<SettingsDto> for Settings {
                 .collect(),
             confirm_captures: s.confirm_captures,
             max_active: s.max_active,
+            schedule: s.schedule.map(Schedule::from),
         }
     }
 }
@@ -938,6 +971,7 @@ mod tests {
             excluded_sites: Vec::new(),
             confirm_captures: true,
             max_active: 3,
+            schedule: None,
         };
         let dto = SettingsDto {
             connections: 4,
@@ -1075,6 +1109,11 @@ mod tests {
             excluded_sites: vec!["example.org".into()],
             confirm_captures: false,
             max_active: 3,
+            schedule: Some(Schedule {
+                days: Schedule::EVERY_DAY,
+                start: 60,
+                stop: 7 * 60,
+            }),
         };
         assert_eq!(Settings::from(SettingsDto::from(&settings)), settings);
         let typed = SettingsDto {

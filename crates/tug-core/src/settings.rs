@@ -6,6 +6,7 @@ use std::str::FromStr;
 use mdm_engine::download::MAX_CONNECTIONS;
 use url::Url;
 
+use crate::schedule::{Schedule, ScheduleError};
 use crate::store::{Store, StoreError};
 
 pub const DEFAULT_CONNECTIONS: u32 = 8;
@@ -19,6 +20,7 @@ const APPEARANCE: &str = "appearance";
 const EXCLUDED_SITES: &str = "excluded_sites";
 const CONFIRM_CAPTURES: &str = "confirm_captures";
 const MAX_ACTIVE_KEY: &str = "max_active";
+const SCHEDULE: &str = "schedule";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Appearance {
@@ -60,6 +62,7 @@ pub struct Settings {
     pub excluded_sites: Vec<String>,
     pub confirm_captures: bool,
     pub max_active: u32,
+    pub schedule: Option<Schedule>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -76,6 +79,8 @@ pub enum SettingsError {
     Site(String),
     #[error("{0} is in the list twice")]
     DuplicateSite(String),
+    #[error(transparent)]
+    Schedule(#[from] ScheduleError),
 }
 
 pub fn site(input: &str) -> Result<String, SettingsError> {
@@ -104,6 +109,7 @@ impl Default for Settings {
             excluded_sites: Vec::new(),
             confirm_captures: true,
             max_active: DEFAULT_MAX_ACTIVE,
+            schedule: None,
         }
     }
 }
@@ -115,6 +121,9 @@ impl Settings {
         }
         if !(1..=MAX_ACTIVE).contains(&self.max_active) {
             return Err(SettingsError::MaxActive(self.max_active));
+        }
+        if let Some(schedule) = self.schedule {
+            schedule.validate()?;
         }
         if self.speed_limit == Some(0) {
             return Err(SettingsError::ZeroSpeedLimit);
@@ -188,6 +197,7 @@ impl Settings {
             .and_then(|v| v.parse().ok())
             .filter(|n| (1..=MAX_ACTIVE).contains(n))
             .unwrap_or(defaults.max_active);
+        let schedule = store.setting(SCHEDULE)?.and_then(|v| v.parse().ok());
         Ok(Self {
             download_dir,
             connections,
@@ -196,6 +206,7 @@ impl Settings {
             excluded_sites,
             confirm_captures,
             max_active,
+            schedule,
         })
     }
 
@@ -216,6 +227,12 @@ impl Settings {
         }
         store.set_setting(CONFIRM_CAPTURES, &self.confirm_captures.to_string())?;
         store.set_setting(MAX_ACTIVE_KEY, &self.max_active.to_string())?;
+        match &self.schedule {
+            Some(schedule) => store.set_setting(SCHEDULE, &schedule.to_string())?,
+            None => {
+                store.remove_setting(SCHEDULE)?;
+            }
+        }
         Ok(())
     }
 }
@@ -239,6 +256,7 @@ mod tests {
             excluded_sites: Vec::new(),
             confirm_captures: true,
             max_active: 3,
+            schedule: None,
         }
     }
 
@@ -391,6 +409,11 @@ mod tests {
             excluded_sites: vec!["example.org".into(), "mail.example.net".into()],
             confirm_captures: false,
             max_active: 3,
+            schedule: Some(Schedule {
+                days: 0b001_1111,
+                start: 22 * 60,
+                stop: 6 * 60,
+            }),
         };
         settings.save(&store).unwrap();
         assert_eq!(Settings::load(&store).unwrap(), settings);
@@ -398,6 +421,7 @@ mod tests {
         let unlimited = Settings {
             speed_limit: None,
             excluded_sites: Vec::new(),
+            schedule: None,
             ..settings
         };
         unlimited.save(&store).unwrap();
@@ -413,7 +437,9 @@ mod tests {
             .set_setting(EXCLUDED_SITES, "example.org\nNot A Site\nexample.org")
             .unwrap();
         store.set_setting(CONFIRM_CAPTURES, "sometimes").unwrap();
+        store.set_setting(SCHEDULE, "0 60 420").unwrap();
         let loaded = Settings::load(&store).unwrap();
+        assert_eq!(loaded.schedule, None);
         assert_eq!(loaded.excluded_sites, vec!["example.org".to_owned()]);
         assert!(loaded.confirm_captures);
         assert_eq!(

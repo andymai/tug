@@ -5319,6 +5319,7 @@ version = "0.22.1"
 dependencies = [
  "dirs 6.0.0",
  "http",
+ "jiff",
  "mdm-engine",
  "mdm-labserver",
  "rusqlite",
