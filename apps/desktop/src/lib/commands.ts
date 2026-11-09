@@ -11,6 +11,7 @@ import {
   Keyboard,
   Layers,
   ListChecks,
+  ListEnd,
   ListStart,
   Settings,
   type LucideIcon,
@@ -23,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 
-import { chosen, type DownloadsStore, savedViewOf, type StateView } from "../state/downloads";
+import { chosen, type DownloadsStore, savedViewOf, single, type StateView } from "../state/downloads";
 import { CATEGORIES } from "./categories";
 import { focusRow } from "./dom";
 
@@ -137,17 +138,30 @@ export function commands(store: DownloadsStore): Command[] {
     });
   }
   const many = chosen(state);
-  const selected = many.length > 1 ? undefined : state.items.find((item) => item.id === state.selected);
+  const selected = many.length > 1 ? undefined : single(state);
   if (many.length > 1) {
     const ids = many.map((item) => item.id);
     const any = (...states: string[]) => many.some((item) => states.includes(item.state));
     const group = "Selected downloads";
-    if (any("queued")) list.push({ id: "start-next", title: "Start next", group, icon: ListStart, run: () => void state.moveMany(ids, "first") });
-    if (any("downloading", "queued")) {
-      list.push({ id: "pause", title: "Pause", group, icon: Pause, keys: toggle, run: () => void state.pauseMany(ids) });
-    } else if (any("paused", "failed")) {
+    if (any("queued")) {
+      list.push(
+        { id: "start-next", title: "Start next", group, icon: ListStart, run: () => void state.moveMany(ids, "first") },
+        { id: "move-last", title: "Move to the end", group, icon: ListEnd, run: () => void state.moveMany(ids, "last") },
+      );
+    }
+    const active = any("downloading", "queued");
+    if (active) list.push({ id: "pause", title: "Pause", group, icon: Pause, keys: toggle, run: () => void state.pauseMany(ids) });
+    // P pauses a selection with anything running; Resume stays here for the rest.
+    if (any("paused", "failed")) {
       const resume = any("paused");
-      list.push({ id: "resume", title: resume ? "Resume" : "Retry", group, icon: resume ? Play : RotateCw, keys: toggle, run: () => void state.resumeMany(ids) });
+      list.push({
+        id: "resume",
+        title: resume ? "Resume" : "Retry",
+        group,
+        icon: resume ? Play : RotateCw,
+        ...(active ? {} : { keys: toggle }),
+        run: () => void state.resumeMany(ids),
+      });
     }
     list.push(
       {
@@ -188,7 +202,10 @@ export function commands(store: DownloadsStore): Command[] {
   if (selected) {
     const { id } = selected;
     if (selected.state === "queued") {
-      list.push({ id: "start-next", title: "Start next", group: "Selected download", icon: ListStart, run: () => void state.startNext(id) });
+      list.push(
+        { id: "start-next", title: "Start next", group: "Selected download", icon: ListStart, run: () => void state.startNext(id) },
+        { id: "move-last", title: "Move to the end", group: "Selected download", icon: ListEnd, run: () => void state.moveMany([id], "last") },
+      );
     }
     if (selected.state === "downloading" || selected.state === "queued") {
       list.push({ id: "pause", title: "Pause", group: "Selected download", icon: Pause, keys: toggle, run: () => void state.pause(id) });

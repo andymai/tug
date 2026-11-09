@@ -859,6 +859,66 @@ describe("selection", () => {
     expect(screen.queryByText("noto-fonts-2026.11.zip")).not.toBeInTheDocument();
   });
 
+  it("lists the actions for several selected downloads in the command bar", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    fireEvent.click(rowOf("blender-5.1-linux-x64.tar.xz"), { ctrlKey: true });
+    fireEvent.click(rowOf("conference-talk-1080p.mp4"), { ctrlKey: true });
+    await user.keyboard("{Control>}k{/Control}");
+    const bar = within(screen.getByRole("dialog", { name: "Command bar" }));
+    const group = within(bar.getByRole("group", { name: "Selected downloads" }));
+    expect(group.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Start next",
+      "Move to the end",
+      expect.stringMatching(/^PauseP$/),
+      "Resume",
+      "Copy links",
+      expect.stringMatching(/^Remove…Del$/),
+      expect.stringMatching(/^Clear the selectionEsc$/),
+    ]);
+  });
+
+  it("acts on the one selected row that a search leaves in view", async () => {
+    const { user, store } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    fireEvent.click(rowOf("conference-talk-1080p.mp4"), { ctrlKey: true });
+    act(() => {
+      store.getState().setSearch("fedora");
+    });
+    await vi.waitFor(() => {
+      expect(screen.queryByText("conference-talk-1080p.mp4")).not.toBeInTheDocument();
+    });
+    const panel = within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" }));
+    expect(await panel.findByRole("region", { name: "History" })).toBeInTheDocument();
+    await user.click(panel.getByRole("tab", { name: "Log" }));
+    expect((await within(panel.getByRole("tabpanel", { name: "Log" })).findAllByRole("listitem")).length).toBeGreaterThan(0);
+    await user.click(panel.getByRole("tab", { name: "Overview" }));
+    await user.keyboard("p");
+    await vi.waitFor(() => {
+      expect(store.getState().items.find((d) => d.name === "fedora-kde-44-x86_64.iso")?.state).toBe("paused");
+    });
+    expect(store.getState().items.find((d) => d.name === "conference-talk-1080p.mp4")?.state).toBe("paused");
+  });
+
+  it("forgets its menu when the table gives way to the empty view", async () => {
+    const backend = createMockBackend({ seed: [{ url: "https://example.org/small.iso", state: "downloading", progress: 0.9, size: MB }] });
+    const store = createDownloadsStore(backend);
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    act(() => {
+      store.getState().setView("active");
+    });
+    fireEvent.contextMenu(await screen.findByRole("row", { name: /^small\.iso/ }), { clientX: 200, clientY: 200 });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    act(() => {
+      backend.tick();
+    });
+    expect(await screen.findByRole("heading", { name: "Nothing downloading" })).toBeInTheDocument();
+    expect(store.getState().menu).toBeNull();
+    await user.keyboard("?");
+    expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+  });
+
   it("says that a running download stops when several go", async () => {
     const { user } = open();
     await screen.findByText("fedora-kde-44-x86_64.iso");

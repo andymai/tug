@@ -635,14 +635,14 @@ export function createDownloadsStore(backend: Backend) {
         act(async () => {
           const request = ++historyRequest;
           const events = await backend.events(id);
-          if (request === historyRequest && get().selected === id) set({ history: { id, events } });
+          if (request === historyRequest && shownId(get()) === id) set({ history: { id, events } });
         }),
 
       inspect: async (id) => {
         const request = ++inspectRequest;
         try {
           const data = await backend.inspect(id);
-          if (request === inspectRequest && get().selected === id) set({ inspection: { id, data } });
+          if (request === inspectRequest && shownId(get()) === id) set({ inspection: { id, data } });
         } catch (error) {
           const failure = BackendError.from(error);
           // A download removed between two polls; its panel closes with it.
@@ -780,6 +780,20 @@ export function countFor(items: readonly Download[], view: View): number {
 
 export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay" | "captures" | "removing" | "menu">): boolean {
   return state.adding.open || state.overlay !== null || state.captures.length > 0 || state.removing !== null || state.menu !== null;
+}
+
+// The download that the details and the commands for one act on: the selected
+// row, or of several marked, the only one that the view still shows.
+export function single(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live" | "marked" | "selected">): Download | undefined {
+  if (state.marked.length > 1) {
+    const list = chosen(state);
+    return list.length === 1 ? list[0] : undefined;
+  }
+  return state.items.find((item) => item.id === state.selected);
+}
+
+function shownId(state: Parameters<typeof single>[0]): number | null {
+  return state.marked.length > 1 ? (single(state)?.id ?? null) : state.selected;
 }
 
 // The marked downloads that the view shows, in its order.
