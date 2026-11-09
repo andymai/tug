@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop/src-tauri", "crates/tug-core"]
+members = ["apps/desktop/src-tauri", "crates/tug-core", "crates/tug-ipc"]
 resolver = "3"
 
 [workspace.package]
@@ -33,6 +33,7 @@ thiserror = "2"
 tokio = {version = "1", features = ["macros", "rt-multi-thread", "sync", "time"]}
 ts-rs = "12"
 tug-core = {path = "crates/tug-core"}
+tug-ipc = {path = "crates/tug-ipc"}
 url = "2"
 
 [workspace.lints.rust]

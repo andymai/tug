@@ -4,12 +4,13 @@ set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 work=$(mktemp -d)
+mkdir -m 700 "$work/runtime"
 cd "$repo"
 RUSTFLAGS="" PKG_CONFIG=/usr/bin/pkg-config cargo build -p tug-desktop --quiet
 
 env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BACKEND=memory \
   XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" XDG_CACHE_HOME="$work/cache" \
-  dbus-run-session -- xvfb-run -a -s "-screen 0 1280x800x24" bash -euo pipefail -c '
+  XDG_RUNTIME_DIR="$work/runtime" dbus-run-session -- xvfb-run -a -s "-screen 0 1280x800x24" bash -euo pipefail -c '
     here='"$repo"'/scripts/tray
     work='"$work"'
     fail() { echo "FAIL: $*" >&2; exit 1; }

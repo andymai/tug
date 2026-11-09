@@ -625,7 +625,7 @@ pub fn show_in_folder(
     }
 }
 
-fn display_name(d: &Download) -> String {
+pub fn display_name(d: &Download) -> String {
     if let Some(name) = d.file.as_deref().and_then(Path::file_name) {
         return name.to_string_lossy().into_owned();
     }

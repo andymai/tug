@@ -19,15 +19,16 @@ ashpd.workspace = true
 futures-util.workspace = true
 ksni.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 tauri.workspace = true
 tauri-plugin-opener.workspace = true
 tokio.workspace = true
 ts-rs.workspace = true
 tug-core.workspace = true
+tug-ipc.workspace = true
 url.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
 tempfile.workspace = true
 
 [lints]

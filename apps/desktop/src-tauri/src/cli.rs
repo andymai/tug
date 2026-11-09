@@ -1,0 +1,232 @@
+use std::io::{self, Write};
+use std::os::unix::process::CommandExt;
+use std::process::{Command as Process, ExitCode, Stdio};
+use std::time::{Duration, Instant};
+
+use tug_ipc::{Client, Endpoint, Entry, Request, Response};
+
+use crate::format::format_bytes;
+
+pub const USAGE: &str = "Usage:
+  tug                  Open Tug
+  tug add <link>...    Download each link
+  tug list [--json]    Show every download
+";
+
+const START_TIMEOUT: Duration = Duration::from_secs(20);
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Command {
+    Open,
+    Add(Vec<String>),
+    List { json: bool },
+    Help,
+    Usage(String),
+}
+
+pub fn parse(args: &[String]) -> Command {
+    match args {
+        [] => Command::Open,
+        [command, links @ ..] if command == "add" => {
+            if links.is_empty() {
+                Command::Usage("tug add needs at least one link".into())
+            } else {
+                Command::Add(links.to_vec())
+            }
+        }
+        [command] if command == "list" => Command::List { json: false },
+        [command, flag] if command == "list" && flag == "--json" => Command::List { json: true },
+        [flag] if matches!(flag.as_str(), "-h" | "--help" | "help") => Command::Help,
+        [other, ..] => Command::Usage(format!("unknown command {other}")),
+    }
+}
+
+pub fn line(entry: &Entry) -> String {
+    let mut word = entry.state.clone();
+    if let Some(first) = word.get_mut(0..1) {
+        first.make_ascii_uppercase();
+    }
+    let percent = match entry.size {
+        Some(size) if size > 0 && entry.state != "done" => {
+            format!(
+                "{}%",
+                u128::from(entry.received.min(size)) * 100 / u128::from(size)
+            )
+        }
+        _ => String::new(),
+    };
+    let size = entry.size.map(format_bytes).unwrap_or_default();
+    format!("{word:<12} {percent:>4} {size:>9}  {}", entry.name)
+}
+
+async fn connect(endpoint: &Endpoint) -> Option<Client> {
+    let mut client = Client::connect(endpoint).await.ok()?;
+    matches!(client.send(Request::Ping).await, Ok(Response::Pong)).then_some(client)
+}
+
+pub fn hand_off() -> bool {
+    let Ok(endpoint) = Endpoint::from_env() else {
+        return false;
+    };
+    tauri::async_runtime::block_on(async {
+        match connect(&endpoint).await {
+            Some(mut client) => matches!(client.send(Request::Show).await, Ok(Response::Shown)),
+            None => false,
+        }
+    })
+}
+
+async fn running_or_started(endpoint: &Endpoint) -> Result<Client, String> {
+    if let Some(client) = connect(endpoint).await {
+        return Ok(client);
+    }
+    let exe = std::env::current_exe().map_err(|e| format!("couldn't find Tug: {e}"))?;
+    Process::new(exe)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .map_err(|e| format!("couldn't start Tug: {e}"))?;
+    let deadline = Instant::now() + START_TIMEOUT;
+    while Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        if let Some(client) = connect(endpoint).await {
+            return Ok(client);
+        }
+    }
+    Err("Tug didn't start in time".into())
+}
+
+async fn add(endpoint: &Endpoint, urls: Vec<String>) -> Result<bool, String> {
+    let mut client = running_or_started(endpoint).await?;
+    match client.send(Request::Add { urls }).await {
+        Ok(Response::Added { added, failed }) => {
+            let mut out = io::stdout().lock();
+            for entry in &added {
+                let _written = writeln!(out, "Added {}", entry.name);
+            }
+            let mut err = io::stderr().lock();
+            for failure in &failed {
+                let _written = writeln!(err, "Couldn't add {}: {}", failure.url, failure.reason);
+            }
+            Ok(failed.is_empty())
+        }
+        Ok(_) => Err("Tug gave an answer this tug doesn't know".into()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+async fn list(endpoint: &Endpoint, json: bool) -> Result<bool, String> {
+    let mut client = connect(endpoint).await.ok_or("Tug isn't running")?;
+    match client.send(Request::List).await {
+        Ok(Response::List { downloads }) => {
+            let mut out = io::stdout().lock();
+            if json {
+                serde_json::to_writer(&mut out, &downloads).map_err(|e| e.to_string())?;
+                let _written = writeln!(out);
+            } else if downloads.is_empty() {
+                let _written = writeln!(out, "No downloads");
+            } else {
+                for entry in &downloads {
+                    let _written = writeln!(out, "{}", line(entry));
+                }
+            }
+            Ok(true)
+        }
+        Ok(_) => Err("Tug gave an answer this tug doesn't know".into()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+pub fn run(command: Command) -> ExitCode {
+    let result = match command {
+        Command::Open => Ok(true),
+        Command::Help => {
+            let _written = io::stdout().lock().write_all(USAGE.as_bytes());
+            Ok(true)
+        }
+        Command::Usage(problem) => {
+            let _written = write!(io::stderr().lock(), "{problem}\n\n{USAGE}");
+            return ExitCode::from(2);
+        }
+        Command::Add(urls) => Endpoint::from_env()
+            .map_err(|e| e.to_string())
+            .and_then(|endpoint| tauri::async_runtime::block_on(add(&endpoint, urls))),
+        Command::List { json } => Endpoint::from_env()
+            .map_err(|e| e.to_string())
+            .and_then(|endpoint| tauri::async_runtime::block_on(list(&endpoint, json))),
+    };
+    match result {
+        Ok(true) => ExitCode::SUCCESS,
+        Ok(false) => ExitCode::FAILURE,
+        Err(message) => {
+            let _written = writeln!(io::stderr().lock(), "{message}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|&s| s.to_owned()).collect()
+    }
+
+    #[test]
+    fn commands_parse_from_the_arguments() {
+        assert_eq!(parse(&[]), Command::Open);
+        assert_eq!(
+            parse(&args(&[
+                "add",
+                "https://a.example/x",
+                "https://b.example/y"
+            ])),
+            Command::Add(args(&["https://a.example/x", "https://b.example/y"]))
+        );
+        assert_eq!(parse(&args(&["list"])), Command::List { json: false });
+        assert_eq!(
+            parse(&args(&["list", "--json"])),
+            Command::List { json: true }
+        );
+        assert_eq!(parse(&args(&["--help"])), Command::Help);
+        assert!(matches!(parse(&args(&["add"])), Command::Usage(_)));
+        assert!(matches!(parse(&args(&["remove", "1"])), Command::Usage(_)));
+        assert!(matches!(
+            parse(&args(&["list", "--yaml"])),
+            Command::Usage(_)
+        ));
+    }
+
+    #[test]
+    fn a_list_line_shows_the_state_progress_size_and_name() {
+        let entry = Entry {
+            id: 1,
+            name: "fedora.iso".into(),
+            url: "https://example.org/fedora.iso".into(),
+            state: "downloading".into(),
+            received: 71,
+            size: Some(100),
+        };
+        assert_eq!(line(&entry), "Downloading   71%     100 B  fedora.iso");
+        let done = Entry {
+            state: "done".into(),
+            received: 100,
+            ..entry.clone()
+        };
+        assert_eq!(
+            line(&done),
+            format!("Done{}100 B  fedora.iso", " ".repeat(18))
+        );
+        let unknown = Entry {
+            size: None,
+            ..entry
+        };
+        assert_eq!(
+            line(&unknown),
+            format!("Downloading{}fedora.iso", " ".repeat(18))
+        );
+    }
+}

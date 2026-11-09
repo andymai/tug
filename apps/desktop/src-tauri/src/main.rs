@@ -1,9 +1,23 @@
 mod bridge;
+mod cli;
+mod format;
+mod ipc;
 mod tray;
+
+use std::process::ExitCode;
 
 use tauri::{Manager, WindowEvent};
 
-fn main() -> Result<(), tauri::Error> {
+fn main() -> Result<ExitCode, tauri::Error> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match cli::parse(&args) {
+        cli::Command::Open => {
+            if cli::hand_off() {
+                return Ok(ExitCode::SUCCESS);
+            }
+        }
+        command => return Ok(cli::run(command)),
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(tray::TrayState::<tauri::Wry>::default())
@@ -16,6 +30,7 @@ fn main() -> Result<(), tauri::Error> {
                 state.library(),
                 state.subscribe(),
             );
+            ipc::serve(app.handle(), state.library());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -40,5 +55,6 @@ fn main() -> Result<(), tauri::Error> {
             bridge::choose_download_folder,
             bridge::system_color_scheme,
         ])
-        .run(tauri::generate_context!())
+        .run(tauri::generate_context!())?;
+    Ok(ExitCode::SUCCESS)
 }
