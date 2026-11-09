@@ -334,8 +334,10 @@ impl Library {
         let session = swarm.session().await?;
         let changes = swarm.changes.lock().await;
         // A running transfer outside the session is still adding the torrent, with
-        // the choice it began with, or has finished it: a new choice would be lost.
-        if running.contains_key(&id) && !session.has(&hash) {
+        // the choice it began with, or has finished it; a row that still says
+        // downloading with no transfer is settling. A new choice would be lost.
+        let settling = download.state == DownloadState::Downloading && !running.contains_key(&id);
+        if settling || (running.contains_key(&id) && !session.has(&hash)) {
             return Err(LibraryError::TorrentBusy);
         }
         let entries = match session.files(&hash) {
