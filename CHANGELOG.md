@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.15.0](https://github.com/andymai/tug/compare/v0.14.1...v0.15.0) (2026-11-09)
+
+
+### Features
+
+* **host:** tug-host, the native messaging host, over the IPC socket ([#66](https://github.com/andymai/tug/issues/66)) ([9f74398](https://github.com/andymai/tug/commit/9f74398f05b99ef3780a98d8d13c8c052d9f7751))
+
+
+### Bug Fixes
+
+* **host:** bound every reply, reap launched Tugs, and time out the liveness probe ([#67](https://github.com/andymai/tug/issues/67)) ([ebca748](https://github.com/andymai/tug/commit/ebca748ed82eade4c969bee441154f2662ec2cea))
+* **ipc:** keep a busy server's socket, and test that tug-host reaps what it starts ([#68](https://github.com/andymai/tug/issues/68)) ([e416cb1](https://github.com/andymai/tug/commit/e416cb14b69b4cbb33da25391a16f5500ddccde9))
+
 ## [0.14.1](https://github.com/andymai/tug/compare/v0.14.0...v0.14.1) (2026-11-09)
 
 
