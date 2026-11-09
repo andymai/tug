@@ -1,0 +1,35 @@
+apps/extension/test/capture.test.ts
+  s_b050dc8a593981::t_42bfd82a9c3e56 90-91,99-101,105-118
+  s_b050dc8a593981::t_6f7fdd3ffa9983 119-120
+apps/extension/test/fake.ts
+  s_b050dc8a593981::t_42bfd82a9c3e56 10,21,36,68-81,102
+apps/extension/src/api.ts
+  s_b050dc8a593981::t_42bfd82a9c3e56 55-61
+apps/extension/src/background.ts
+  s_b050dc8a593981::t_42bfd82a9c3e56 15
+apps/extension/src/capture.ts
+  s_b050dc8a593981::t_42bfd82a9c3e56 13-15,34,41-47,50-54,58
+apps/extension/test/manifest.test.ts
+  s_b050dc8a593981::t_42bfd82a9c3e56 44
+crates/tug-core/src/settings.rs
+  s_b050dc8a593981::t_79fd04585458a2 133-134,269-276,278-279
+  s_b050dc8a593981::t_f4f33d67604117 277
+apps/extension/src/manifest.ts
+  s_b050dc8a593981::t_42bfd82a9c3e56 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6bd249e68fbf552c5ef69cce7fa2ea28d3b4a724",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
