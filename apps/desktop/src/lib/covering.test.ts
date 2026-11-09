@@ -16,5 +16,11 @@ describe("covering", () => {
     covering<Color>().names(["red", "green", "blue", "red"]);
     // @ts-expect-error "blue" is there twice
     covering<Color>().by<"id">()([{ id: "red" }, { id: "green" }, { id: "blue" }, { id: "blue" }]);
+    const typed: Color[] = ["red"];
+    // @ts-expect-error a typed array could hold anything
+    covering<Color>().names(typed);
+    const entries: { id: Color }[] = [{ id: "red" }];
+    // @ts-expect-error a typed array could hold anything
+    covering<Color>().by<"id">()(entries);
   });
 });

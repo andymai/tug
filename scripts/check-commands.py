@@ -16,34 +16,49 @@ SYNC = {
     "bridge::get_settings": "reads the settings in memory",
 }
 
-COMMAND = re.compile(
-    r"#\[tauri::command(?:\((?P<args>[^)]*)\))?\]\s*(?:#\[[^\]]*\]\s*)*"
-    r"(?:pub(?:\([^)]*\))?\s+)?(?P<async>async\s+)?fn\s+(?P<name>\w+)",
-    re.S,
-)
+ATTRIBUTE = re.compile(r"#\[tauri::command(?:\((?P<args>[^)]*)\))?\]")
+# What may sit between the attribute and its fn: other attributes, comments, space.
+BETWEEN = re.compile(r"(?:\s+|//[^\n]*|/\*.*?\*/|#\[[^\]]*\])*", re.S)
+FN = re.compile(r"(?:pub(?:\([^)]*\))?\s+)?(?P<async>async\s+)?fn\s+(?P<name>\w+)")
+
+
+def commands_in(text: str):
+    """Each #[tauri::command] with the fn it marks: (name, off the window's thread)."""
+    for attribute in ATTRIBUTE.finditer(text):
+        at = BETWEEN.match(text, attribute.end()).end()
+        fn = FN.match(text, at)
+        if fn is None:
+            yield None, False
+            continue
+        args = {arg.strip() for arg in (attribute["args"] or "").split(",")}
+        yield fn["name"], fn["async"] is not None or "async" in args
+
+
 HANDLER = re.compile(r"generate_handler!\[(?P<body>[^\]]*)\]", re.S)
 
 
-def module_of(path: Path) -> str:
-    parts = list(path.relative_to(SRC).with_suffix("").parts)
+def module_of(path: Path, src: Path) -> str:
+    parts = list(path.relative_to(src).with_suffix("").parts)
     if parts[-1] in ("mod", "main", "lib"):
         parts.pop()
     return "::".join(parts)
 
 
-def main() -> int:
+def problems_in(src: Path) -> list[str]:
     problems = []
     commands: dict[str, bool] = {}
-    for path in sorted(SRC.rglob("*.rs")):
-        module = module_of(path)
-        for match in COMMAND.finditer(path.read_text()):
-            name = f"{module}::{match['name']}" if module else match["name"]
-            args = {arg.strip() for arg in (match["args"] or "").split(",")}
+    for path in sorted(src.rglob("*.rs")):
+        module = module_of(path, src)
+        for fn, off_window in commands_in(path.read_text()):
+            if fn is None:
+                problems.append(f"{path.name}: a #[tauri::command] with no fn after it")
+                continue
+            name = f"{module}::{fn}" if module else fn
             if name in commands:
                 problems.append(f"{name}: two commands with this path")
-            commands[name] = match["async"] is not None or "async" in args
+            commands[name] = off_window
 
-    handlers = HANDLER.findall((SRC / "main.rs").read_text())
+    handlers = HANDLER.findall((src / "main.rs").read_text())
     if len(handlers) != 1:
         problems.append(f"main.rs: {len(handlers)} generate_handler! lists, not one")
     registered = {
@@ -67,12 +82,16 @@ def main() -> int:
         problems.append(f"{name}: registered, but no #[tauri::command] has this path")
     for name in sorted(SYNC.keys() - commands.keys()):
         problems.append(f"{name}: in SYNC, but no command has this path")
+    return problems
 
+
+def main() -> int:
+    problems = problems_in(SRC)
     for problem in problems:
         print(f"check-commands: {problem}", file=sys.stderr)
     if problems:
         return 1
-    print(f"check-commands: ok ({len(commands)} commands, {len(SYNC)} plain)")
+    print(f"check-commands: ok ({len(SYNC)} plain)")
     return 0
 
 
