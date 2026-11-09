@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.25.0](https://github.com/andymai/tug/compare/v0.24.0...v0.25.0) (2026-11-09)
+
+
+### Features
+
+* **core:** sort downloads into types by their file name ([#112](https://github.com/andymai/tug/issues/112)) ([343d207](https://github.com/andymai/tug/commit/343d2071cf3b4e27f1f3984d83f68fd2204df461))
+
+
+### Bug Fixes
+
+* **desktop:** keep a search current with new names and downloads, and clear it for a jump ([#113](https://github.com/andymai/tug/issues/113)) ([24a3ed6](https://github.com/andymai/tug/commit/24a3ed662b8d89812556bebd524b3fe7ed807817))
+
 ## [0.24.0](https://github.com/andymai/tug/compare/v0.23.0...v0.24.0) (2026-11-09)
 
 
