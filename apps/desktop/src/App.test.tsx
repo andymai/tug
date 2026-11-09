@@ -605,6 +605,33 @@ describe("schedule", () => {
   });
 });
 
+describe("search", () => {
+  it("narrows the list to the downloads whose name or link has the words", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+
+    await user.keyboard("{Control>}f{/Control}");
+    const field = screen.getByRole("searchbox", { name: "Search downloads" });
+    expect(field).toHaveFocus();
+    await user.type(field, "mirror");
+    const list = within(screen.getByRole("list", { name: "All downloads" }));
+    await vi.waitFor(() => {
+      expect(list.getAllByRole("listitem")).toHaveLength(2);
+    });
+    expect(list.getByText("blender-5.1-linux-x64.tar.xz")).toBeInTheDocument();
+
+    await user.type(field, " zzz");
+    expect(await screen.findByRole("heading", { name: "Nothing matches" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(field).toHaveValue("");
+    await vi.waitFor(() => {
+      expect(within(screen.getByRole("list", { name: "All downloads" })).getAllByRole("listitem")).toHaveLength(5);
+    });
+  });
+});
+
 describe("command bar and keyboard", () => {
   it("opens on Ctrl+K and runs the chosen command", async () => {
     const { user } = open();

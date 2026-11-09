@@ -95,6 +95,28 @@ describe("downloads store", () => {
     expect(store.getState().items.find((d) => d.name === "later.iso")?.state).toBe("queued");
   });
 
+  it("keeps only the newest search's answer", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    const answers: ((ids: number[]) => void)[] = [];
+    const store = createDownloadsStore({
+      ...backend,
+      search: () =>
+        new Promise<number[]>((resolve) => {
+          answers.push(resolve);
+        }),
+    });
+    await store.getState().init();
+    store.getState().setSearch("fed");
+    store.getState().setSearch("fedora");
+    answers[1]?.([1]);
+    answers[0]?.([1, 2, 3]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(visibleItems(store.getState()).map((d) => d.id)).toEqual([1]);
+
+    store.getState().setSearch("  ");
+    expect(store.getState().matches).toBeNull();
+  });
+
   it("retries a failed download", async () => {
     const { store } = await ready();
     const failed = store.getState().items.find((d) => d.state === "failed");

@@ -40,6 +40,9 @@ export interface DownloadsState {
   history: { id: number; events: DownloadEvent[] } | null;
   overlay: Overlay;
   focusRequest: number | null;
+  search: string;
+  matches: number[] | null;
+  searchRequest: number;
   captures: Download[];
   framed: boolean;
   maximized: boolean;
@@ -54,6 +57,8 @@ export interface DownloadsState {
   step: (delta: number) => number | null;
   setOverlay: (overlay: Overlay) => void;
   requestFocus: (id: number | null) => void;
+  setSearch: (text: string) => void;
+  openSearch: () => void;
   pause: (id: number) => Promise<void>;
   resume: (id: number) => Promise<void>;
   startNext: (id: number) => Promise<void>;
@@ -103,6 +108,21 @@ export function createDownloadsStore(backend: Backend) {
     };
 
     let revision: number | null = null;
+    let searches = 0;
+    // Answers can arrive out of order, so only the newest search may set the matches.
+    const find = async (text: string) => {
+      const asked = ++searches;
+      if (text.trim() === "") {
+        set({ matches: null });
+        return;
+      }
+      try {
+        const matches = await backend.search(text);
+        if (asked === searches) set({ matches });
+      } catch (error) {
+        if (asked === searches) set({ notice: BackendError.from(error).message });
+      }
+    };
     let confirmed: Settings | null = null;
     let pending: { id: number; patch: Partial<Settings> }[] = [];
     let patches = 0;
@@ -143,6 +163,9 @@ export function createDownloadsStore(backend: Backend) {
       history: null,
       overlay: null,
       focusRequest: null,
+      search: "",
+      matches: null,
+      searchRequest: 0,
       captures: [],
       framed: backend.windowControls !== null,
       maximized: false,
@@ -242,6 +265,7 @@ export function createDownloadsStore(backend: Backend) {
         try {
           const items = await backend.list();
           set({ items, status: "ready", loadError: null });
+          if (get().matches !== null) void find(get().search);
         } catch (error) {
           set({ status: "error", loadError: BackendError.from(error).message });
         }
@@ -319,6 +343,15 @@ export function createDownloadsStore(backend: Backend) {
 
       setOverlay: (overlay) => {
         set({ overlay });
+      },
+
+      setSearch: (text) => {
+        set({ search: text });
+        void find(text);
+      },
+
+      openSearch: () => {
+        set((state) => ({ page: "downloads", searchRequest: state.searchRequest + 1 }));
       },
 
       requestFocus: (id) => {
@@ -450,8 +483,11 @@ export function inView(view: View, item: Download): boolean {
   return VIEWS.find((v) => v.id === view)?.states.includes(item.state) ?? false;
 }
 
-export function visibleItems(state: Pick<DownloadsState, "items" | "view">): Download[] {
-  return state.items.filter((item) => inView(state.view, item)).sort((a, b) => b.addedMs - a.addedMs || b.id - a.id);
+export function visibleItems(state: Pick<DownloadsState, "items" | "view" | "matches">): Download[] {
+  const found = state.matches === null ? null : new Set(state.matches);
+  return state.items
+    .filter((item) => inView(state.view, item) && (found === null || found.has(item.id)))
+    .sort((a, b) => b.addedMs - a.addedMs || b.id - a.id);
 }
 
 export function countFor(items: readonly Download[], view: View): number {

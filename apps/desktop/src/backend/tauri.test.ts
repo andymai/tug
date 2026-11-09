@@ -17,6 +17,7 @@ describe("tauri backend", () => {
 
   it("calls the Rust commands by name with camelCase arguments", async () => {
     await tauriBackend.list();
+    await tauriBackend.search("fedora iso");
     await tauriBackend.add("https://example.org/a.iso");
     await tauriBackend.add("https://example.org/b.iso", "/data");
     await tauriBackend.pause(3);
@@ -33,6 +34,7 @@ describe("tauri backend", () => {
 
     expect(invoke.mock.calls).toEqual([
       ["list_downloads", undefined],
+      ["search_downloads", { query: "fedora iso" }],
       ["add_download", { url: "https://example.org/a.iso", dir: null }],
       ["add_download", { url: "https://example.org/b.iso", dir: "/data" }],
       ["pause_download", { id: 3 }],

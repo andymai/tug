@@ -101,6 +101,17 @@ describe("main window", () => {
     await capture(window, "drop");
   });
 
+  it("narrows the list to a search", async () => {
+    const { store, window } = await showcase();
+    act(() => {
+      store.getState().setSearch("mirror");
+    });
+    await vi.waitFor(() => {
+      expect(store.getState().matches).not.toBeNull();
+    });
+    await capture(window, "search");
+  });
+
   it("shows a running download's details beside the list", async () => {
     const { window } = await showcase("fedora-kde-44-x86_64.iso");
     await capture(window, "detail");

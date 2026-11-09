@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { matches, rank } from "./commands";
+import { createMockBackend } from "../backend/mock";
+import { SHOWCASE } from "../backend/showcase";
+import { createDownloadsStore } from "../state/downloads";
+import { commands, KEYMAP, matches, rank } from "./commands";
 
 const press = (key: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean } = {}) => ({
   key,
@@ -39,5 +42,19 @@ describe("rank", () => {
     expect(rank("Show finished downloads", "nish")).toBe(1);
     expect(rank("Show finished downloads", "zip")).toBe(0);
     expect(rank("anything", "  ")).toBe(1);
+  });
+});
+
+describe("keyboard map", () => {
+  it("lists the keys of every command, for any selected download", async () => {
+    const store = createDownloadsStore(createMockBackend({ seed: SHOWCASE }));
+    await store.getState().reload();
+    const mapped = KEYMAP.flatMap((group) => group.entries.map((entry) => entry.label.join("+")));
+    for (const selected of [null, ...store.getState().items.map((d) => d.id)]) {
+      store.getState().select(selected);
+      for (const command of commands(store)) {
+        if (command.keys !== undefined) expect(mapped, command.title).toContain(command.keys.label.join("+"));
+      }
+    }
   });
 });

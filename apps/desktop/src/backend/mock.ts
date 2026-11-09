@@ -55,6 +55,15 @@ function attempt<T>(action: () => T): Promise<T> {
   }
 }
 
+function words(text: string): string[] {
+  return text
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word !== "");
+}
+
 function sizeOf(url: URL): number {
   let hash = 0;
   for (const char of url.href) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
@@ -254,6 +263,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
 
   return {
     list: () => Promise.resolve([...downloads.values()].map((d) => ({ ...d }))),
+    search: (query) => {
+      const asked = words(query);
+      if (asked.length === 0) return Promise.resolve([]);
+      const found = [...downloads.values()].filter((d) => {
+        const own = [...words(d.name), ...words(d.url)];
+        return asked.every((word) => own.some((w) => w.startsWith(word)));
+      });
+      return Promise.resolve(found.map((d) => d.id));
+    },
     add: (url, dir) =>
       attempt(() => {
         const download = addNow(url, dir);

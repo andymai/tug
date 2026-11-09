@@ -92,6 +92,15 @@ describe("mock backend", () => {
     expect((await backend.list())[0]?.received).toBe(Math.floor(MB / 10) + Math.floor((2 * MB) / 10));
   });
 
+  it("finds words at the start of words in the name or the link, without accents", async () => {
+    const backend = createMockBackend({ seed: ["https://mirror.example.org/fedora-kde-44.iso", "https://media.example.net/conférence.mp4"] });
+    expect(await backend.search("fedo KDE")).toEqual([1]);
+    expect(await backend.search("conference")).toEqual([2]);
+    expect(await backend.search("example")).toEqual([1, 2]);
+    expect(await backend.search("dora")).toEqual([]);
+    expect(await backend.search(" ")).toEqual([]);
+  });
+
   it("refuses what is not a download link, and unknown ids", async () => {
     const backend = createMockBackend();
     await expect(backend.add("not a link")).rejects.toMatchObject({ kind: "invalid" });

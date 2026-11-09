@@ -12,6 +12,7 @@ import {
   Settings,
   type LucideIcon,
   Pause,
+  Search,
   Play,
   Plus,
   RotateCw,
@@ -57,6 +58,16 @@ export function commands(store: DownloadsStore): Command[] {
       keys: { key: "n", ctrl: true, label: ["Ctrl", "N"] },
       run: () => {
         state.openAdd();
+      },
+    },
+    {
+      id: "search",
+      title: "Search downloads",
+      group: "Downloads",
+      icon: Search,
+      keys: { key: "f", ctrl: true, label: ["Ctrl", "F"] },
+      run: () => {
+        state.openSearch();
       },
     },
     ...VIEW_COMMANDS.map(
@@ -179,6 +190,7 @@ export const KEYMAP: readonly { group: string; entries: readonly { title: string
     entries: [
       { title: "Command bar", label: PALETTE_KEYS.label },
       { title: "Add downloads", label: ["Ctrl", "N"] },
+      { title: "Search downloads", label: ["Ctrl", "F"] },
       { title: "Settings", label: ["Ctrl", ","] },
       { title: "Keyboard shortcuts", label: ["?"] },
       { title: "Close details or a dialog", label: ["Esc"] },

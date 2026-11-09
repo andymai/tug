@@ -1,4 +1,5 @@
-import { CircleAlert, Plus, X } from "lucide-react";
+import { CircleAlert, Plus, Search, X } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/shallow";
 
 import markDark from "../../../../brand/svg/mark-dark.svg";
@@ -56,6 +57,51 @@ function Summary() {
   );
 }
 
+function SearchField() {
+  const search = useDownloads((s) => s.search);
+  const setSearch = useDownloads((s) => s.setSearch);
+  const request = useDownloads((s) => s.searchRequest);
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (request > 0) field.current?.focus();
+  }, [request]);
+  return (
+    <div className="relative flex min-w-0 shrink items-center">
+      <Search {...ICON} className="pointer-events-none absolute left-2 text-ink-muted" />
+      <input
+        ref={field}
+        type="search"
+        aria-label="Search downloads"
+        placeholder="Search"
+        spellCheck={false}
+        autoComplete="off"
+        value={search}
+        onChange={(event) => {
+          setSearch(event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && search !== "") {
+            event.preventDefault();
+            setSearch("");
+          }
+        }}
+        className="h-[30px] w-44 min-w-0 rounded-sm @max-xl/main:w-28 border border-control-border bg-surface pr-2 pl-8 text-body text-ink placeholder:text-ink-faint [&::-webkit-search-cancel-button]:appearance-none"
+      />
+    </div>
+  );
+}
+
+function NoMatches() {
+  return (
+    <section aria-labelledby="empty-title" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+      <h2 id="empty-title" className="text-heading text-ink">
+        Nothing matches
+      </h2>
+      <p className="max-w-sm text-body text-ink-muted">No download here has these words in its name or link.</p>
+    </section>
+  );
+}
+
 function Empty({ view, first }: { view: View; first: boolean }) {
   const copy = EMPTY[view];
   const theme = useTheme();
@@ -106,6 +152,7 @@ export function DownloadList() {
   const items = useDownloads(useShallow((s) => visibleItems(s)));
   const selected = useDownloads((s) => s.selected);
   const openAdd = useDownloads((s) => s.openAdd);
+  const searching = useDownloads((s) => s.matches !== null);
 
   return (
     <main className="@container/main flex min-w-0 flex-1 flex-col bg-surface">
@@ -114,6 +161,7 @@ export function DownloadList() {
           {TITLES[view]}
         </h1>
         <div className="flex min-w-0 items-center gap-4">
+          <SearchField />
           <Summary />
           <Button
             variant="primary"
@@ -133,7 +181,11 @@ export function DownloadList() {
           {status === "error" ? (
             <LoadError message={sentence(loadError ?? "")} />
           ) : status === "ready" && items.length === 0 ? (
-            <Empty view={view} first={total === 0} />
+            searching ? (
+              <NoMatches />
+            ) : (
+              <Empty view={view} first={total === 0} />
+            )
           ) : (
             <ul aria-label={TITLES[view]} className="flex-1 overflow-y-auto">
               {items.map((download) => (
