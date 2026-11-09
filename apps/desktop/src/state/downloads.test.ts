@@ -550,6 +550,30 @@ describe("downloads store", () => {
     expect(store.getState().history?.events.map((e) => e.kind)).toEqual(["added", "paused"]);
   });
 
+  it("checks the disk once at a time, and once more for a request made during a check", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    const answers: ((free: number) => void)[] = [];
+    const store = createDownloadsStore({
+      ...backend,
+      diskFree: () =>
+        new Promise<number>((resolve) => {
+          answers.push(resolve);
+        }),
+    });
+    const first = store.getState().checkDisk();
+    void store.getState().checkDisk();
+    void store.getState().checkDisk();
+    expect(answers).toHaveLength(1);
+    answers[0]?.(100);
+    await vi.waitFor(() => {
+      expect(answers).toHaveLength(2);
+    });
+    answers[1]?.(200);
+    await first;
+    expect(store.getState().diskFree).toBe(200);
+    expect(answers).toHaveLength(2);
+  });
+
   it("steps through the visible downloads and stops at the ends", async () => {
     const { store } = await ready();
     const names = () => store.getState().items.find((d) => d.id === store.getState().selected)?.name;
