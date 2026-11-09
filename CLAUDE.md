@@ -30,7 +30,7 @@ Design tokens: `design/tokens.json`. Brand sources: `brand/`.
 
 ## Before a PR
 
-Run `/code-review high` on the branch, and fix what it finds before you open the PR. Then check the change against each item below. Each one is a fault that review found more than once:
+Run `/code-review high` on the branch, and fix what it finds before you open the PR. It is Claude Code's own review of the branch's diff, at its high effort. Without Claude Code, read the diff yourself. Then check the change against each item below. Each one is a fault that review found more than once:
 
 - **A late answer.** An answer that arrives after the person moved on must not overwrite newer state. Keep it only if its request is still the newest and its download is still the one on screen. A field keeps text typed after its save started.
 - **Check, then act.** A check and the write that it allows happen under one lock. Between them, no `await` happens unless the run lock holds. A row that says `downloading` with no transfer in `running` still settles, so treat it as busy.
