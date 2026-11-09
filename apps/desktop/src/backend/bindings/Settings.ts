@@ -4,4 +4,4 @@ import type { SavedView } from "./SavedView";
 import type { Schedule } from "./Schedule";
 import type { SlowHours } from "./SlowHours";
 
-export type Settings = { downloadDir: string, connections: number, speedLimit: number | null, appearance: Appearance, excludedSites: Array<string>, confirmCaptures: boolean, maxActive: number, schedule: Schedule | null, slowHours: SlowHours | null, savedViews: Array<SavedView>, columns: Array<string>, sort: string | null, };
+export type Settings = { downloadDir: string, connections: number, speedLimit: number | null, appearance: Appearance, excludedSites: Array<string>, confirmCaptures: boolean, maxActive: number, schedule: Schedule | null, slowHours: SlowHours | null, savedViews: Array<SavedView>, columns: Array<string>, sort: string | null, widths: Record<string, number>, };

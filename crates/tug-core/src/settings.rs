@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
@@ -25,7 +26,10 @@ const SLOW_HOURS: &str = "slow_hours";
 const SAVED_VIEWS: &str = "saved_views";
 const COLUMNS: &str = "columns";
 const SORT: &str = "sort";
+const WIDTHS: &str = "widths";
 const MAX_COLUMNS: usize = 24;
+pub const MIN_COLUMN_WIDTH: u32 = 40;
+pub const MAX_COLUMN_WIDTH: u32 = 800;
 pub const MAX_SAVED_VIEWS: usize = 50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -127,6 +131,8 @@ pub struct Settings {
     // down); the core keeps them as they come. No columns: the window's own.
     pub columns: Vec<String>,
     pub sort: Option<String>,
+    // Widths in pixels that the person dragged, by column name; the others keep the window's.
+    pub widths: BTreeMap<String, u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -153,6 +159,10 @@ pub enum SettingsError {
     Column(String),
     #[error("{0:?} isn't a sort")]
     Sort(String),
+    #[error(
+        "a column is between {MIN_COLUMN_WIDTH} and {MAX_COLUMN_WIDTH} pixels wide, not {1} ({0})"
+    )]
+    Width(String, u32),
     #[error(transparent)]
     Schedule(#[from] ScheduleError),
 }
@@ -188,6 +198,7 @@ impl Default for Settings {
             saved_views: Vec::new(),
             columns: Vec::new(),
             sort: None,
+            widths: BTreeMap::new(),
         }
     }
 }
@@ -235,6 +246,19 @@ impl Settings {
             && !name(sort.strip_prefix('-').unwrap_or(sort))
         {
             return Err(SettingsError::Sort(sort.clone()));
+        }
+        if self.widths.len() > MAX_COLUMNS {
+            return Err(SettingsError::Column(
+                self.widths.keys().cloned().collect::<Vec<_>>().join(" "),
+            ));
+        }
+        for (column, &px) in &self.widths {
+            if !name(column) {
+                return Err(SettingsError::Column(column.clone()));
+            }
+            if !(MIN_COLUMN_WIDTH..=MAX_COLUMN_WIDTH).contains(&px) {
+                return Err(SettingsError::Width(column.clone(), px));
+            }
         }
         if self.saved_views.len() > MAX_SAVED_VIEWS {
             return Err(SettingsError::TooManyViews);
@@ -348,6 +372,19 @@ impl Settings {
         let sort = store
             .setting(SORT)?
             .filter(|sort| name(sort.strip_prefix('-').unwrap_or(sort)));
+        let mut widths = BTreeMap::new();
+        for entry in store.setting(WIDTHS)?.unwrap_or_default().split(' ') {
+            let Some((column, px)) = entry.split_once(':') else {
+                continue;
+            };
+            let px = px.parse().unwrap_or(0);
+            if name(column)
+                && (MIN_COLUMN_WIDTH..=MAX_COLUMN_WIDTH).contains(&px)
+                && widths.len() < MAX_COLUMNS
+            {
+                widths.insert(column.to_owned(), px);
+            }
+        }
         Ok(Self {
             download_dir,
             connections,
@@ -361,6 +398,7 @@ impl Settings {
             saved_views,
             columns,
             sort,
+            widths,
         })
     }
 
@@ -406,6 +444,16 @@ impl Settings {
                 store.remove_setting(SORT)?;
             }
         }
+        if self.widths.is_empty() {
+            store.remove_setting(WIDTHS)?;
+        } else {
+            let entries: Vec<String> = self
+                .widths
+                .iter()
+                .map(|(column, px)| format!("{column}:{px}"))
+                .collect();
+            store.set_setting(WIDTHS, &entries.join(" "))?;
+        }
         if self.saved_views.is_empty() {
             store.remove_setting(SAVED_VIEWS)?;
         } else {
@@ -444,6 +492,7 @@ mod tests {
             saved_views: Vec::new(),
             columns: Vec::new(),
             sort: None,
+            widths: BTreeMap::new(),
         }
     }
 
@@ -688,6 +737,41 @@ mod tests {
     }
 
     #[test]
+    fn column_widths_stay_in_bounds_and_load_back() {
+        let with = |widths: &[(&str, u32)]| Settings {
+            widths: widths.iter().map(|&(c, px)| (c.to_owned(), px)).collect(),
+            ..valid()
+        };
+        with(&[("size", 120), ("source", MAX_COLUMN_WIDTH)])
+            .validate()
+            .unwrap();
+        assert_eq!(
+            with(&[("size", 12)]).validate(),
+            Err(SettingsError::Width("size".into(), 12))
+        );
+        assert_eq!(
+            with(&[("Size", 120)]).validate(),
+            Err(SettingsError::Column("Size".into()))
+        );
+
+        let store = Store::open_in_memory().unwrap();
+        with(&[("size", 120), ("speed", 88)]).save(&store).unwrap();
+        assert_eq!(
+            Settings::load(&store).unwrap().widths,
+            BTreeMap::from([("size".to_owned(), 120), ("speed".to_owned(), 88)])
+        );
+        store
+            .set_setting(WIDTHS, "size:120 Speed:90 left:9 added:x queue:64")
+            .unwrap();
+        assert_eq!(
+            Settings::load(&store).unwrap().widths,
+            BTreeMap::from([("queue".to_owned(), 64), ("size".to_owned(), 120)])
+        );
+        with(&[]).save(&store).unwrap();
+        assert!(Settings::load(&store).unwrap().widths.is_empty());
+    }
+
+    #[test]
     fn excluded_sites_must_be_clean_and_once() {
         assert_eq!(
             sites(&["Example.org"]).validate(),
@@ -753,8 +837,9 @@ mod tests {
                 },
             }),
             saved_views: vec![saved("Linux images", "disk", "fedora iso")],
-            columns: Vec::new(),
-            sort: None,
+            columns: vec!["name".into(), "size".into()],
+            sort: Some("-size".into()),
+            widths: BTreeMap::from([("size".to_owned(), 120)]),
         };
         settings.save(&store).unwrap();
         assert_eq!(Settings::load(&store).unwrap(), settings);

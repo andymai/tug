@@ -1,8 +1,8 @@
 import { ArrowDown, ArrowUp, Check, Columns3 } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type PointerEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 
-import { type Column, COLUMNS, columnsOf, FIXED, fit, nextSort, queueRanks, sortOf, sortText } from "../lib/columns";
+import { clampWidth, type Column, type ColumnId, COLUMNS, columnsOf, FIXED, fit, MAX_WIDTH, MIN_WIDTH, nextSort, queueRanks, sortOf, sortText, widest } from "../lib/columns";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { visibleItems } from "../state/downloads";
@@ -97,6 +97,62 @@ function ColumnMenu({ shown, onChange }: { shown: readonly Column[]; onChange: (
   );
 }
 
+// Drag, or the arrow keys, set a column's width; a double-click gives back its own.
+function ResizeHandle({ column, most, onLive, onSave }: { column: Column; most: number; onLive: (px: number | null) => void; onSave: (px: number | null) => void }) {
+  const px = column.px ?? MIN_WIDTH;
+  const start = useRef<{ x: number; px: number } | null>(null);
+  const to = (event: PointerEvent) => (start.current === null ? px : Math.min(most, clampWidth(start.current.px + event.clientX - start.current.x)));
+  const onKeyDown = (event: KeyboardEvent) => {
+    const step = event.shiftKey ? 32 : 8;
+    const next = { ArrowLeft: px - step, ArrowRight: px + step }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onSave(Math.min(most, clampWidth(next)));
+  };
+  return (
+    // A focusable separator is ARIA's window splitter, a widget the keys move.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Width of ${column.label}`}
+      aria-valuenow={px}
+      aria-valuemin={MIN_WIDTH}
+      aria-valuemax={Math.min(MAX_WIDTH, most)}
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+      tabIndex={0}
+      title="Drag to set the width; double-click for the usual one"
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        start.current = { x: event.clientX, px };
+      }}
+      onPointerMove={(event) => {
+        if (start.current !== null) onLive(to(event));
+      }}
+      onPointerUp={(event) => {
+        if (start.current === null) return;
+        const next = to(event);
+        const before = start.current.px;
+        start.current = null;
+        onLive(null);
+        if (next !== before) onSave(next);
+      }}
+      onLostPointerCapture={() => {
+        if (start.current === null) return;
+        start.current = null;
+        onLive(null);
+      }}
+      onDoubleClick={() => {
+        onSave(null);
+      }}
+      onKeyDown={onKeyDown}
+      className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize touch-none outline-offset-[-2px] after:absolute after:inset-y-2 after:left-[3.5px] after:w-px after:bg-transparent hover:after:bg-control-border focus-visible:after:bg-control-border"
+    />
+  );
+}
+
 export function DownloadTable({ title }: { title: string }) {
   const items = useDownloads(useShallow((s) => visibleItems(s)));
   const selected = useDownloads((s) => s.selected);
@@ -128,7 +184,15 @@ export function DownloadTable({ title }: { title: string }) {
       watch.disconnect();
     };
   }, []);
-  const columns = fit(chosen, width);
+  const [live, setLive] = useState<{ id: ColumnId; px: number } | null>(null);
+  const sized = live === null ? chosen : chosen.map((column) => (column.id === live.id ? { ...column, px: live.px } : column));
+  const columns = fit(sized, width);
+  const saveWidth = (id: ColumnId, px: number | null) => {
+    void savePreference((current) => {
+      const rest = Object.fromEntries(Object.entries(current.widths).filter(([column]) => column !== id));
+      return { widths: px === null ? rest : { ...rest, [id]: px } };
+    }, "the column widths");
+  };
   const sort = sortOf(settings);
   const queueOrder = sort.by === "queue" ? (sort.down ? "down" : "up") : null;
   const ranks = useMemo(() => queueRanks(allItems), [allItems]);
@@ -152,8 +216,9 @@ export function DownloadTable({ title }: { title: string }) {
                 <th
                   key={column.id}
                   scope="col"
+                  aria-label={column.label}
                   aria-sort={active ? (sort.down ? "descending" : "ascending") : "none"}
-                  className="h-8 px-2 first:pl-3"
+                  className="relative h-8 px-2 first:pl-3"
                 >
                   <button
                     type="button"
@@ -166,6 +231,18 @@ export function DownloadTable({ title }: { title: string }) {
                     {column.label}
                     {active && <Arrow {...ICON} size={12} />}
                   </button>
+                  {column.px !== undefined && (
+                    <ResizeHandle
+                      column={column}
+                      most={widest(columns, column.id, width)}
+                      onLive={(px) => {
+                        setLive(px === null ? null : { id: column.id, px });
+                      }}
+                      onSave={(px) => {
+                        saveWidth(column.id, px);
+                      }}
+                    />
+                  )}
                 </th>
               );
             })}
