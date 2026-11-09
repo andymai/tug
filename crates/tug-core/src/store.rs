@@ -213,6 +213,12 @@ impl Store {
         conn.busy_timeout(Duration::from_secs(5))?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         migrate(&mut conn)?;
+        // A finished download needs no cookies, also when a crash came between
+        // its last two writes in an older Tug.
+        conn.execute(
+            "DELETE FROM origins WHERE download_id IN (SELECT id FROM downloads WHERE state = 'done')",
+            [],
+        )?;
         Ok(Self { conn })
     }
 
@@ -287,12 +293,6 @@ impl Store {
         })
     }
 
-    pub fn forget_origin(&self, id: DownloadId) -> Result<(), StoreError> {
-        self.conn
-            .execute("DELETE FROM origins WHERE download_id = ?1", [id.0])?;
-        Ok(())
-    }
-
     pub fn get(&self, id: DownloadId) -> Result<Option<Download>, StoreError> {
         self.conn
             .query_row(&format!("{SELECT} WHERE id = ?1"), [id.0], read_row)
@@ -313,11 +313,17 @@ impl Store {
         error: Option<&str>,
         at: SystemTime,
     ) -> Result<bool, StoreError> {
-        let finished = matches!(state, DownloadState::Done).then(|| to_ms(at));
-        let changed = self.conn.execute(
+        let done = state == DownloadState::Done;
+        let finished = done.then(|| to_ms(at));
+        let tx = self.conn.unchecked_transaction()?;
+        let changed = tx.execute(
             "UPDATE downloads SET state = ?2, error = ?3, finished_ms = ?4 WHERE id = ?1",
             params![id.0, state.as_str(), error, finished],
         )?;
+        if done {
+            tx.execute("DELETE FROM origins WHERE download_id = ?1", [id.0])?;
+        }
+        tx.commit()?;
         Ok(changed > 0)
     }
 
@@ -656,7 +662,17 @@ mod tests {
         assert_eq!(store.origin(with).unwrap(), origin);
         assert_eq!(store.origin(without).unwrap(), Origin::default());
 
-        store.forget_origin(with).unwrap();
+        store
+            .set_state(with, DownloadState::Paused, None, SystemTime::now())
+            .unwrap();
+        assert_eq!(
+            store.origin(with).unwrap(),
+            origin,
+            "a paused download resumes with it"
+        );
+        store
+            .set_state(with, DownloadState::Done, None, SystemTime::now())
+            .unwrap();
         assert_eq!(store.origin(with).unwrap(), Origin::default());
 
         let again = store
@@ -668,6 +684,34 @@ mod tests {
             .query_row("SELECT count(*) FROM origins", [], |row| row.get(0))
             .unwrap();
         assert_eq!(left, 0);
+    }
+
+    #[test]
+    fn opening_forgets_the_origins_of_finished_downloads() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("tug.db");
+        let origin = Origin::new(None, Some("session=abc"), None).unwrap();
+        let (done, paused) = {
+            let store = Store::open(&db).unwrap();
+            let done = store
+                .insert_from(&new("https://example.org/a.iso", "/d"), &origin)
+                .unwrap();
+            let paused = store
+                .insert_from(&new("https://example.org/b.iso", "/d"), &origin)
+                .unwrap();
+            store
+                .conn
+                .execute(
+                    "UPDATE downloads SET state = 'done' WHERE id = ?1",
+                    [done.0],
+                )
+                .unwrap();
+            assert_eq!(store.origin(done).unwrap(), origin);
+            (done, paused)
+        };
+        let store = Store::open(&db).unwrap();
+        assert_eq!(store.origin(done).unwrap(), Origin::default());
+        assert_eq!(store.origin(paused).unwrap(), origin);
     }
 
     #[test]
