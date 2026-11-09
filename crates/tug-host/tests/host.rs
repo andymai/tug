@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 use tug_host::{Host, Launcher, MAX_MESSAGE, SystemLauncher, read_message, write_message};
-use tug_ipc::{Endpoint, Entry, Failure, Handler, Request, Response, Server};
+use tug_ipc::{Endpoint, Entry, Failure, Handler, Origin, Request, Response, Server};
 
 struct Fake {
     list_size: usize,
@@ -29,7 +29,7 @@ impl Handler for Fake {
             Request::List => Response::List {
                 downloads: vec![entry("x".repeat(self.list_size))],
             },
-            Request::Add { urls } => Response::Added {
+            Request::Add { urls, .. } => Response::Added {
                 added: vec![entry("a.iso".into())],
                 failed: urls
                     .into_iter()
@@ -41,6 +41,23 @@ impl Handler for Fake {
                     .collect(),
             },
         })
+    }
+}
+
+#[derive(Default)]
+struct Remembers(std::sync::Mutex<Vec<Request>>);
+
+impl Handler for Remembers {
+    fn handle(&self, request: Request) -> impl Future<Output = Response> + Send {
+        let response = match request {
+            Request::Ping => Response::Pong,
+            _ => Response::Added {
+                added: Vec::new(),
+                failed: Vec::new(),
+            },
+        };
+        self.0.lock().unwrap().push(request);
+        std::future::ready(response)
     }
 }
 
@@ -99,6 +116,40 @@ fn frames_carry_a_native_endian_length() {
     assert_eq!(
         read_message(&mut oversized).unwrap_err().kind(),
         io::ErrorKind::InvalidData
+    );
+}
+
+#[tokio::test]
+async fn an_add_carries_the_browser_origin_to_tug() {
+    let (_dir, endpoint) = endpoint();
+    let tug = Arc::new(Remembers::default());
+    let server = Server::bind(&endpoint).await.unwrap();
+    tokio::spawn(server.serve(Arc::clone(&tug)));
+    let host = Host::new(endpoint, CantStart, Duration::from_secs(1));
+
+    let reply = ask(
+        &host,
+        json!({
+            "id": 1,
+            "type": "add",
+            "urls": ["https://example.org/a.iso"],
+            "referrer": "https://example.org/files",
+            "cookies": "session=abc",
+            "user_agent": "Mozilla/5.0",
+        }),
+    )
+    .await;
+    assert_eq!(reply["ok"], true);
+    assert_eq!(
+        tug.0.lock().unwrap().last(),
+        Some(&Request::Add {
+            urls: vec!["https://example.org/a.iso".into()],
+            origin: Origin {
+                referrer: Some("https://example.org/files".into()),
+                cookies: Some("session=abc".into()),
+                user_agent: Some("Mozilla/5.0".into()),
+            },
+        })
     );
 }
 

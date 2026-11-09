@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tug_ipc::{Client, Endpoint, Request, Response};
+use tug_ipc::{Client, Endpoint, Origin, Request, Response};
 
 pub const MAX_MESSAGE: u32 = 4 << 20;
 pub const MAX_REPLY: usize = 1 << 20;
@@ -44,7 +44,11 @@ pub fn write_message(output: &mut impl Write, body: &[u8]) -> io::Result<()> {
 enum Command {
     Ping,
     Show,
-    Add { urls: Vec<String> },
+    Add {
+        urls: Vec<String>,
+        #[serde(flatten)]
+        origin: Origin,
+    },
     List,
 }
 
@@ -198,7 +202,7 @@ impl<L: Launcher> Host<L> {
         let request = match command {
             Command::Ping => Request::Ping,
             Command::Show => Request::Show,
-            Command::Add { urls } => Request::Add { urls },
+            Command::Add { urls, origin } => Request::Add { urls, origin },
             Command::List => Request::List,
         };
         match Self::ask(&mut client, request).await? {

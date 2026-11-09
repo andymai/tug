@@ -8,7 +8,7 @@ use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
     Appearance, Batch, Download, DownloadId, DownloadState, Event, EventKind, Library,
-    LibraryError, Phase, ProgressStream, Settings, Store, StreamOptions, Update,
+    LibraryError, Origin, Phase, ProgressStream, Settings, Store, StreamOptions, Update,
 };
 use url::Url;
 
@@ -318,7 +318,7 @@ pub struct CommandError {
 }
 
 impl CommandError {
-    fn invalid(message: impl Into<String>) -> Self {
+    pub fn invalid(message: impl Into<String>) -> Self {
         Self {
             kind: ErrorKind::Invalid,
             message: message.into(),
@@ -392,6 +392,7 @@ pub async fn add(
     library: &Library,
     url: &str,
     dir: Option<&str>,
+    origin: &Origin,
 ) -> Result<DownloadDto, CommandError> {
     let url = Url::parse(url.trim())
         .map_err(|e| CommandError::invalid(format!("{url} is not a link: {e}")))?;
@@ -405,7 +406,7 @@ pub async fn add(
         Some(dir) => PathBuf::from(dir),
         None => library.settings()?.download_dir,
     };
-    let id = library.add(url, &dir).await?;
+    let id = library.add_from(url, &dir, origin).await?;
     Ok(DownloadDto::from(&library.get(id)?))
 }
 
@@ -424,7 +425,7 @@ pub async fn add_download(
     url: String,
     dir: Option<String>,
 ) -> Result<DownloadDto, CommandError> {
-    add(&state.library, &url, dir.as_deref()).await
+    add(&state.library, &url, dir.as_deref(), &Origin::default()).await
 }
 
 #[tauri::command]
@@ -853,7 +854,9 @@ mod tests {
     async fn adding_refuses_what_is_not_a_download_link() {
         let library = library().await;
         for url in ["not a link", "mailto:a@example.org", "file:///etc/passwd"] {
-            let err = add(&library, url, Some("/tmp")).await.unwrap_err();
+            let err = add(&library, url, Some("/tmp"), &Origin::default())
+                .await
+                .unwrap_err();
             assert_eq!(err.kind, ErrorKind::Invalid, "{url}");
         }
         assert!(list(&library).unwrap().is_empty());

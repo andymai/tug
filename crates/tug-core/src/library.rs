@@ -9,6 +9,7 @@ use mdm_engine::naming::part_path;
 use mdm_engine::state::state_path;
 use url::Url;
 
+use crate::origin::Origin;
 use crate::settings::{Settings, SettingsError};
 use crate::store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Store, StoreError,
@@ -72,14 +73,26 @@ impl Library {
     }
 
     pub async fn add(&self, url: Url, dir: &Path) -> Result<DownloadId, LibraryError> {
+        self.add_from(url, dir, &Origin::default()).await
+    }
+
+    pub async fn add_from(
+        &self,
+        url: Url,
+        dir: &Path,
+        origin: &Origin,
+    ) -> Result<DownloadId, LibraryError> {
         let added = SystemTime::now();
         let id = {
             let store = self.store()?;
-            let id = store.insert(&NewDownload {
-                url,
-                dir: dir.to_owned(),
-                added,
-            })?;
+            let id = store.insert_from(
+                &NewDownload {
+                    url,
+                    dir: dir.to_owned(),
+                    added,
+                },
+                origin,
+            )?;
             store.add_event(id, &event(EventKind::Added, added, None, None))?;
             id
         };
@@ -213,6 +226,7 @@ impl Library {
         let options = TransferOptions {
             connections: self.settings()?.connections,
             limiter: Some(Arc::clone(&self.limiter)),
+            origin: self.store()?.origin(download.id)?,
         };
         let transfer = match resumable {
             Some(file) => Transfer::resume(file, &options)?,
@@ -271,6 +285,7 @@ fn record(
             store.set_progress(id, done.size, Some(done.size))?;
             store.set_state(id, DownloadState::Done, None, now)?;
             store.add_event(id, &event(EventKind::Finished, now, Some(done.size), None))?;
+            store.forget_origin(id)?;
         }
         Err(error) => {
             store.set_progress(id, last.received, last.total)?;

@@ -42,7 +42,8 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
       return 0
     }
 
-    /usr/bin/python3 scripts/tray/slow_server.py 8766 & server=$!
+    requests="$(dirname "$XDG_CONFIG_HOME")/requests.log"
+    SLOW_SERVER_LOG="$requests" /usr/bin/python3 scripts/tray/slow_server.py 8766 & server=$!
     trap "kill \$(ours) $server 2>/dev/null || true" EXIT
 
     expect "tug add starts Tug and adds" "$($tug add http://127.0.0.1:8766/big.bin)" "Added big.bin"
@@ -71,6 +72,21 @@ assert listed[\"id\"] == 2 and listed[\"downloads\"][0][\"name\"] == \"big.bin\"
 assert added[\"id\"] == 3 and added[\"added\"][0][\"name\"] == \"two.bin\", added
 " <<<"$replies" || fail "tug-host replies: $replies"
     echo "ok: tug-host pings, lists and adds"
+
+    replies=$(talk "{\"id\":4,\"type\":\"add\",\"urls\":[\"http://127.0.0.1:8766/origin.bin\"],\"referrer\":\"http://127.0.0.1:8766/page#top\",\"cookies\":\"session=abc123\",\"user_agent\":\"Mozilla/5.0 TugCheck\"}" \
+      "{\"id\":5,\"type\":\"add\",\"urls\":[\"http://127.0.0.1:8766/bad.bin\"],\"cookies\":\"a=1\\r\\nX: y\"}")
+    python3 -c "
+import json, sys
+good, bad = (json.loads(l) for l in sys.stdin)
+assert good[\"added\"][0][\"name\"] == \"origin.bin\", good
+assert bad[\"failed\"] == [{\"url\": \"http://127.0.0.1:8766/bad.bin\", \"reason\": \"the cookies can'"'"'t be sent as a header\"}], bad
+" <<<"$replies" || fail "adds with an origin: $replies"
+    sleep 1
+    sent=$(awk -F "\t" "\$1 == \"/origin.bin\"" "$requests")
+    [ -n "$sent" ] || fail "the server never saw origin.bin"
+    expect "every origin.bin request carries the origin" \
+      "$(cut -f2- <<<"$sent" | sort -u)" "$(printf "session=abc123\thttp://127.0.0.1:8766/page\tMozilla/5.0 TugCheck")"
+    echo "ok: a bad origin fails that link with the reason"
 
     root=$(dirname "$XDG_CONFIG_HOME")
     browsers=$(HOME="$root/home" PATH="$root/bin:$PATH" $tug browsers)

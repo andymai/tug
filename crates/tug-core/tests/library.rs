@@ -4,7 +4,9 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer, content};
-use tug_core::{Download, DownloadId, DownloadState, EventKind, Library, LibraryError, Store};
+use tug_core::{
+    Download, DownloadId, DownloadState, EventKind, Library, LibraryError, Origin, Store,
+};
 
 fn assert_intact(path: &Path, seed: u64, len: usize) {
     let mut want = vec![0; len];
@@ -151,6 +153,50 @@ async fn downloads_running_at_shutdown_resume_when_the_library_opens() {
     assert_eq!(state_of(&library, id), DownloadState::Downloading);
     tick_until(&library, |l| state_of(l, id) == DownloadState::Done).await;
     assert_intact(&library.get(id).unwrap().file.unwrap(), 17, 6 << 20);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_browser_origin_survives_a_restart_and_is_forgotten_when_done() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("tug.db");
+    let downloads = dir.path().join("downloads");
+    std::fs::create_dir(&downloads).unwrap();
+    let origin = Origin::new(None, Some("token=xyz"), Some("Mozilla/5.0 Firefox/150.0")).unwrap();
+
+    let id = {
+        let library = Library::open(Store::open(&db).unwrap()).await.unwrap();
+        let url = lab
+            .url("/gen/4M/private.zip?seed=31&rate=1M")
+            .parse()
+            .unwrap();
+        let id = library.add_from(url, &downloads, &origin).await.unwrap();
+        received_at_least(&library, id, 1 << 20).await;
+        library.pause(id).await.unwrap();
+        id
+    };
+    assert_eq!(Store::open(&db).unwrap().origin(id).unwrap(), origin);
+    let before = lab.log().len();
+
+    let library = Library::open(Store::open(&db).unwrap()).await.unwrap();
+    library.resume(id).await.unwrap();
+    tick_until(&library, |l| state_of(l, id) == DownloadState::Done).await;
+    assert_intact(&library.get(id).unwrap().file.unwrap(), 31, 4 << 20);
+
+    let log = lab.log();
+    assert!(log.len() > before);
+    assert!(
+        log[before..]
+            .iter()
+            .all(|e| e.cookie.as_deref() == Some("token=xyz")
+                && e.user_agent.as_deref() == Some("Mozilla/5.0 Firefox/150.0")),
+        "{:?}",
+        &log[before..]
+    );
+    assert_eq!(
+        Store::open(&db).unwrap().origin(id).unwrap(),
+        Origin::default()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

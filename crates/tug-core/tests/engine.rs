@@ -4,7 +4,7 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer, content};
-use tug_core::{Phase, Transfer, TransferOptions, USER_AGENT};
+use tug_core::{Origin, Phase, Transfer, TransferOptions, USER_AGENT};
 
 fn expected(seed: u64, len: usize) -> Vec<u8> {
     let mut buf = vec![0; len];
@@ -109,4 +109,43 @@ async fn dropped_connections_are_retried_to_an_intact_file() {
             .any(|e| e.drop_at.is_some() || e.outcome.contains("drop")),
         "the server never dropped a connection"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_browser_origin_goes_with_every_request_also_after_a_resume() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let url = lab
+        .url("/gen/4M/report.pdf?seed=29&rate=1M")
+        .parse()
+        .unwrap();
+    let options = TransferOptions {
+        origin: Origin::new(
+            Some("https://example.org/reports"),
+            Some("session=abc123"),
+            Some("Mozilla/5.0 (X11; Linux x86_64) Chrome/140.0"),
+        )
+        .unwrap(),
+        ..TransferOptions::new(3)
+    };
+
+    let first = Transfer::start(url, dir.path(), &options);
+    wait_until(&first, |p| p.received > 1 << 20).await;
+    let file = first.progress().file.unwrap();
+    first.stop();
+    let _stopped = first.finish().await;
+    let before = lab.log().len();
+
+    let second = Transfer::resume(&file, &options).unwrap();
+    assert_intact(&second.finish().await.unwrap().path, 29, 4 << 20);
+
+    let log = lab.log();
+    assert!(log.len() > before, "the resume sent no request");
+    for entry in &log {
+        assert_eq!(entry.cookie.as_deref(), Some("session=abc123"), "{entry:?}");
+        assert_eq!(
+            entry.user_agent.as_deref(),
+            Some("Mozilla/5.0 (X11; Linux x86_64) Chrome/140.0")
+        );
+    }
 }

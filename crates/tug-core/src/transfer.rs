@@ -1,11 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use http::HeaderMap;
 use mdm_engine::download::State;
 use mdm_engine::limiter::Limiter;
 use mdm_engine::{Destination, Download, Error, Options, Request};
 use url::Url;
+
+use crate::origin::Origin;
 
 pub const USER_AGENT: &str = concat!("Tug/", env!("CARGO_PKG_VERSION"));
 
@@ -47,13 +48,15 @@ pub struct Progress {
 pub struct TransferOptions {
     pub connections: u32,
     pub limiter: Option<Arc<Limiter>>,
+    pub origin: Origin,
 }
 
 impl TransferOptions {
-    pub const fn new(connections: u32) -> Self {
+    pub fn new(connections: u32) -> Self {
         Self {
             connections,
             limiter: None,
+            origin: Origin::default(),
         }
     }
 }
@@ -66,7 +69,7 @@ impl Transfer {
     pub fn start(url: Url, dir: &Path, options: &TransferOptions) -> Self {
         let request = Request {
             url,
-            headers: HeaderMap::new(),
+            headers: options.origin.headers(),
             dest: Destination::Dir(dir.to_owned()),
         };
         Self {
@@ -76,7 +79,7 @@ impl Transfer {
 
     pub fn resume(file: &Path, options: &TransferOptions) -> Result<Self, Error> {
         let state = mdm_engine::state::state_path(file);
-        let download = Download::resume(state, HeaderMap::new(), engine_options(options))?;
+        let download = Download::resume(state, options.origin.headers(), engine_options(options))?;
         Ok(Self { download })
     }
 
@@ -114,7 +117,7 @@ pub struct Finished {
 fn engine_options(options: &TransferOptions) -> Options {
     Options {
         max_connections: options.connections,
-        user_agent: USER_AGENT.to_owned(),
+        user_agent: options.origin.user_agent().unwrap_or(USER_AGENT).to_owned(),
         global: options.limiter.clone(),
         ..Options::default()
     }

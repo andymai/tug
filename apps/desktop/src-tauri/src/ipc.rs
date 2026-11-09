@@ -2,7 +2,7 @@ use std::future::Future;
 use std::sync::Arc;
 
 use tauri::{AppHandle, Manager, Runtime};
-use tug_core::{Download, DownloadId, Library};
+use tug_core::{Download, DownloadId, Library, Origin};
 use tug_ipc::{Endpoint, Entry, Failure, Handler, IpcError, Request, Response, Server};
 
 use crate::{bridge, tray};
@@ -36,13 +36,20 @@ impl<R: Runtime> Handler for DesktopHandler<R> {
                     }
                     Response::Shown
                 }
-                Request::Add { urls } => {
+                Request::Add { urls, origin } => {
                     let mut added = Vec::new();
                     let mut failed = Vec::new();
+                    let origin = Origin::new(
+                        origin.referrer.as_deref(),
+                        origin.cookies.as_deref(),
+                        origin.user_agent.as_deref(),
+                    );
                     for url in urls {
-                        let result = bridge::add(&library, &url, None)
-                            .await
-                            .and_then(|dto| Ok(library.get(DownloadId::from(dto.id))?));
+                        let result = match &origin {
+                            Ok(origin) => bridge::add(&library, &url, None, origin).await,
+                            Err(e) => Err(bridge::CommandError::invalid(e.to_string())),
+                        }
+                        .and_then(|dto| Ok(library.get(DownloadId::from(dto.id))?));
                         match result {
                             Ok(download) => added.push(entry(&download)),
                             Err(e) => failed.push(Failure {
