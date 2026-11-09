@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.0](https://github.com/andymai/tug/compare/v0.33.0...v0.34.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** drag a column to the width you want, and Tug keeps it ([#140](https://github.com/andymai/tug/issues/140)) ([f23dd69](https://github.com/andymai/tug/commit/f23dd692f5b6b3c2ac3b794a7f7df8300bed0378))
+
 ## [0.33.0](https://github.com/andymai/tug/compare/v0.32.1...v0.33.0) (2026-11-09)
 
 
