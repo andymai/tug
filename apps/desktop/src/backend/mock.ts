@@ -360,6 +360,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     add: (url, dir, options) =>
       attempt(() => {
         checkOwn(options?.connections ?? null, options?.speedLimit ?? null);
+        const named = options?.name == null || url.trim().startsWith("magnet:") ? null : fileName(options.name);
         if (dir !== undefined && !dir.startsWith("/")) {
           throw new BackendError("invalid", `the folder must be a full path, like /home/you/Downloads, not ${dir}`);
         }
@@ -367,7 +368,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         if (!url.trim().startsWith("magnet:")) {
           download.connections = options?.connections ?? null;
           download.speedLimit = options?.speedLimit ?? null;
-          if (options?.name != null) download.name = fileName(options.name);
+          if (named !== null) {
+            download.name = named;
+            download.category = categoryOf(named);
+          }
           if (options?.first === true) place(download.id, "first");
         }
         if (options?.paused === true) download.state = "paused";
@@ -394,6 +398,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const taken = [...downloads.values()].some((d) => d.id !== id && d.dir === download.dir && d.name === plain && d.state === "done");
         if (download.state === "done" && taken) throw new BackendError("invalid", `${plain} is in that folder already`);
         download.name = plain;
+        download.category = categoryOf(plain);
         if (download.file !== null) download.file = `${download.dir}/${plain}`;
         revision += 1;
         return { ...download };

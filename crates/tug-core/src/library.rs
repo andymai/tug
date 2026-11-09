@@ -197,7 +197,11 @@ impl Library {
                             source: e,
                         },
                     })?;
-                    self.store()?.set_file(id, &to)?;
+                    // The file moved; it goes back if its new place can't be saved.
+                    if let Err(e) = self.store().and_then(|store| Ok(store.set_file(id, &to)?)) {
+                        let _back = rename_new(&to, file);
+                        return Err(e);
+                    }
                 }
             }
             (None, _) if !running.contains_key(&id) => self.store()?.set_name(id, name)?,

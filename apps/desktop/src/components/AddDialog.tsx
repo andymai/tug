@@ -59,6 +59,8 @@ function AddForm({ titleId }: { titleId: string }) {
     check.kind === "ready" || (check.kind === "duplicate" && again) ? [check.href] : [],
   );
   const label = hrefs.length > 1 ? `Add ${String(hrefs.length)} links` : "Add";
+  // A torrent keeps its own name.
+  const named = hrefs.length === 1 && hrefs[0]?.startsWith("magnet:") === false;
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -73,7 +75,7 @@ function AddForm({ titleId }: { titleId: string }) {
       return;
     }
     setProblem(null);
-    const one = hrefs.length === 1 && name.trim() !== "" ? name.trim() : null;
+    const one = named && name.trim() !== "" ? name.trim() : null;
     const add = { paused, first, connections: own.value, speedLimit: cap.value, name: one };
     void addLinks(hrefs, dir === "" || dir === downloadDir ? { add } : { dir, add });
   };
@@ -152,7 +154,7 @@ function AddForm({ titleId }: { titleId: string }) {
         </button>
         {more && (
           <div id={optionsId} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-small">
-            {hrefs.length === 1 && (
+            {named && (
               <>
                 <label htmlFor={nameId} className="text-ink-muted">
                   Name

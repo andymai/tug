@@ -204,6 +204,9 @@ describe("adding links", () => {
     await user.type(again.getByRole("textbox", { name: "Links" }), "https://example.org/a.iso{Enter}https://example.org/b.iso");
     await user.click(again.getByRole("button", { name: "Options" }));
     expect(again.queryByRole("textbox", { name: "Name" }), "a name is for one link").not.toBeInTheDocument();
+    await user.clear(again.getByRole("textbox", { name: "Links" }));
+    await user.type(again.getByRole("textbox", { name: "Links" }), "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056");
+    expect(again.queryByRole("textbox", { name: "Name" }), "a torrent keeps its own name").not.toBeInTheDocument();
   });
 
   it("skips a link already in the list unless asked to download it again", async () => {
@@ -524,6 +527,35 @@ describe("detail panel", () => {
     fireEvent.contextMenu(screen.getByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }), { clientX: 200, clientY: 200 });
     await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Rename…" }));
     expect(within(screen.getByRole("complementary", { name: "blender-5.1-linux-x64.tar.xz" })).getByRole("textbox", { name: "Name" })).toHaveFocus();
+  });
+
+  it("keeps an editor open for another download when an earlier rename answers late", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const answers: (() => void)[] = [];
+    const slow = {
+      ...backend,
+      rename: (id: number, name: string) =>
+        new Promise<Awaited<ReturnType<typeof backend.rename>>>((resolve) => {
+          answers.push(() => {
+            resolve(backend.rename(id, name));
+          });
+        }),
+    };
+    render(<App store={createDownloadsStore(slow)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
+    await user.keyboard("{F2}");
+    await user.keyboard("fonts{Enter}");
+    await user.click(screen.getByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }));
+    await user.keyboard("{F2}");
+    const blender = within(screen.getByRole("complementary", { name: "blender-5.1-linux-x64.tar.xz" }));
+    expect(blender.getByRole("textbox", { name: "Name" })).toHaveFocus();
+    await act(async () => {
+      answers.shift()?.();
+      await Promise.resolve();
+    });
+    expect(await screen.findByRole("row", { name: /^fonts\.zip/ })).toBeInTheDocument();
+    expect(blender.getByRole("textbox", { name: "Name" }), "B's editor stays").toBeInTheDocument();
   });
 
   it("closes with its button and with Escape", async () => {

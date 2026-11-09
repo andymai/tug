@@ -781,7 +781,8 @@ export function createDownloadsStore(backend: Backend) {
       rename: async (id, name) => {
         try {
           await backend.rename(id, name);
-          set({ renaming: null });
+          // A late answer leaves alone an editor opened for another download since.
+          if (get().renaming === id) set({ renaming: null });
           await get().reload();
           return true;
         } catch (error) {
