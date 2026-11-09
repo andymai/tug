@@ -36,3 +36,11 @@ reason = "unmaintained zbus_names, merged into zbus 6; via zbus 5 in tauri-plugi
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0372"
 reason = "unmaintained zvariant_derive, merged into zbus 6; via zbus 5 in tauri-plugin-opener 2.x; removed when the plugin moves to zbus 6"
+
+# librqbit-utp 0.7 (uTP for mdm-torrent's librqbit) asks for ringbuf ^0.4.7 and
+# keeps only bytes in its ring buffers (stream_tx.rs: SharedRb<Heap<u8>>). The
+# double free needs an element whose Drop panics, and u8 has no Drop.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0293"
+ignoreUntil = 2027-03-01
+reason = "ringbuf 0.4 via librqbit-utp 0.7 (mdm-torrent): every ring buffer there holds u8, which has no Drop to panic, the only path to the double free; removed when librqbit-utp moves to ringbuf 0.5"

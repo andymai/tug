@@ -15,7 +15,12 @@ use crate::settings::{Settings, SettingsError};
 use crate::store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Place, Store, StoreError,
 };
-use crate::transfer::{Finished, Phase, Progress, Transfer, TransferOptions};
+use crate::torrent::{Swarm, TorrentOptions, TorrentSource};
+
+const LIST_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+use crate::transfer::{
+    Finished, Phase, Progress, TorrentJob, Transfer, TransferError, TransferOptions,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -31,6 +36,14 @@ pub enum LibraryError {
     Delete { path: PathBuf, source: io::Error },
     #[error("a panic left the download list unusable")]
     Poisoned,
+    #[error("this is not a magnet link or a .torrent file")]
+    NotATorrent,
+    #[error("this Tug has no folder for torrents")]
+    NoTorrents,
+    #[error("{0} is in the list already")]
+    DuplicateTorrent(String),
+    #[error(transparent)]
+    Torrent(#[from] mdm_torrent::TorrentError),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -63,10 +76,18 @@ pub struct Library {
     // Downloads that the schedule stops, with the state each settles as when its
     // transfer ends. Pause and resume change it under the run lock in that time.
     stopping: Mutex<HashMap<DownloadId, DownloadState>>,
+    swarm: Option<Arc<Swarm>>,
 }
 
 impl Library {
     pub async fn open(store: Store) -> Result<Self, LibraryError> {
+        Self::open_with(store, None).await
+    }
+
+    pub async fn open_with(
+        store: Store,
+        torrents: Option<TorrentOptions>,
+    ) -> Result<Self, LibraryError> {
         let settings = Settings::load(&store)?;
         let library = Self {
             limiter: Arc::new(Limiter::new(settings.speed_limit_now())),
@@ -75,6 +96,7 @@ impl Library {
             running: tokio::sync::Mutex::default(),
             news: Mutex::default(),
             stopping: Mutex::default(),
+            swarm: torrents.map(|options| Arc::new(Swarm::new(options))),
         };
         {
             let store = library.store()?;
@@ -102,6 +124,51 @@ impl Library {
         let id = self.insert(url, dir, origin, false)?;
         self.pump().await?;
         Ok(id)
+    }
+
+    pub async fn add_torrent(
+        &self,
+        source: TorrentSource,
+        dir: &Path,
+    ) -> Result<DownloadId, LibraryError> {
+        if self.swarm.is_none() {
+            return Err(LibraryError::NoTorrents);
+        }
+        let link = source.link().ok_or(LibraryError::NotATorrent)?;
+        let url = Url::parse(&link).map_err(|_| LibraryError::NotATorrent)?;
+        let hash = crate::store::info_hash(&link).ok_or(LibraryError::NotATorrent)?;
+        // Under the run lock, so no tick can launch the row before its .torrent is there.
+        let running = self.running.lock().await;
+        if let Some(twin) = self.unfinished_torrent(&hash)? {
+            return Err(LibraryError::DuplicateTorrent(twin.name()));
+        }
+        let id = self.insert(url, dir, &Origin::default(), false)?;
+        if let TorrentSource::File(bytes) = &source {
+            self.store()?.set_torrent(id, &hash, bytes)?;
+        }
+        drop(running);
+        self.pump().await?;
+        Ok(id)
+    }
+
+    // librqbit's session holds one entry for each hash, so two downloads can't share one.
+    fn unfinished_torrent(&self, hash: &str) -> Result<Option<Download>, LibraryError> {
+        let store = self.store()?;
+        let mut torrents = Vec::new();
+        for download in store.list()? {
+            if download.is_torrent() && download.state != DownloadState::Done {
+                let known = store
+                    .torrent(download.id)?
+                    .map(|(stored, _)| stored)
+                    .or_else(|| crate::store::info_hash(download.url.as_str()));
+                torrents.push((download, known));
+            }
+        }
+        drop(store);
+        Ok(torrents
+            .into_iter()
+            .find(|(_, known)| known.as_deref() == Some(hash))
+            .map(|(download, _)| download))
     }
 
     pub fn add_paused(
@@ -281,9 +348,13 @@ impl Library {
         drop(running);
         if let Some(running) = stopped {
             running.transfer.stop();
-            let _stopped = running.transfer.finish().await;
+            let (_stopped, learned) = running.transfer.end().await;
+            self.keep_learned(id, learned)?;
         }
-        if delete_file {
+        if download.is_torrent() {
+            let torrent = self.store()?.torrent(id)?;
+            self.forget_torrent(&download, torrent, delete_file).await?;
+        } else if delete_file {
             delete_files(&download)?;
         }
         self.store()?.remove(id)?;
@@ -312,6 +383,7 @@ impl Library {
         let mut running = self.running.lock().await;
         for (&id, entry) in running.iter_mut() {
             let progress = entry.transfer.progress();
+            self.keep_learned(id, entry.transfer.take_torrent())?;
             if !entry.file_recorded
                 && let Some(file) = &progress.file
             {
@@ -440,7 +512,10 @@ impl Library {
         let mut first = None;
         for (id, entry) in stopped {
             let last = entry.transfer.progress();
-            let outcome = entry.transfer.finish().await;
+            let (outcome, learned) = entry.transfer.end().await;
+            if let Err(e) = self.keep_learned(id, learned) {
+                first.get_or_insert(e);
+            }
             let running = self.running.lock().await;
             let target = self.stopping().remove(&id).unwrap_or(DownloadState::Queued);
             let recorded = self
@@ -493,6 +568,9 @@ impl Library {
         download: &Download,
         running: &mut HashMap<DownloadId, Running>,
     ) -> Result<(), LibraryError> {
+        if download.is_torrent() {
+            return self.launch_torrent(download, running);
+        }
         let resumable = download
             .file
             .as_deref()
@@ -526,6 +604,112 @@ impl Library {
         Ok(())
     }
 
+    fn launch_torrent(
+        &self,
+        download: &Download,
+        running: &mut HashMap<DownloadId, Running>,
+    ) -> Result<(), LibraryError> {
+        let swarm = self.swarm.as_ref().ok_or(LibraryError::NoTorrents)?;
+        let torrent = self.store()?.torrent(download.id)?;
+        let now = SystemTime::now();
+        let started = if download.received > 0 {
+            event(EventKind::Resumed, now, Some(download.received), None)
+        } else {
+            event(EventKind::Started, now, None, None)
+        };
+        let transfer = Transfer::torrent(
+            Arc::clone(swarm),
+            TorrentJob {
+                magnet: download.url.to_string(),
+                torrent,
+                dir: download.dir.clone(),
+            },
+            Arc::clone(&self.limiter),
+        );
+        {
+            let store = self.store()?;
+            store.set_state(download.id, DownloadState::Downloading, None, now)?;
+            store.add_event(download.id, &started)?;
+        }
+        running.insert(
+            download.id,
+            Running {
+                transfer,
+                file_recorded: false,
+            },
+        );
+        Ok(())
+    }
+
+    // A torrent leaves librqbit's session with its download; one that finished
+    // has left it already, so its files go from here.
+    async fn forget_torrent(
+        &self,
+        download: &Download,
+        torrent: Option<(String, Vec<u8>)>,
+        delete_file: bool,
+    ) -> Result<(), LibraryError> {
+        let (Some(swarm), Some((hash, bytes))) = (&self.swarm, torrent) else {
+            return Ok(());
+        };
+        let session = swarm.session().await?;
+        if session.has(&hash) {
+            session.remove(&hash, delete_file).await?;
+            return Ok(());
+        }
+        if !delete_file {
+            return Ok(());
+        }
+        // Only the torrent's own files go, and then the folders they leave empty:
+        // the person may keep other files beside them.
+        let meta = session
+            .metadata(&mdm_torrent::Source::File(bytes), LIST_WAIT, None)
+            .await?;
+        // mdm-torrent refuses unsafe names before it lists them; deleting stays
+        // inside the download folder whatever a list says.
+        let folder = meta.folder_in(&download.dir);
+        if !folder.starts_with(&download.dir) {
+            return Ok(());
+        }
+        let plain = |path: &Path| {
+            path.components()
+                .all(|part| matches!(part, std::path::Component::Normal(_)))
+        };
+        let mut folders = Vec::new();
+        for file in meta.files.iter().filter(|f| !f.padding && plain(&f.path)) {
+            let path = folder.join(&file.path);
+            match std::fs::remove_file(&path) {
+                Err(e) if e.kind() != io::ErrorKind::NotFound => {
+                    return Err(LibraryError::Delete { path, source: e });
+                }
+                _ => {}
+            }
+            folders.extend(
+                path.ancestors()
+                    .skip(1)
+                    .take_while(|dir| dir.starts_with(&folder) && *dir != download.dir)
+                    .map(Path::to_path_buf),
+            );
+        }
+        folders.sort_by_key(|dir| std::cmp::Reverse(dir.components().count()));
+        folders.dedup();
+        for dir in folders {
+            let _kept_when_not_empty = std::fs::remove_dir(dir);
+        }
+        Ok(())
+    }
+
+    fn keep_learned(
+        &self,
+        id: DownloadId,
+        learned: Option<(String, Vec<u8>)>,
+    ) -> Result<(), LibraryError> {
+        if let Some((hash, torrent)) = learned {
+            self.store()?.set_torrent(id, &hash, &torrent)?;
+        }
+        Ok(())
+    }
+
     async fn settle(
         &self,
         id: DownloadId,
@@ -533,7 +717,8 @@ impl Library {
         unfinished: DownloadState,
     ) -> Result<(), LibraryError> {
         let last = transfer.progress();
-        let outcome = transfer.finish().await;
+        let (outcome, learned) = transfer.end().await;
+        self.keep_learned(id, learned)?;
         record(&*self.store()?, id, &last, outcome, unfinished)
     }
 
@@ -565,7 +750,7 @@ fn record(
     store: &Store,
     id: DownloadId,
     last: &Progress,
-    outcome: Result<Finished, mdm_engine::Error>,
+    outcome: Result<Finished, TransferError>,
     unfinished: DownloadState,
 ) -> Result<(), LibraryError> {
     if let Some(file) = &last.file {

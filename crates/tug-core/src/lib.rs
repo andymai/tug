@@ -5,6 +5,7 @@ mod progress;
 mod schedule;
 mod settings;
 mod store;
+mod torrent;
 mod transfer;
 
 pub use category::Category;
@@ -21,4 +22,7 @@ pub use settings::{
 pub use store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Place, Store, StoreError,
 };
-pub use transfer::{Finished, Phase, Progress, Transfer, TransferOptions, USER_AGENT};
+pub use torrent::{LOOKUP_WAIT, TorrentOptions, TorrentSource};
+pub use transfer::{
+    Finished, Phase, Progress, Transfer, TransferError, TransferOptions, USER_AGENT,
+};

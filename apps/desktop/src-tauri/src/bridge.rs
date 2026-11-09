@@ -499,9 +499,13 @@ impl From<LibraryError> for CommandError {
     fn from(e: LibraryError) -> Self {
         let kind = match &e {
             LibraryError::Unknown(_) => ErrorKind::NotFound,
-            LibraryError::Settings(_) => ErrorKind::Invalid,
+            LibraryError::Settings(_)
+            | LibraryError::NotATorrent
+            | LibraryError::DuplicateTorrent(_) => ErrorKind::Invalid,
             LibraryError::Store(_) | LibraryError::Delete { .. } => ErrorKind::Storage,
-            LibraryError::Engine(_) => ErrorKind::Engine,
+            LibraryError::Engine(_) | LibraryError::Torrent(_) | LibraryError::NoTorrents => {
+                ErrorKind::Engine
+            }
             LibraryError::Poisoned => ErrorKind::Internal,
         };
         Self {

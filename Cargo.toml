@@ -21,8 +21,10 @@ futures-util = {version = "0.3", default-features = false}
 http = "1"
 jiff = "0.2"
 ksni = "0.3"
+librqbit = {version = "9.1.0", default-features = false, features = ["rust-tls"]}
 mdm-engine = {git = "https://github.com/anefzaoui/misterdownloadmanager", rev = "8d2c73fcc33534c002631466b7e10db52796738b"}
 mdm-labserver = {git = "https://github.com/anefzaoui/misterdownloadmanager", rev = "8d2c73fcc33534c002631466b7e10db52796738b"}
+mdm-torrent = {git = "https://github.com/anefzaoui/misterdownloadmanager", rev = "8d2c73fcc33534c002631466b7e10db52796738b"}
 rusqlite = {version = "0.41", features = ["bundled"]}
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
@@ -55,3 +57,18 @@ print_stdout = "deny"
 todo = "deny"
 unimplemented = "deny"
 unwrap_used = "deny"
+
+# mdm-torrent needs MDM's librqbit, which carries changes that upstream (ikatson/rqbit)
+# doesn't have yet. Every crate of that repository comes from the same commit as MDM's.
+[patch.crates-io]
+librqbit = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}
+librqbit-bencode = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}
+librqbit-buffers = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}
+librqbit-clone-to-owned = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}
+librqbit-core = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}
+librqbit-dht = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}
+librqbit-lsd = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}
+librqbit-peer-protocol = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}
+librqbit-sha1-wrapper = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}
+librqbit-tracker-comms = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}
+librqbit-upnp = {git = "https://github.com/anefzaoui/rqbit.git", rev = "ef50d87f4a9d5be9e3951b74f722433f9b46bd76"}

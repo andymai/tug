@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::fmt::Write as _;
 use std::fs::{OpenOptions, Permissions};
 use std::io;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
@@ -64,6 +65,13 @@ const MIGRATIONS: &[&str] = &[
     CREATE TRIGGER search_forget AFTER DELETE ON downloads BEGIN
         DELETE FROM search WHERE rowid = old.id;
     END;
+",
+    r"
+    CREATE TABLE torrents (
+        download_id INTEGER PRIMARY KEY REFERENCES downloads (id) ON DELETE CASCADE,
+        info_hash   TEXT NOT NULL,
+        torrent     BLOB NOT NULL
+    );
 ",
 ];
 
@@ -223,11 +231,57 @@ impl Download {
     pub fn category(&self) -> Category {
         Category::of(&self.name())
     }
+
+    pub fn is_torrent(&self) -> bool {
+        self.url.scheme() == "magnet"
+    }
+}
+
+// The info hash in a magnet link as librqbit writes it: 40 hex digits, also
+// when the link gives the 32-letter base32 form.
+pub fn info_hash(magnet: &str) -> Option<String> {
+    let url = Url::parse(magnet).ok()?;
+    let given = url.query_pairs().find_map(|(key, value)| {
+        (key == "xt")
+            .then(|| value.strip_prefix("urn:btih:").map(str::to_owned))
+            .flatten()
+    })?;
+    match given.len() {
+        40 if given.chars().all(|c| c.is_ascii_hexdigit()) => Some(given.to_ascii_lowercase()),
+        32 => base32_hex(&given),
+        _ => None,
+    }
+}
+
+fn base32_hex(text: &str) -> Option<String> {
+    let mut bits: u64 = 0;
+    let mut held = 0;
+    let mut hex = String::with_capacity(40);
+    for c in text.chars() {
+        let value = match c.to_ascii_uppercase() {
+            letter @ 'A'..='Z' => u64::from(letter) - u64::from('A'),
+            digit @ '2'..='7' => u64::from(digit) - u64::from('2') + 26,
+            _ => return None,
+        };
+        bits = (bits << 5) | value;
+        held += 5;
+        if held >= 8 {
+            held -= 8;
+            write!(hex, "{:02x}", (bits >> held) & 0xff).ok()?;
+        }
+    }
+    (hex.len() == 40).then_some(hex)
 }
 
 pub fn name_of(url: &Url, file: Option<&Path>) -> String {
     if let Some(name) = file.and_then(Path::file_name) {
         return name.to_string_lossy().into_owned();
+    }
+    if url.scheme() == "magnet" {
+        return url
+            .query_pairs()
+            .find(|(key, value)| key == "dn" && !value.trim().is_empty())
+            .map_or_else(|| "magnet link".to_owned(), |(_, name)| name.into_owned());
     }
     url.path_segments()
         .and_then(|mut s| s.rfind(|seg| !seg.is_empty()))
@@ -497,6 +551,31 @@ impl Store {
             .collect())
     }
 
+    pub fn set_torrent(
+        &self,
+        id: DownloadId,
+        info_hash: &str,
+        torrent: &[u8],
+    ) -> Result<(), StoreError> {
+        self.conn.execute(
+            "INSERT INTO torrents (download_id, info_hash, torrent) VALUES (?1, ?2, ?3)
+             ON CONFLICT (download_id) DO UPDATE SET info_hash = excluded.info_hash, torrent = excluded.torrent",
+            params![id.0, info_hash, torrent],
+        )?;
+        Ok(())
+    }
+
+    pub fn torrent(&self, id: DownloadId) -> Result<Option<(String, Vec<u8>)>, StoreError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT info_hash, torrent FROM torrents WHERE download_id = ?1",
+                [id.0],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?)
+    }
+
     pub fn remove(&self, id: DownloadId) -> Result<bool, StoreError> {
         Ok(self
             .conn
@@ -726,7 +805,7 @@ mod tests {
     #[test]
     fn migrates_a_fresh_database_to_the_latest_schema() {
         let store = Store::open_in_memory().unwrap();
-        assert_eq!(store.schema_version().unwrap(), 5);
+        assert_eq!(store.schema_version().unwrap(), 6);
         assert!(store.list().unwrap().is_empty());
     }
 
@@ -739,7 +818,7 @@ mod tests {
             .insert(&new("https://example.org/a.iso", "/home/u/Downloads"))
             .unwrap();
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 5);
+        assert_eq!(store.schema_version().unwrap(), 6);
         assert_eq!(
             store.get(id).unwrap().unwrap().url.as_str(),
             "https://example.org/a.iso"
@@ -799,7 +878,7 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 5);
+        assert_eq!(store.schema_version().unwrap(), 6);
         let id = store
             .insert(&new("https://example.org/a.iso", "/d"))
             .unwrap();
@@ -988,8 +1067,50 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 5);
+        assert_eq!(store.schema_version().unwrap(), 6);
         assert_eq!(store.search("backup").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_magnet_hash_reads_the_same_in_hex_and_in_base32() {
+        let hex = "e4be9e4db876e3e3179778b03e906297be5c8dbe";
+        for magnet in [
+            format!("magnet:?xt=urn:btih:{hex}&dn=x"),
+            format!("magnet:?xt=urn:btih:{}", hex.to_ascii_uppercase()),
+            "magnet:?xt=urn:btih:4S7J4TNYO3R6GF4XPCYD5EDCS67FZDN6".to_owned(),
+        ] {
+            assert_eq!(info_hash(&magnet).as_deref(), Some(hex), "{magnet}");
+        }
+        for odd in [
+            "magnet:?xt=urn:btih:00",
+            "magnet:?dn=x",
+            "https://example.org/",
+        ] {
+            assert_eq!(info_hash(odd), None, "{odd}");
+        }
+    }
+
+    #[test]
+    fn a_torrent_keeps_its_file_and_hash_until_its_download_goes() {
+        let store = Store::open_in_memory().unwrap();
+        let id = store
+            .insert(&new(
+                "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Fedora%2044",
+                "/d",
+            ))
+            .unwrap();
+        assert_eq!(store.get(id).unwrap().unwrap().name(), "Fedora 44");
+        assert_eq!(store.torrent(id).unwrap(), None);
+        store.set_torrent(id, "0123", b"d4:infoe").unwrap();
+        store.set_torrent(id, "4567", b"d4:infoee").unwrap();
+        assert_eq!(
+            store.torrent(id).unwrap(),
+            Some(("4567".to_owned(), b"d4:infoee".to_vec()))
+        );
+        store.remove(id).unwrap();
+        assert_eq!(store.torrent(id).unwrap(), None);
+        let bare = store.insert(&new("magnet:?xt=urn:btih:00", "/d")).unwrap();
+        assert_eq!(store.get(bare).unwrap().unwrap().name(), "magnet link");
     }
 
     #[test]
