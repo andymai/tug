@@ -250,7 +250,7 @@ export function createDownloadsStore(backend: Backend) {
         const live = Object.fromEntries(batch.updates.map((update) => [update.id, update]));
         set(batch.error === null ? { live } : { live, notice: batch.error });
         const states = new Map(get().items.map((item) => [item.id, item.state]));
-        if (batch.settled.length > 0 || batch.updates.some((update) => states.get(update.id) !== "downloading")) {
+        if (batch.settled.length > 0 || batch.changed.length > 0 || batch.updates.some((update) => states.get(update.id) !== "downloading")) {
           void get().reload();
         }
       },

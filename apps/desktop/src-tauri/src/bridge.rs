@@ -226,6 +226,8 @@ pub struct BatchDto {
     pub updates: Vec<UpdateDto>,
     #[ts(type = "number[]")]
     pub settled: Vec<i64>,
+    #[ts(type = "number[]")]
+    pub changed: Vec<i64>,
     pub error: Option<String>,
 }
 
@@ -235,6 +237,7 @@ impl From<&Batch> for BatchDto {
             seq: b.seq,
             updates: b.updates.iter().map(UpdateDto::from).collect(),
             settled: b.settled.iter().map(|id| id.get()).collect(),
+            changed: b.changed.iter().map(|id| id.get()).collect(),
             error: b.error.clone(),
         }
     }
@@ -1039,6 +1042,7 @@ mod tests {
             seq: 1,
             updates: Vec::new(),
             settled: Vec::new(),
+            changed: vec![id(1), id(2)],
             error: None,
         };
         assert!(!drop_started(&mut captures, &quiet));
@@ -1054,6 +1058,7 @@ mod tests {
                 connections: 1,
             }],
             settled: vec![id(3)],
+            changed: Vec::new(),
             error: None,
         };
         assert!(drop_started(&mut captures, &started));

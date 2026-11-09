@@ -53,8 +53,8 @@ describe("tauri backend", () => {
     await tauriBackend.onProgress((batch) => seen.push(batch));
     const [event, handler] = listen.mock.calls[0] as [string, (e: { payload: unknown }) => void];
     expect(event).toBe(PROGRESS_EVENT);
-    handler({ payload: { seq: 1, updates: [], settled: [], error: null } });
-    expect(seen).toEqual([{ seq: 1, updates: [], settled: [], error: null }]);
+    handler({ payload: { seq: 1, updates: [], settled: [], changed: [], error: null } });
+    expect(seen).toEqual([{ seq: 1, updates: [], settled: [], changed: [], error: null }]);
   });
 
   it("passes each notice's message to the listener", async () => {
