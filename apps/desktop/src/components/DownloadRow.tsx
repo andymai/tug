@@ -7,6 +7,7 @@ import { formatBytes, formatDate, formatDuration, formatPercent, formatSpeed, pe
 import { ICON, STATES } from "../lib/states";
 import { ROW_DRAG } from "../lib/dom";
 import { useDownloads, useDownloadsStore } from "../state/context";
+import { chosen } from "../state/downloads";
 import { Button } from "./Button";
 
 export interface DownloadRowProps {
@@ -149,9 +150,11 @@ export const DownloadRow = memo(function DownloadRow({ download, columns, rank, 
       draggable={canDrag || undefined}
       onDragStart={(event) => {
         if (!canDrag) return;
-        const { marked } = store.getState();
-        const ids = marked.includes(download.id) ? marked : [download.id];
-        if (!marked.includes(download.id)) select(download.id);
+        const state = store.getState();
+        const withMarks = state.marked.includes(download.id);
+        if (!withMarks) select(download.id);
+        // Only the waiting rows move; a marked running one stays put.
+        const ids = (withMarks ? chosen(state) : [download]).filter((item) => item.state === "queued").map((item) => item.id);
         event.dataTransfer.setData(ROW_DRAG, ids.join(","));
         event.dataTransfer.effectAllowed = "move";
         startDrag(ids);

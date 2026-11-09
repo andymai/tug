@@ -154,7 +154,7 @@ export function DownloadTable({ title }: { title: string }) {
                 >
                   <button
                     type="button"
-                    title={column.id === "queue" ? "Sorted by the queue, waiting downloads move with a drag" : undefined}
+                    title={column.id === "queue" ? "Sort by the queue to drag waiting downloads into order" : undefined}
                     onClick={() => {
                       void savePreference({ sort: sortText(nextSort(sort, column)) }, "the sort");
                     }}
