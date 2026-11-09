@@ -51,6 +51,7 @@ impl Launcher for StartsTug {
         let endpoint = self.0.clone();
         tokio::spawn(async move {
             Server::bind(&endpoint)
+                .await
                 .unwrap()
                 .serve(Arc::new(Fake { list_size: 5 }))
                 .await;
@@ -73,8 +74,8 @@ fn endpoint() -> (tempfile::TempDir, Endpoint) {
     (dir, endpoint)
 }
 
-fn running(endpoint: &Endpoint, list_size: usize) {
-    let server = Server::bind(endpoint).unwrap();
+async fn running(endpoint: &Endpoint, list_size: usize) {
+    let server = Server::bind(endpoint).await.unwrap();
     tokio::spawn(server.serve(Arc::new(Fake { list_size })));
 }
 
@@ -104,7 +105,7 @@ fn frames_carry_a_native_endian_length() {
 #[tokio::test]
 async fn messages_reach_a_running_tug_and_keep_their_id() {
     let (_dir, endpoint) = endpoint();
-    running(&endpoint, 5);
+    running(&endpoint, 5).await;
     let host = Host::new(endpoint, CantStart, Duration::from_secs(1));
 
     assert_eq!(
@@ -192,13 +193,32 @@ async fn a_failed_start_is_reported() {
 #[tokio::test]
 async fn an_answer_over_a_megabyte_becomes_an_error() {
     let (_dir, endpoint) = endpoint();
-    running(&endpoint, 2 << 20);
+    running(&endpoint, 2 << 20).await;
     let host = Host::new(endpoint, CantStart, Duration::from_secs(1));
     let list = ask(&host, json!({"id": 9, "type": "list"})).await;
     assert_eq!(
         (list["id"].clone(), list["ok"].clone()),
         (json!(9), json!(false))
     );
+}
+
+#[tokio::test]
+async fn a_reply_stays_under_a_megabyte_even_for_an_oversized_id() {
+    let (_dir, endpoint) = endpoint();
+    let host = Host::new(endpoint, CantStart, Duration::from_secs(1));
+    let huge = "i".repeat(2 << 20);
+    for message in [
+        json!({"id": huge, "type": "ping"}),
+        json!({"id": huge, "type": "nope"}),
+    ] {
+        let bytes = host.answer(&serde_json::to_vec(&message).unwrap()).await;
+        assert!(bytes.len() <= tug_host::MAX_REPLY, "{} bytes", bytes.len());
+        let reply: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            (reply["id"].clone(), reply["ok"].clone()),
+            (Value::Null, json!(false))
+        );
+    }
 }
 
 #[test]
@@ -208,7 +228,7 @@ fn run_answers_each_framed_message_in_order() {
         .build()
         .unwrap();
     let (_dir, endpoint) = endpoint();
-    runtime.block_on(async { running(&endpoint, 5) });
+    runtime.block_on(running(&endpoint, 5));
     let host = Host::new(endpoint, CantStart, Duration::from_secs(1));
 
     let mut input = Vec::new();

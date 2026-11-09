@@ -18,6 +18,17 @@ const ANSWER_TIMEOUT: Duration = Duration::from_secs(3);
 const HAND_OFF_TIMEOUT: Duration = Duration::from_secs(5);
 const ADD_TIMEOUT: Duration = Duration::from_secs(10);
 
+#[derive(Debug, Clone, Copy)]
+struct Limits {
+    list: Duration,
+    add: Duration,
+}
+
+const LIMITS: Limits = Limits {
+    list: ANSWER_TIMEOUT,
+    add: ADD_TIMEOUT,
+};
+
 async fn ask(client: &mut Client, request: Request, limit: Duration) -> Result<Response, String> {
     tokio::time::timeout(limit, client.send(request))
         .await
@@ -165,9 +176,9 @@ async fn running_or_started(endpoint: &Endpoint) -> Result<Client, String> {
     Err("Tug didn't start in time".into())
 }
 
-async fn add(endpoint: &Endpoint, urls: Vec<String>) -> Result<bool, String> {
+async fn add(endpoint: &Endpoint, urls: Vec<String>, limits: Limits) -> Result<bool, String> {
     let mut client = running_or_started(endpoint).await?;
-    match ask(&mut client, Request::Add { urls }, ADD_TIMEOUT).await? {
+    match ask(&mut client, Request::Add { urls }, limits.add).await? {
         Response::Added { added, failed } => {
             let mut out = io::stdout().lock();
             for entry in &added {
@@ -188,9 +199,9 @@ async fn add(endpoint: &Endpoint, urls: Vec<String>) -> Result<bool, String> {
     }
 }
 
-async fn list(endpoint: &Endpoint, json: bool) -> Result<bool, String> {
+async fn list(endpoint: &Endpoint, json: bool, limits: Limits) -> Result<bool, String> {
     let mut client = connect(endpoint).await.ok_or("Tug isn't running")?;
-    match ask(&mut client, Request::List, ANSWER_TIMEOUT).await? {
+    match ask(&mut client, Request::List, limits.list).await? {
         Response::List { downloads } => {
             let mut out = io::stdout().lock();
             if json {
@@ -222,10 +233,10 @@ pub fn run(command: Command) -> ExitCode {
         }
         Command::Add(urls) => Endpoint::from_env()
             .map_err(|e| e.to_string())
-            .and_then(|endpoint| tauri::async_runtime::block_on(add(&endpoint, urls))),
+            .and_then(|endpoint| tauri::async_runtime::block_on(add(&endpoint, urls, LIMITS))),
         Command::List { json } => Endpoint::from_env()
             .map_err(|e| e.to_string())
-            .and_then(|endpoint| tauri::async_runtime::block_on(list(&endpoint, json))),
+            .and_then(|endpoint| tauri::async_runtime::block_on(list(&endpoint, json, LIMITS))),
     };
     match result {
         Ok(true) => ExitCode::SUCCESS,
@@ -239,7 +250,52 @@ pub fn run(command: Command) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use std::sync::Arc;
+
+    use tug_ipc::{Handler, Server};
+
     use super::*;
+
+    struct Stalls;
+
+    impl Handler for Stalls {
+        async fn handle(&self, request: Request) -> Response {
+            if matches!(request, Request::Ping) {
+                Response::Pong
+            } else {
+                std::future::pending().await
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_tug_that_stops_answering_times_out_add_and_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let endpoint = Endpoint::at(dir.path().join("tug"));
+        let server = Server::bind(&endpoint).await.unwrap();
+        tokio::spawn(server.serve(Arc::new(Stalls)));
+        assert!(
+            connect(&endpoint).await.is_some(),
+            "the stalling Tug must answer the ping"
+        );
+
+        let limits = Limits {
+            list: Duration::from_millis(200),
+            add: Duration::from_millis(200),
+        };
+        let started = Instant::now();
+        assert_eq!(
+            add(&endpoint, vec!["https://example.org/a.iso".into()], limits).await,
+            Err("Tug didn't answer in time".into())
+        );
+        assert_eq!(
+            list(&endpoint, false, limits).await,
+            Err("Tug didn't answer in time".into())
+        );
+        assert!(started.elapsed() < Duration::from_secs(3));
+    }
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|&s| s.to_owned()).collect()
