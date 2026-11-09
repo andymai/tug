@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.0](https://github.com/andymai/tug/compare/v0.32.1...v0.33.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** drag waiting downloads into a new order, and move one with Alt and the arrows ([#138](https://github.com/andymai/tug/issues/138)) ([e8ce1bf](https://github.com/andymai/tug/commit/e8ce1bfa2aea0eb1889a19159cea126b4e092b78))
+
 ## [0.32.1](https://github.com/andymai/tug/compare/v0.32.0...v0.32.1) (2026-11-09)
 
 
