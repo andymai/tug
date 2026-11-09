@@ -221,6 +221,8 @@ pub struct Download {
     pub error: Option<String>,
     pub added: SystemTime,
     pub finished: Option<SystemTime>,
+    // The queue's order: lower goes first.
+    pub position: i64,
 }
 
 impl Download {
@@ -692,8 +694,7 @@ fn private(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-const SELECT: &str =
-    "SELECT id, url, dir, file, state, size, received, error, added_ms, finished_ms FROM downloads";
+const SELECT: &str = "SELECT id, url, dir, file, state, size, received, error, added_ms, finished_ms, position FROM downloads";
 
 fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
     let known = i64::try_from(MIGRATIONS.len()).map_err(|_| StoreError::TooLarge(u64::MAX))?;
@@ -746,6 +747,7 @@ fn read_row(row: &Row<'_>) -> rusqlite::Result<Result<Download, StoreError>> {
     let error: Option<String> = row.get(7)?;
     let added: i64 = row.get(8)?;
     let finished: Option<i64> = row.get(9)?;
+    let position: i64 = row.get(10)?;
 
     let corrupt = |column, detail: String| StoreError::Corrupt { id, column, detail };
     Ok((|| {
@@ -762,6 +764,7 @@ fn read_row(row: &Row<'_>) -> rusqlite::Result<Result<Download, StoreError>> {
             error,
             added: from_ms(added),
             finished: finished.map(from_ms),
+            position,
         })
     })())
 }
@@ -1180,6 +1183,7 @@ mod tests {
                 error: None,
                 added: input.added,
                 finished: None,
+                position: 1,
             }
         );
     }

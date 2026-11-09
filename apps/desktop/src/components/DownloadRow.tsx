@@ -1,45 +1,25 @@
-import { memo, useEffect, useRef } from "react";
+import { RotateCw } from "lucide-react";
+import { memo, type ReactNode, useEffect, useRef } from "react";
 
-import type { Download, ProgressUpdate } from "../backend/backend";
-import { formatBytes, formatLeft, formatPercent, formatSpeed, percentOf, sentence, shortDir } from "../lib/format";
+import type { Download } from "../backend/backend";
+import { type Column, type ColumnId, hostOf, typeOf } from "../lib/columns";
+import { formatBytes, formatDate, formatDuration, formatPercent, formatSpeed, percentOf, sentence, shortDir } from "../lib/format";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { Button } from "./Button";
 
-interface Detail {
-  text: string;
-  mono: boolean;
-}
-
-function details(download: Download, live: ProgressUpdate | undefined): Detail[] {
-  const received = live?.received ?? download.received;
-  const total = live?.total ?? download.size;
-  const percent = formatPercent(received, total);
-  switch (download.state) {
-    case "downloading":
-      if (live && live.speed > 0) {
-        const parts: Detail[] = [{ text: formatSpeed(live.speed), mono: true }];
-        if (live.leftMs !== null) parts.push({ text: formatLeft(live.leftMs), mono: true });
-        return parts;
-      }
-      return percent ? [{ text: percent, mono: true }] : [];
-    case "paused":
-      return percent ? [{ text: percent, mono: true }] : [];
-    case "queued":
-      return [];
-    case "done":
-      return [{ text: `Saved to ${shortDir(download.dir)}`, mono: false }];
-    case "failed":
-      return [{ text: sentence(download.error ?? "Tug couldn't finish this download"), mono: false }];
-  }
-}
-
 export interface DownloadRowProps {
   download: Download;
   selected: boolean;
+  columns: readonly Column[];
+  rank: number | undefined;
+  // The row that Tab reaches: the selected one, else the first.
+  tabbable: boolean;
 }
 
-export const DownloadRow = memo(function DownloadRow({ download, selected }: DownloadRowProps) {
+const CELL = "h-8 px-2 first:pl-3 last:pr-3 whitespace-nowrap overflow-hidden";
+
+export const DownloadRow = memo(function DownloadRow({ download, selected, columns, rank, tabbable }: DownloadRowProps) {
   const live = useDownloads((s) => s.live[download.id]);
   const select = useDownloads((s) => s.select);
   const resume = useDownloads((s) => s.resume);
@@ -47,78 +27,121 @@ export const DownloadRow = memo(function DownloadRow({ download, selected }: Dow
   const settleFresh = useDownloads((s) => s.settleFresh);
   const wantsFocus = useDownloads((s) => s.focusRequest === download.id);
   const requestFocus = useDownloads((s) => s.requestFocus);
-  const button = useRef<HTMLButtonElement>(null);
+  const row = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => {
     if (!wantsFocus) return;
-    button.current?.focus();
+    row.current?.focus();
     requestFocus(null);
   }, [wantsFocus, requestFocus]);
+
   const look = STATES[download.state];
   const received = live?.received ?? download.received;
   const total = live?.total ?? download.size;
-  const showBar = download.state === "downloading" || download.state === "paused";
-  const failed = download.state === "failed";
+  const running = download.state === "downloading";
+  const toggle = () => {
+    select(selected ? null : download.id);
+  };
+
+  const cell = (id: ColumnId): ReactNode => {
+    switch (id) {
+      case "name":
+        return <span className="block truncate text-body-strong text-ink">{download.name}</span>;
+      case "status":
+        return (
+          <span className="flex items-center gap-2">
+            <look.Icon
+              {...ICON}
+              className={fresh ? `${look.tone} shrink-0 animate-tug` : `${look.tone} shrink-0`}
+              onAnimationEnd={
+                fresh
+                  ? () => {
+                      settleFresh(download.id);
+                    }
+                  : undefined
+              }
+            />
+            <span className={`text-small ${look.colorWord ? look.tone : "text-ink-muted"}`}>{look.word}</span>
+          </span>
+        );
+      case "progress":
+        if (download.state === "failed") {
+          return (
+            <span className="block truncate text-small text-ink-muted" title={download.error ?? undefined}>
+              {sentence(download.error ?? "Tug couldn't finish this download")}
+            </span>
+          );
+        }
+        if (download.state === "done") {
+          return <span className="block truncate text-small text-ink-muted">{`Saved to ${shortDir(download.dir)}`}</span>;
+        }
+        if (download.state === "queued") return null;
+        return (
+          <span className="flex items-center gap-2">
+            <span aria-hidden="true" className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-line">
+              <span
+                className={`block h-full rounded-full transition-[width] duration-100 ease-linear ${running ? "bg-accent" : "bg-ink-faint"}`}
+                style={{ width: `${String(percentOf(received, total))}%` }}
+              />
+            </span>
+            <span className="w-9 text-right text-mono text-ink-muted">{formatPercent(received, total) ?? ""}</span>
+          </span>
+        );
+      case "size":
+        return <span className="text-mono-strong text-ink">{total === null && received === 0 ? "" : formatBytes(total ?? received)}</span>;
+      case "speed":
+        return running && live !== undefined && live.speed > 0 ? <span className="text-mono text-ink">{formatSpeed(live.speed)}</span> : null;
+      case "left":
+        return running && live?.leftMs != null ? <span className="text-mono text-ink">{formatDuration(live.leftMs)}</span> : null;
+      case "connections":
+        return running && live !== undefined ? <span className="text-mono text-ink">{live.connections}</span> : null;
+      case "source":
+        return <span className="block truncate text-small text-ink-muted">{hostOf(download)}</span>;
+      case "type":
+        return <span className="block truncate text-small text-ink-muted">{typeOf(download)}</span>;
+      case "added":
+        return <span className="text-mono text-ink-muted">{formatDate(download.addedMs)}</span>;
+      case "queue":
+        return rank === undefined ? null : <span className="text-mono text-ink">{`#${String(rank)}`}</span>;
+    }
+  };
 
   return (
-    <li className="relative border-t border-line first:border-t-0">
-      <button
-        ref={button}
-        type="button"
-        data-download={download.id}
-        aria-pressed={selected}
-        onClick={() => {
-          select(selected ? null : download.id);
-        }}
-        className="grid min-h-(--row-height) w-full grid-cols-[16px_minmax(0,1fr)_132px_76px] items-center gap-3 px-3 py-0.5 text-left transition-colors duration-(--duration-fast) ease-(--ease-out) outline-offset-[-2px] hover:bg-hover focus-visible:bg-selection aria-pressed:bg-selection @max-xl:grid-cols-[16px_minmax(0,1fr)_72px_76px]"
-      >
-        <look.Icon
-          {...ICON}
-          className={fresh ? `${look.tone} animate-tug` : look.tone}
-          onAnimationEnd={
-            fresh
-              ? () => {
-                  settleFresh(download.id);
-                }
-              : undefined
-          }
-        />
-        <span className="flex min-w-0 flex-col">
-          <span className="truncate text-body-strong text-ink">{download.name}</span>
-          <span className="flex min-w-0 items-center gap-1 text-small whitespace-nowrap text-ink-muted">
-            <span className={look.colorWord ? look.tone : undefined}>{look.word}</span>
-            {details(download, live).map((detail) => (
-              <span key={detail.text} className={detail.mono ? "flex gap-1 text-mono" : "flex min-w-0 gap-1"}>
-                <span aria-hidden="true" className="font-sans">
-                  ·
-                </span>
-                <span className={detail.mono ? undefined : "truncate"}>{detail.text}</span>
-              </span>
-            ))}
-          </span>
-        </span>
-        {showBar ? (
-          <span aria-hidden="true" className="h-1 overflow-hidden rounded-full bg-line">
-            <span
-              className={`block h-full rounded-full transition-[width] duration-100 ease-linear ${download.state === "paused" ? "bg-ink-faint" : "bg-accent"}`}
-              style={{ width: `${String(percentOf(received, total))}%` }}
-            />
-          </span>
-        ) : (
-          <span />
+    <tr
+      ref={row}
+      data-download={download.id}
+      aria-selected={selected}
+      tabIndex={tabbable ? 0 : -1}
+      onClick={toggle}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggle();
+        }
+      }}
+      className="cursor-default border-t border-line transition-colors duration-(--duration-fast) ease-(--ease-out) outline-offset-[-2px] first:border-t-0 hover:bg-hover focus-visible:bg-selection aria-selected:bg-selection"
+    >
+      {columns.map((column) => (
+        <td key={column.id} className={`${CELL} ${column.numeric ? "text-right" : "text-left"}`}>
+          {cell(column.id)}
+        </td>
+      ))}
+      <td className="w-8 pr-2 text-right">
+        {download.state === "failed" && (
+          <Button
+            size="icon"
+            variant="quiet"
+            icon={RotateCw}
+            aria-label={`Retry ${download.name}`}
+            title="Retry"
+            onClick={(event) => {
+              event.stopPropagation();
+              void resume(download.id);
+            }}
+          />
         )}
-        <span className="text-right text-mono-strong text-ink">{failed ? "" : formatBytes(total ?? received)}</span>
-      </button>
-      {failed && (
-        <Button
-          size="sm"
-          aria-label={`Retry ${download.name}`}
-          onClick={() => void resume(download.id)}
-          className="absolute top-1/2 right-3 -translate-y-1/2"
-        >
-          Retry
-        </Button>
-      )}
-    </li>
+      </td>
+    </tr>
   );
 });

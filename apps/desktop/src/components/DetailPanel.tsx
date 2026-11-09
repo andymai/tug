@@ -168,7 +168,7 @@ function Panel({ download }: { download: Download }) {
     <aside
       ref={panel}
       aria-labelledby={titleId}
-      className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-line bg-surface @max-2xl/main:absolute @max-2xl/main:inset-y-0 @max-2xl/main:right-0 @max-2xl/main:w-[min(20rem,100%)] @max-2xl/main:bg-surface-raised @max-2xl/main:shadow-popover"
+      className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-line bg-surface @max-2xl/main:absolute @max-2xl/main:z-20 @max-2xl/main:inset-y-0 @max-2xl/main:right-0 @max-2xl/main:w-[min(20rem,100%)] @max-2xl/main:bg-surface-raised @max-2xl/main:shadow-popover"
     >
       <div className="flex items-start gap-2 px-4 pt-3">
         <h2 id={titleId} className="min-w-0 flex-1 pt-0.5 text-title [overflow-wrap:anywhere] text-ink">

@@ -120,6 +120,8 @@ pub struct DownloadDto {
     pub added_ms: u64,
     #[ts(type = "number | null")]
     pub finished_ms: Option<u64>,
+    #[ts(type = "number")]
+    pub position: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
@@ -185,6 +187,7 @@ impl From<&Download> for DownloadDto {
             error: d.error.clone(),
             added_ms: unix_ms(d.added),
             finished_ms: d.finished.map(unix_ms),
+            position: d.position,
         }
     }
 }
@@ -401,6 +404,8 @@ pub struct SettingsDto {
     pub schedule: Option<ScheduleDto>,
     pub slow_hours: Option<SlowHoursDto>,
     pub saved_views: Vec<SavedViewDto>,
+    pub columns: Vec<String>,
+    pub sort: Option<String>,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -424,6 +429,8 @@ impl From<&Settings> for SettingsDto {
                     query: saved.query.clone(),
                 })
                 .collect(),
+            columns: s.columns.clone(),
+            sort: s.sort.clone(),
         }
     }
 }
@@ -464,6 +471,8 @@ impl From<SettingsDto> for Settings {
                     query: saved.query,
                 })
                 .collect(),
+            columns: s.columns,
+            sort: s.sort,
         }
     }
 }
@@ -998,6 +1007,7 @@ mod tests {
             error: None,
             added: UNIX_EPOCH + Duration::from_millis(1_762_600_000_123),
             finished: None,
+            position: 1,
         }
     }
 
@@ -1079,6 +1089,8 @@ mod tests {
             schedule: None,
             slow_hours: None,
             saved_views: Vec::new(),
+            columns: Vec::new(),
+            sort: None,
         };
         let dto = SettingsDto {
             connections: 4,
@@ -1239,6 +1251,8 @@ mod tests {
                 view: "disk".into(),
                 query: "fedora iso".into(),
             }],
+            columns: Vec::new(),
+            sort: None,
         };
         assert_eq!(Settings::from(SettingsDto::from(&settings)), settings);
         let typed = SettingsDto {

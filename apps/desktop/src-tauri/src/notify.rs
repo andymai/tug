@@ -236,6 +236,7 @@ mod tests {
             error: error.map(str::to_owned),
             added: SystemTime::UNIX_EPOCH,
             finished: None,
+            position: 1,
         }
     }
 

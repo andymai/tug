@@ -1,6 +1,6 @@
 import { act, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { App } from "./App";
 import type { Backend } from "./backend/backend";
@@ -39,8 +39,16 @@ async function showcase(select?: string) {
   return opened;
 }
 
+// A shot taken mid-transition, or under a pointer left over another test's
+// controls, differs by a few pixels from run to run.
+const still = document.createElement("style");
+still.textContent = "*, *::before, *::after { transition: none !important; animation-duration: 0s !important; }";
+document.head.append(still);
+
 async function capture(window: ReturnType<typeof page.elementLocator>, name: string) {
   await document.fonts.ready;
+  const logo = document.querySelector("aside img");
+  if (logo !== null) await userEvent.hover(page.elementLocator(logo), { force: true });
   await expect(window).toMatchScreenshot(`${name}-${scheme}`);
 }
 
@@ -111,6 +119,17 @@ describe("main window", () => {
       document.body.dispatchEvent(new DragEvent("dragenter", { dataTransfer, bubbles: true }));
     });
     await capture(window, "drop");
+  });
+
+  it("sorts by a column and picks its columns", async () => {
+    const { store, window } = await showcase();
+    await act(async () => {
+      await store.getState().saveSettings({ sort: "-size", columns: ["name", "status", "progress", "size", "type", "added", "queue"] });
+    });
+    act(() => {
+      document.querySelector<HTMLButtonElement>('button[aria-label="Columns"]')?.click();
+    });
+    await capture(window, "columns");
   });
 
   it("shows the downloads of one type", async () => {

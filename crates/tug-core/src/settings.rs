@@ -23,6 +23,9 @@ const MAX_ACTIVE_KEY: &str = "max_active";
 const SCHEDULE: &str = "schedule";
 const SLOW_HOURS: &str = "slow_hours";
 const SAVED_VIEWS: &str = "saved_views";
+const COLUMNS: &str = "columns";
+const SORT: &str = "sort";
+const MAX_COLUMNS: usize = 24;
 pub const MAX_SAVED_VIEWS: usize = 50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -120,6 +123,10 @@ pub struct Settings {
     pub schedule: Option<Schedule>,
     pub slow_hours: Option<SlowHours>,
     pub saved_views: Vec<SavedView>,
+    // The window's own names for the list's columns and its sort ("-size" sorts
+    // down); the core keeps them as they come. No columns: the window's own.
+    pub columns: Vec<String>,
+    pub sort: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -142,6 +149,10 @@ pub enum SettingsError {
     DuplicateView(String),
     #[error("Tug keeps at most {MAX_SAVED_VIEWS} saved views")]
     TooManyViews,
+    #[error("{0:?} isn't a column")]
+    Column(String),
+    #[error("{0:?} isn't a sort")]
+    Sort(String),
     #[error(transparent)]
     Schedule(#[from] ScheduleError),
 }
@@ -175,6 +186,8 @@ impl Default for Settings {
             schedule: None,
             slow_hours: None,
             saved_views: Vec::new(),
+            columns: Vec::new(),
+            sort: None,
         }
     }
 }
@@ -209,6 +222,19 @@ impl Settings {
             if self.excluded_sites[..at].contains(entry) {
                 return Err(SettingsError::DuplicateSite(entry.clone()));
             }
+        }
+        if self.columns.len() > MAX_COLUMNS {
+            return Err(SettingsError::Column(self.columns.join(" ")));
+        }
+        for (at, column) in self.columns.iter().enumerate() {
+            if !name(column) || self.columns[..at].contains(column) {
+                return Err(SettingsError::Column(column.clone()));
+            }
+        }
+        if let Some(sort) = &self.sort
+            && !name(sort.strip_prefix('-').unwrap_or(sort))
+        {
+            return Err(SettingsError::Sort(sort.clone()));
         }
         if self.saved_views.len() > MAX_SAVED_VIEWS {
             return Err(SettingsError::TooManyViews);
@@ -313,6 +339,15 @@ impl Settings {
                 saved_views.push(saved);
             }
         }
+        let mut columns: Vec<String> = Vec::new();
+        for column in store.setting(COLUMNS)?.unwrap_or_default().split(' ') {
+            if name(column) && !columns.iter().any(|c| c == column) && columns.len() < MAX_COLUMNS {
+                columns.push(column.to_owned());
+            }
+        }
+        let sort = store
+            .setting(SORT)?
+            .filter(|sort| name(sort.strip_prefix('-').unwrap_or(sort)));
         Ok(Self {
             download_dir,
             connections,
@@ -324,6 +359,8 @@ impl Settings {
             schedule,
             slow_hours,
             saved_views,
+            columns,
+            sort,
         })
     }
 
@@ -358,6 +395,17 @@ impl Settings {
                 store.remove_setting(SLOW_HOURS)?;
             }
         }
+        if self.columns.is_empty() {
+            store.remove_setting(COLUMNS)?;
+        } else {
+            store.set_setting(COLUMNS, &self.columns.join(" "))?;
+        }
+        match &self.sort {
+            Some(sort) => store.set_setting(SORT, sort)?,
+            None => {
+                store.remove_setting(SORT)?;
+            }
+        }
         if self.saved_views.is_empty() {
             store.remove_setting(SAVED_VIEWS)?;
         } else {
@@ -366,6 +414,10 @@ impl Settings {
         }
         Ok(())
     }
+}
+
+fn name(text: &str) -> bool {
+    (1..=20).contains(&text.len()) && text.chars().all(|c| c.is_ascii_lowercase())
 }
 
 fn default_download_dir() -> PathBuf {
@@ -390,6 +442,8 @@ mod tests {
             schedule: None,
             slow_hours: None,
             saved_views: Vec::new(),
+            columns: Vec::new(),
+            sort: None,
         }
     }
 
@@ -596,6 +650,44 @@ mod tests {
     }
 
     #[test]
+    fn columns_and_a_sort_are_plain_names_and_load_back() {
+        let with = |columns: &[&str], sort: Option<&str>| Settings {
+            columns: columns.iter().map(|&c| c.to_owned()).collect(),
+            sort: sort.map(str::to_owned),
+            ..valid()
+        };
+        with(&["name", "size", "speed"], Some("-size"))
+            .validate()
+            .unwrap();
+        for bad in [
+            with(&["Name"], None),
+            with(&["name", "name"], None),
+            with(&[""], None),
+            with(&["name"], Some("--size")),
+            with(&["name"], Some("size ")),
+        ] {
+            assert!(bad.validate().is_err(), "{:?} {:?}", bad.columns, bad.sort);
+        }
+
+        let store = Store::open_in_memory().unwrap();
+        with(&["name", "size"], Some("-added"))
+            .save(&store)
+            .unwrap();
+        let loaded = Settings::load(&store).unwrap();
+        assert_eq!(
+            (loaded.columns, loaded.sort.as_deref()),
+            (vec!["name".to_owned(), "size".to_owned()], Some("-added"))
+        );
+        store.set_setting(COLUMNS, "name Size name  speed").unwrap();
+        store.set_setting(SORT, "-").unwrap();
+        let loaded = Settings::load(&store).unwrap();
+        assert_eq!(
+            (loaded.columns, loaded.sort),
+            (vec!["name".to_owned(), "speed".to_owned()], None)
+        );
+    }
+
+    #[test]
     fn excluded_sites_must_be_clean_and_once() {
         assert_eq!(
             sites(&["Example.org"]).validate(),
@@ -661,6 +753,8 @@ mod tests {
                 },
             }),
             saved_views: vec![saved("Linux images", "disk", "fedora iso")],
+            columns: Vec::new(),
+            sort: None,
         };
         settings.save(&store).unwrap();
         assert_eq!(Settings::load(&store).unwrap(), settings);

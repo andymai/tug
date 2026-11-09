@@ -38,6 +38,8 @@ async fn settings_survive_a_reopen() {
         schedule: None,
         slow_hours: None,
         saved_views: Vec::new(),
+        columns: Vec::new(),
+        sort: None,
     };
     Library::open(Store::open(&db).unwrap())
         .await
@@ -85,6 +87,8 @@ async fn the_global_speed_limit_holds_downloads_back() {
             schedule: None,
             slow_hours: None,
             saved_views: Vec::new(),
+            columns: Vec::new(),
+            sort: None,
         })
         .unwrap();
 
@@ -115,6 +119,8 @@ async fn lifting_the_limit_speeds_up_a_running_download() {
         schedule: None,
         slow_hours: None,
         saved_views: Vec::new(),
+        columns: Vec::new(),
+        sort: None,
     };
     library.update_settings(limited.clone()).unwrap();
 

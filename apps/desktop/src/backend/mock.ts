@@ -97,7 +97,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
   };
   const listeners = new Set<(batch: ProgressBatch) => void>();
-  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null, slowHours: null, savedViews: [] };
+  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null, slowHours: null, savedViews: [], columns: [], sort: null };
   let scheme = options.colorScheme ?? null;
   const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
   const noticeListeners = new Set<(message: string) => void>();
@@ -110,7 +110,6 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     maximized = next;
     for (const listener of maximizedListeners) listener(next);
   };
-  const order = new Map<number, number>();
   let waiting: number[] = [];
   let nextId = 1;
   let seq = 0;
@@ -145,15 +144,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       error: null,
       addedMs: now(),
       finishedMs: null,
+      position: Math.max(0, ...[...downloads.values()].map((d) => d.position)) + 1,
     };
     downloads.set(download.id, download);
-    order.set(download.id, Math.max(0, ...order.values()) + 1);
     log(download.id, "added", download.addedMs);
     return download;
   };
 
   const queue = () =>
-    [...downloads.values()].filter((d) => d.state === "queued").sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    [...downloads.values()].filter((d) => d.state === "queued").sort((a, b) => a.position - b.position);
 
   // Like Tug, a place that frees up goes to the next queued download; the seed keeps its states.
   const fill = () => {
@@ -172,15 +171,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     const waiting = queue();
     const at = waiting.findIndex((d) => d.id === id);
     if (at < 0) return;
-    const positions = [...order.values()];
-    if (where === "first") order.set(id, Math.min(...positions) - 1);
-    else if (where === "last") order.set(id, Math.max(...positions) + 1);
+    const mine = waiting[at];
+    if (mine === undefined) return;
+    const positions = [...downloads.values()].map((d) => d.position);
+    if (where === "first") mine.position = Math.min(...positions) - 1;
+    else if (where === "last") mine.position = Math.max(...positions) + 1;
     else {
       const other = waiting[where === "up" ? at - 1 : at + 1];
       if (other === undefined) return;
-      const mine = order.get(id) ?? 0;
-      order.set(id, order.get(other.id) ?? 0);
-      order.set(other.id, mine);
+      [mine.position, other.position] = [other.position, mine.position];
     }
   };
 
@@ -325,7 +324,6 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         find(id);
         downloads.delete(id);
         history.delete(id);
-        order.delete(id);
         fill();
       }),
     openFile: (id) =>
@@ -419,8 +417,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         } else if (answer === "cancel") {
           downloads.delete(id);
           history.delete(id);
-          order.delete(id);
-        }
+          }
         announce();
       }),
     onCaptures: (listener) => {
