@@ -317,6 +317,7 @@ impl Library {
             {
                 self.store()?.set_file(id, file)?;
                 entry.file_recorded = true;
+                self.changed(id);
             }
             if matches!(progress.phase, Phase::Done | Phase::Failed | Phase::Stopped) {
                 ended.push(id);
@@ -730,5 +731,24 @@ mod tests {
         assert!(library.resume_all().await.unwrap().contains(&id));
         library.end_stop(stopping).await.unwrap();
         assert_eq!(state(id), DownloadState::Queued, "resume all reaches it");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn the_tick_that_records_a_file_name_reports_the_change() {
+        let lab = LabServer::start(Config::default()).await.unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let library = Library::open(Store::open_in_memory().unwrap())
+            .await
+            .unwrap();
+        let id = running(&lab, dir.path(), &library, 5).await;
+        library
+            .running
+            .lock()
+            .await
+            .get_mut(&id)
+            .unwrap()
+            .file_recorded = false;
+        assert_eq!(library.tick().await.unwrap().changed, [id]);
+        assert!(library.tick().await.unwrap().changed.is_empty());
     }
 }

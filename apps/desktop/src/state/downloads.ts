@@ -60,6 +60,7 @@ export interface DownloadsState {
   setOverlay: (overlay: Overlay) => void;
   requestFocus: (id: number | null) => void;
   setSearch: (text: string) => void;
+  reveal: (id: number) => void;
   openSearch: () => void;
   pause: (id: number) => Promise<void>;
   resume: (id: number) => Promise<void>;
@@ -206,10 +207,7 @@ export function createDownloadsStore(backend: Backend) {
                 const item = state.items.find((download) => download.id === id);
                 if (item === undefined) return;
                 if (state.overlay !== null) state.setOverlay(null);
-                if (!inView(state.view, item)) state.setView("all");
-                else state.setPage("downloads");
-                state.select(id);
-                state.requestFocus(id);
+                state.reveal(id);
               });
           })
           .catch(() => () => undefined);
@@ -267,7 +265,7 @@ export function createDownloadsStore(backend: Backend) {
         try {
           const items = await backend.list();
           set({ items, status: "ready", loadError: null });
-          if (get().matches !== null) void find(get().search);
+          if (get().search.trim() !== "") void find(get().search);
         } catch (error) {
           set({ status: "error", loadError: BackendError.from(error).message });
         }
@@ -350,6 +348,17 @@ export function createDownloadsStore(backend: Backend) {
       setSearch: (text) => {
         set({ search: text });
         void find(text);
+      },
+
+      reveal: (id) => {
+        const state = get();
+        const item = state.items.find((download) => download.id === id);
+        if (item === undefined) return;
+        if (!inView(state.view, item)) state.setView("all");
+        else state.setPage("downloads");
+        if (state.matches?.includes(id) === false) state.setSearch("");
+        state.select(id);
+        state.requestFocus(id);
       },
 
       openSearch: () => {

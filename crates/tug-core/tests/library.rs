@@ -392,6 +392,12 @@ async fn the_next_tick_reports_what_changed_outside_a_tick() {
     let a = library.add(link("a.bin"), dir.path()).await.unwrap();
     let b = library.add(link("b.bin"), dir.path()).await.unwrap();
     assert_eq!(library.tick().await.unwrap().changed, vec![a, b]);
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while library.get(a).unwrap().file.is_none() {
+        assert!(Instant::now() < deadline, "a never got its file name");
+        library.tick().await.unwrap();
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
     assert!(library.tick().await.unwrap().changed.is_empty());
 
     library.pause_all().await.unwrap();

@@ -126,6 +126,36 @@ describe("downloads store", () => {
     expect(store.getState().matches).toBeNull();
   });
 
+  it("searches again after a reload, also while the first answer is on its way", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    const asked: string[] = [];
+    const store = createDownloadsStore({
+      ...backend,
+      search: (query) => {
+        asked.push(query);
+        return new Promise<number[]>(() => undefined);
+      },
+    });
+    await store.getState().init();
+    store.getState().setSearch("fedora");
+    await store.getState().reload();
+    expect(asked).toEqual(["fedora", "fedora"]);
+  });
+
+  it("clears a search that hides the download it goes to", async () => {
+    const { store } = await ready();
+    store.getState().setSearch("fedora");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const talk = store.getState().items.find((d) => d.name === "talk.mp4")?.id ?? -1;
+    store.getState().reveal(talk);
+    expect(store.getState()).toMatchObject({ search: "", matches: null, selected: talk, focusRequest: talk });
+
+    store.getState().setSearch("talk");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    store.getState().reveal(talk);
+    expect(store.getState().search, "a search that shows it stays").toBe("talk");
+  });
+
   it("retries a failed download", async () => {
     const { store } = await ready();
     const failed = store.getState().items.find((d) => d.state === "failed");
