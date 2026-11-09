@@ -1,0 +1,26 @@
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_a576629325cf74 73-74,355-357
+  s_b321718d129a1e::t_b57bdb215f03b4 358-359
+apps/desktop/src/components/DownloadTable.tsx
+  s_b321718d129a1e::t_a576629325cf74 15-23,38,59-67,69,104,148,162
+apps/desktop/src/App.test.tsx
+  s_b321718d129a1e::t_9f851e018b7df5 685-712
+apps/desktop/src/components/StatusBar.tsx
+  s_b321718d129a1e::t_a576629325cf74 42,86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b9f686f77eea4acc489b6127ac2afe7074e799c4",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
