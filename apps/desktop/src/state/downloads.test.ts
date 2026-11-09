@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { DownloadEvent, Settings } from "../backend/backend";
 import { createMockBackend } from "../backend/mock";
-import { countFor, createDownloadsStore, visibleItems } from "./downloads";
+import { countFor, createDownloadsStore, savedViewOf, visibleItems } from "./downloads";
 
 const MB = 1 << 20;
 
@@ -185,6 +185,66 @@ describe("downloads store", () => {
     answers[1]?.([1]);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(store.getState().search, "an older answer that showed it doesn't count").toBe("");
+  });
+
+  it("saves a search once, and opens a view the window doesn't know as All", async () => {
+    const { backend, store } = await ready();
+    store.getState().setView("done");
+    store.getState().setSearch("  fonts ");
+    store.getState().saveView();
+    store.getState().saveView();
+    await vi.waitFor(async () => {
+      expect((await backend.settings()).savedViews).toEqual([{ name: "fonts", view: "done", query: "fonts" }]);
+    });
+    expect(savedViewOf(store.getState())?.name).toBe("fonts");
+
+    store.getState().openView({ name: "old", view: "gone", query: "iso" });
+    expect(store.getState()).toMatchObject({ view: "all", search: "iso" });
+    expect(savedViewOf(store.getState())).toBeNull();
+  });
+
+  it("saves a long search under a shorter name, and stops at the most views", async () => {
+    const { backend, store } = await ready();
+    const long = `fedora ${"x".repeat(80)}`;
+    store.getState().setSearch(` ${long.replace(" ", "\t  ")} `);
+    store.getState().saveView();
+    await vi.waitFor(async () => {
+      expect((await backend.settings()).savedViews).toHaveLength(1);
+    });
+    const [saved] = (await backend.settings()).savedViews;
+    expect(saved?.query).toBe(long);
+    expect(saved?.name).toBe(long.slice(0, 60));
+
+    const full = Array.from({ length: 50 }, (_, n) => ({ name: `v${String(n)}`, view: "all", query: `q${String(n)}` }));
+    await store.getState().saveSettings({ savedViews: full });
+    store.getState().setSearch("one more");
+    store.getState().saveView();
+    expect(store.getState().notice).toMatch(/at most 50 saved views/);
+    expect((await backend.settings()).savedViews).toHaveLength(50);
+  });
+
+  it("says why a view didn't save, and a failed save doesn't take the next one down", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    let fail = true;
+    const store = createDownloadsStore({
+      ...backend,
+      updateSettings: (next) => {
+        if (fail) {
+          fail = false;
+          return Promise.reject(new Error("the disk is full"));
+        }
+        return backend.updateSettings(next);
+      },
+    });
+    await store.getState().init();
+    store.getState().setSearch("fedora");
+    store.getState().saveView();
+    store.getState().setSearch("talk");
+    store.getState().saveView();
+    await vi.waitFor(async () => {
+      expect((await backend.settings()).savedViews.map((v) => v.query)).toEqual(["talk"]);
+    });
+    expect(store.getState().notice).toBe("couldn't save the view: the disk is full");
   });
 
   it("retries a failed download", async () => {

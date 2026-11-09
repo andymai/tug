@@ -12,10 +12,20 @@ import {
   type ProgressBatch,
   type ProgressUpdate,
   type ResizeEdge,
+  type SavedView,
   type Settings,
 } from "../backend/backend";
+import { isCategory } from "../lib/categories";
 
 export type StateView = "all" | "active" | "done" | "failed";
+// A function patch reads the settings it lands on, so a change to a list never
+// carries an earlier patch that failed.
+export type SettingsPatch = Partial<Settings> | ((current: Settings) => Partial<Settings>);
+export const MAX_SAVED_VIEWS = 50;
+
+function patched(settings: Settings, patch: SettingsPatch): Settings {
+  return { ...settings, ...(typeof patch === "function" ? patch(settings) : patch) };
+}
 export type View = StateView | Category;
 
 export const VIEWS: readonly { id: StateView; label: string; states: readonly DownloadState[] }[] = [
@@ -53,7 +63,7 @@ export interface DownloadsState {
   applyBatch: (batch: ProgressBatch) => void;
   setView: (view: View) => void;
   setPage: (page: Page) => void;
-  saveSettings: (patch: Partial<Settings>) => Promise<void>;
+  saveSettings: (patch: SettingsPatch) => Promise<boolean>;
   chooseFolder: () => Promise<void>;
   select: (id: number | null) => void;
   step: (delta: number) => number | null;
@@ -61,6 +71,9 @@ export interface DownloadsState {
   requestFocus: (id: number | null) => void;
   setSearch: (text: string) => void;
   reveal: (id: number) => void;
+  saveView: () => void;
+  openView: (saved: SavedView) => void;
+  removeView: (saved: SavedView) => void;
   openSearch: () => void;
   pause: (id: number) => Promise<void>;
   resume: (id: number) => Promise<void>;
@@ -135,7 +148,7 @@ export function createDownloadsStore(backend: Backend) {
       }
     };
     let confirmed: Settings | null = null;
-    let pending: { id: number; patch: Partial<Settings> }[] = [];
+    let pending: { id: number; patch: SettingsPatch }[] = [];
     let patches = 0;
     let chooserFailed = false;
     let saving: Promise<void> = Promise.resolve();
@@ -145,7 +158,7 @@ export function createDownloadsStore(backend: Backend) {
     };
     const showSettings = () => {
       if (confirmed === null) return;
-      set({ settings: pending.reduce<Settings>((settings, { patch }) => ({ ...settings, ...patch }), confirmed) });
+      set({ settings: pending.reduce<Settings>((settings, { patch }) => patched(settings, patch), confirmed) });
     };
 
     const loadSettings = async () => {
@@ -304,19 +317,21 @@ export function createDownloadsStore(backend: Backend) {
         chooserFailed = false;
         set({ settingsError: null });
         showSettings();
+        let saved = false;
         return queue(async () => {
           if (confirmed === null) return;
-          const next = { ...confirmed, ...patch };
+          const next = patched(confirmed, patch);
           try {
             await backend.updateSettings(next);
             confirmed = next;
+            saved = true;
           } catch (error) {
             set({ settingsError: BackendError.from(error).message });
           } finally {
             pending = pending.filter((entry) => entry.id !== id);
             showSettings();
           }
-        });
+        }).then(() => saved);
       },
 
       chooseFolder: () =>
@@ -368,6 +383,39 @@ export function createDownloadsStore(backend: Backend) {
         if (!shown) state.setSearch("");
         state.select(id);
         state.requestFocus(id);
+      },
+
+      saveView: () => {
+        const { settings, search, view } = get();
+        const query = search.trim().replace(/\s+/gu, " ");
+        if (settings === null || query === "" || settings.savedViews.some((saved) => sameView(saved, { view, query }))) return;
+        if (settings.savedViews.length >= MAX_SAVED_VIEWS) {
+          set({ notice: `Tug keeps at most ${String(MAX_SAVED_VIEWS)} saved views. Remove one to save this search.` });
+          return;
+        }
+        const entry = { name: Array.from(query).slice(0, 60).join(""), view, query };
+        void get()
+          .saveSettings((current) =>
+            current.savedViews.some((saved) => sameView(saved, entry)) || current.savedViews.length >= MAX_SAVED_VIEWS
+              ? {}
+              : { savedViews: [...current.savedViews, entry] },
+          )
+          .then((saved) => {
+            if (!saved) set({ notice: `couldn't save the view: ${get().settingsError ?? "the settings didn't save"}` });
+          });
+      },
+
+      openView: (saved) => {
+        get().setView(isView(saved.view) ? saved.view : "all");
+        get().setSearch(saved.query);
+      },
+
+      removeView: (saved) => {
+        void get()
+          .saveSettings((current) => ({ savedViews: current.savedViews.filter((other) => !sameView(other, saved)) }))
+          .then((removed) => {
+            if (!removed) set({ notice: `couldn't remove the view: ${get().settingsError ?? "the settings didn't save"}` });
+          });
       },
 
       openSearch: () => {
@@ -497,6 +545,19 @@ export function createDownloadsStore(backend: Backend) {
       },
     };
   });
+}
+
+export function isView(value: string): value is View {
+  return VIEWS.some((v) => v.id === value) || isCategory(value);
+}
+
+export function sameView(a: Pick<SavedView, "view" | "query">, b: Pick<SavedView, "view" | "query">): boolean {
+  return a.view === b.view && a.query === b.query;
+}
+
+export function savedViewOf(state: Pick<DownloadsState, "settings" | "view" | "search" | "page">): SavedView | null {
+  if (state.page !== "downloads") return null;
+  return state.settings?.savedViews.find((saved) => sameView(saved, { view: state.view, query: state.search.trim() })) ?? null;
 }
 
 export function inView(view: View, item: Download): boolean {

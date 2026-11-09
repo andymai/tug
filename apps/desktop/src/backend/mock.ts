@@ -97,7 +97,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
   };
   const listeners = new Set<(batch: ProgressBatch) => void>();
-  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null, slowHours: null };
+  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null, slowHours: null, savedViews: [] };
   let scheme = options.colorScheme ?? null;
   const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
   const noticeListeners = new Set<(message: string) => void>();
@@ -359,6 +359,16 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           if (days < 1 || days > 0b111_1111) throw new BackendError("invalid", "a schedule needs at least one day");
           if (start >= 1440 || stop >= 1440) throw new BackendError("invalid", `${String(Math.max(start, stop))} minutes is past the end of a day`);
           if (start === stop) throw new BackendError("invalid", "a schedule must start and stop at different times");
+        }
+        if (next.savedViews.length > 50) throw new BackendError("invalid", "Tug keeps at most 50 saved views");
+        for (const [at, saved] of next.savedViews.entries()) {
+          const plain = (text: string) => text.trim() !== "" && !/\p{Cc}/u.test(text);
+          if (!plain(saved.name) || !plain(saved.query) || !/^[a-z]+$/.test(saved.view) || Array.from(saved.name).length > 60) {
+            throw new BackendError("invalid", `${JSON.stringify(saved.name)} can't be a saved view`);
+          }
+          if (next.savedViews.slice(0, at).some((other) => other.view === saved.view && other.query === saved.query)) {
+            throw new BackendError("invalid", `${JSON.stringify(saved.name)} is saved twice`);
+          }
         }
         for (const [at, site] of next.excludedSites.entries()) {
           if (siteOf(site) !== site) throw new BackendError("invalid", `${JSON.stringify(site)} isn't a site, like example.org`);

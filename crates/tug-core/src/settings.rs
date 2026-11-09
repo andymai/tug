@@ -22,6 +22,8 @@ const CONFIRM_CAPTURES: &str = "confirm_captures";
 const MAX_ACTIVE_KEY: &str = "max_active";
 const SCHEDULE: &str = "schedule";
 const SLOW_HOURS: &str = "slow_hours";
+const SAVED_VIEWS: &str = "saved_views";
+pub const MAX_SAVED_VIEWS: usize = 50;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Appearance {
@@ -71,6 +73,41 @@ impl SlowHours {
     }
 }
 
+// A search the person keeps in the sidebar. `view` is the window's own name for
+// the list it ran in; the core keeps it as it comes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SavedView {
+    pub name: String,
+    pub view: String,
+    pub query: String,
+}
+
+impl SavedView {
+    fn check(&self) -> Result<(), SettingsError> {
+        let plain = |text: &str| !text.trim().is_empty() && !text.chars().any(char::is_control);
+        let view = !self.view.is_empty() && self.view.chars().all(|c| c.is_ascii_lowercase());
+        if plain(&self.name) && plain(&self.query) && view && self.name.chars().count() <= 60 {
+            Ok(())
+        } else {
+            Err(SettingsError::SavedView(self.name.clone()))
+        }
+    }
+
+    fn line(&self) -> String {
+        format!("{}\t{}\t{}", self.view, self.query, self.name)
+    }
+
+    fn parse(line: &str) -> Option<Self> {
+        let mut fields = line.splitn(3, '\t');
+        let saved = Self {
+            view: fields.next()?.to_owned(),
+            query: fields.next()?.to_owned(),
+            name: fields.next()?.to_owned(),
+        };
+        saved.check().ok().map(|()| saved)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
     pub download_dir: PathBuf,
@@ -82,6 +119,7 @@ pub struct Settings {
     pub max_active: u32,
     pub schedule: Option<Schedule>,
     pub slow_hours: Option<SlowHours>,
+    pub saved_views: Vec<SavedView>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -98,6 +136,12 @@ pub enum SettingsError {
     Site(String),
     #[error("{0} is in the list twice")]
     DuplicateSite(String),
+    #[error("{0:?} can't be a saved view")]
+    SavedView(String),
+    #[error("{0:?} is saved twice")]
+    DuplicateView(String),
+    #[error("Tug keeps at most {MAX_SAVED_VIEWS} saved views")]
+    TooManyViews,
     #[error(transparent)]
     Schedule(#[from] ScheduleError),
 }
@@ -130,6 +174,7 @@ impl Default for Settings {
             max_active: DEFAULT_MAX_ACTIVE,
             schedule: None,
             slow_hours: None,
+            saved_views: Vec::new(),
         }
     }
 }
@@ -163,6 +208,18 @@ impl Settings {
             }
             if self.excluded_sites[..at].contains(entry) {
                 return Err(SettingsError::DuplicateSite(entry.clone()));
+            }
+        }
+        if self.saved_views.len() > MAX_SAVED_VIEWS {
+            return Err(SettingsError::TooManyViews);
+        }
+        for (at, saved) in self.saved_views.iter().enumerate() {
+            saved.check()?;
+            if self.saved_views[..at]
+                .iter()
+                .any(|other| other.view == saved.view && other.query == saved.query)
+            {
+                return Err(SettingsError::DuplicateView(saved.name.clone()));
             }
         }
         Ok(())
@@ -242,6 +299,20 @@ impl Settings {
         let slow_hours = store
             .setting(SLOW_HOURS)?
             .and_then(|v| SlowHours::parse(&v));
+        let mut saved_views: Vec<SavedView> = Vec::new();
+        for saved in store
+            .setting(SAVED_VIEWS)?
+            .unwrap_or_default()
+            .lines()
+            .filter_map(SavedView::parse)
+        {
+            let twice = saved_views
+                .iter()
+                .any(|other| other.view == saved.view && other.query == saved.query);
+            if !twice && saved_views.len() < MAX_SAVED_VIEWS {
+                saved_views.push(saved);
+            }
+        }
         Ok(Self {
             download_dir,
             connections,
@@ -252,6 +323,7 @@ impl Settings {
             max_active,
             schedule,
             slow_hours,
+            saved_views,
         })
     }
 
@@ -286,6 +358,12 @@ impl Settings {
                 store.remove_setting(SLOW_HOURS)?;
             }
         }
+        if self.saved_views.is_empty() {
+            store.remove_setting(SAVED_VIEWS)?;
+        } else {
+            let lines: Vec<String> = self.saved_views.iter().map(SavedView::line).collect();
+            store.set_setting(SAVED_VIEWS, &lines.join("\n"))?;
+        }
         Ok(())
     }
 }
@@ -311,6 +389,7 @@ mod tests {
             max_active: 3,
             schedule: None,
             slow_hours: None,
+            saved_views: Vec::new(),
         }
     }
 
@@ -448,6 +527,74 @@ mod tests {
         );
     }
 
+    fn saved(name: &str, view: &str, query: &str) -> SavedView {
+        SavedView {
+            name: name.into(),
+            view: view.into(),
+            query: query.into(),
+        }
+    }
+
+    #[test]
+    fn saved_views_are_plain_one_line_text_and_each_search_once() {
+        let with = |views: Vec<SavedView>| {
+            Settings {
+                saved_views: views,
+                ..valid()
+            }
+            .validate()
+        };
+        with(vec![
+            saved("Linux images", "disk", "fedora iso"),
+            saved("fedora", "all", "fedora"),
+        ])
+        .unwrap();
+        for bad in [
+            saved(" ", "all", "fedora"),
+            saved("fedora", "all", "  "),
+            saved("two\nlines", "all", "fedora"),
+            saved("fedora", "All", "fedora"),
+            saved("fedora", "", "fedora"),
+            saved(&"x".repeat(61), "all", "fedora"),
+        ] {
+            assert_eq!(
+                with(vec![bad.clone()]),
+                Err(SettingsError::SavedView(bad.name.clone())),
+                "{bad:?}"
+            );
+        }
+        assert_eq!(
+            with(vec![
+                saved("a", "all", "fedora"),
+                saved("b", "all", "fedora")
+            ]),
+            Err(SettingsError::DuplicateView("b".into()))
+        );
+        assert_eq!(
+            with(
+                (0..=MAX_SAVED_VIEWS)
+                    .map(|n| saved("v", "all", &n.to_string()))
+                    .collect()
+            ),
+            Err(SettingsError::TooManyViews)
+        );
+
+        let store = Store::open_in_memory().unwrap();
+        store
+            .set_setting(
+                SAVED_VIEWS,
+                "disk\tfedora iso\tLinux images\nbroken\nall\tfedora iso\tagain\ndisk\tfedora iso\ttwice",
+            )
+            .unwrap();
+        assert_eq!(
+            Settings::load(&store).unwrap().saved_views,
+            vec![
+                saved("Linux images", "disk", "fedora iso"),
+                saved("again", "all", "fedora iso")
+            ]
+        );
+    }
+
     #[test]
     fn excluded_sites_must_be_clean_and_once() {
         assert_eq!(
@@ -513,6 +660,7 @@ mod tests {
                     stop: 17 * 60,
                 },
             }),
+            saved_views: vec![saved("Linux images", "disk", "fedora iso")],
         };
         settings.save(&store).unwrap();
         assert_eq!(Settings::load(&store).unwrap(), settings);
@@ -522,6 +670,7 @@ mod tests {
             excluded_sites: Vec::new(),
             schedule: None,
             slow_hours: None,
+            saved_views: Vec::new(),
             ..settings
         };
         unlimited.save(&store).unwrap();

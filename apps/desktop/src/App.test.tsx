@@ -655,6 +655,37 @@ describe("search", () => {
   });
 });
 
+describe("saved views", () => {
+  it("saves a search, opens it again from the sidebar, and removes it", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.click(screen.getByRole("button", { name: /Archives/ }));
+    await user.type(screen.getByRole("searchbox", { name: "Search downloads" }), "mirror");
+    await user.click(await screen.findByRole("button", { name: "Save view" }));
+    expect((await backend.settings()).savedViews).toEqual([{ name: "mirror", view: "archive", query: "mirror" }]);
+    expect(screen.queryByRole("button", { name: "Save view" }), "a saved search has no Save").not.toBeInTheDocument();
+
+    const saved = within(screen.getByRole("navigation", { name: "Saved" }));
+    expect(saved.getByRole("button", { name: "mirror" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: /Archives/ })).not.toHaveAttribute("aria-current");
+
+    await user.click(screen.getByRole("button", { name: /^All/ }));
+    await user.clear(screen.getByRole("searchbox", { name: "Search downloads" }));
+    await user.click(saved.getByRole("button", { name: "mirror" }));
+    expect(screen.getByRole("searchbox", { name: "Search downloads" })).toHaveValue("mirror");
+    expect(screen.getByRole("heading", { level: 1, name: "Archives" })).toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(within(screen.getByRole("list", { name: "Archives" })).getAllByRole("listitem")).toHaveLength(1);
+    });
+
+    await user.click(saved.getByRole("button", { name: "Remove mirror" }));
+    expect((await backend.settings()).savedViews).toEqual([]);
+    expect(screen.queryByRole("navigation", { name: "Saved" })).not.toBeInTheDocument();
+  });
+});
+
 describe("command bar and keyboard", () => {
   it("opens on Ctrl+K and runs the chosen command", async () => {
     const { user } = open();
