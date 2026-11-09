@@ -5,12 +5,11 @@ import type { Download } from "../backend/backend";
 import { type Column, type ColumnId, hostOf, typeOf } from "../lib/columns";
 import { formatBytes, formatDate, formatDuration, formatPercent, formatSpeed, percentOf, sentence, shortDir } from "../lib/format";
 import { ICON, STATES } from "../lib/states";
-import { useDownloads } from "../state/context";
+import { useDownloads, useDownloadsStore } from "../state/context";
 import { Button } from "./Button";
 
 export interface DownloadRowProps {
   download: Download;
-  selected: boolean;
   columns: readonly Column[];
   rank: number | undefined;
   // The row that Tab reaches: the selected one, else the first.
@@ -19,9 +18,14 @@ export interface DownloadRowProps {
 
 const CELL = "h-8 px-2 first:pl-3 last:pr-3 whitespace-nowrap overflow-hidden";
 
-export const DownloadRow = memo(function DownloadRow({ download, selected, columns, rank, tabbable }: DownloadRowProps) {
+export const DownloadRow = memo(function DownloadRow({ download, columns, rank, tabbable }: DownloadRowProps) {
+  const store = useDownloadsStore();
   const live = useDownloads((s) => s.live[download.id]);
+  const marked = useDownloads((s) => s.marked.includes(download.id));
   const select = useDownloads((s) => s.select);
+  const toggleMark = useDownloads((s) => s.toggleMark);
+  const markTo = useDownloads((s) => s.markTo);
+  const openMenu = useDownloads((s) => s.openMenu);
   const resume = useDownloads((s) => s.resume);
   const fresh = useDownloads((s) => s.fresh.includes(download.id));
   const settleFresh = useDownloads((s) => s.settleFresh);
@@ -40,7 +44,12 @@ export const DownloadRow = memo(function DownloadRow({ download, selected, colum
   const total = live?.total ?? download.size;
   const running = download.state === "downloading";
   const toggle = () => {
-    select(selected ? null : download.id);
+    const { marked: all } = store.getState();
+    select(all.length === 1 && all[0] === download.id ? null : download.id);
+  };
+  const menuAt = (at: { x: number; y: number }) => {
+    if (!store.getState().marked.includes(download.id)) select(download.id);
+    openMenu(at);
   };
 
   const cell = (id: ColumnId): ReactNode => {
@@ -110,12 +119,33 @@ export const DownloadRow = memo(function DownloadRow({ download, selected, colum
     <tr
       ref={row}
       data-download={download.id}
-      aria-selected={selected}
+      aria-selected={marked}
       tabIndex={tabbable ? 0 : -1}
-      onClick={toggle}
+      onMouseDown={(event) => {
+        if (event.shiftKey) event.preventDefault();
+      }}
+      onClick={(event) => {
+        if (event.ctrlKey || event.metaKey) toggleMark(download.id);
+        else if (event.shiftKey) {
+          markTo(download.id);
+          event.currentTarget.focus();
+        }
+        else toggle();
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        menuAt({ x: event.clientX, y: event.clientY });
+      }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
-        if (event.key === "Enter" || event.key === " ") {
+        if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+          event.preventDefault();
+          const box = event.currentTarget.getBoundingClientRect();
+          menuAt({ x: box.left + 24, y: box.bottom });
+        } else if (event.key === " " && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+          toggleMark(download.id);
+        } else if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           toggle();
         }

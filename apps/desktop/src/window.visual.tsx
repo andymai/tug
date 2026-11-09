@@ -200,6 +200,34 @@ describe("main window", () => {
     await capture(window, "detail-log");
   });
 
+  it("shows what several selected downloads hold, and acts on all of them", async () => {
+    const { store, window } = await showcase("blender-5.1-linux-x64.tar.xz");
+    const id = (name: string) => store.getState().items.find((d) => d.name === name)?.id ?? -1;
+    act(() => {
+      store.getState().markTo(id("noto-fonts-2026.11.zip"));
+    });
+    await capture(window, "selection");
+  });
+
+  it("opens a menu for the selected rows", async () => {
+    const { store, window } = await showcase("fedora-kde-44-x86_64.iso");
+    const id = (name: string) => store.getState().items.find((d) => d.name === name)?.id ?? -1;
+    act(() => {
+      store.getState().toggleMark(id("blender-5.1-linux-x64.tar.xz"));
+      store.getState().openMenu({ x: 320, y: 130 });
+    });
+    await capture(window, "row-menu");
+  });
+
+  it("asks before it removes downloads", async () => {
+    const { store, window } = await showcase();
+    act(() => {
+      store.getState().markAll();
+      store.getState().askRemove(store.getState().marked);
+    });
+    await capture(window, "remove");
+  });
+
   it("offers Start next for a download that waits in the queue", async () => {
     const { window } = await showcase("blender-5.1-linux-x64.tar.xz");
     await capture(window, "detail-queued");

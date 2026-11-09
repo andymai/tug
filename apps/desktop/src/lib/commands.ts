@@ -10,6 +10,7 @@ import {
   FolderOpen,
   Keyboard,
   Layers,
+  ListChecks,
   ListStart,
   Settings,
   type LucideIcon,
@@ -18,10 +19,11 @@ import {
   Play,
   Plus,
   RotateCw,
+  Trash2,
   X,
 } from "lucide-react";
 
-import { type DownloadsStore, savedViewOf, type StateView } from "../state/downloads";
+import { chosen, type DownloadsStore, savedViewOf, type StateView } from "../state/downloads";
 import { CATEGORIES } from "./categories";
 import { focusRow } from "./dom";
 
@@ -32,7 +34,7 @@ export interface Keys {
   label: readonly string[];
 }
 
-export type Group = "Downloads" | "Views" | "Selected download" | "Help";
+export type Group = "Downloads" | "Views" | "Selected download" | "Selected downloads" | "Help";
 
 export interface Command {
   id: string;
@@ -120,10 +122,71 @@ export function commands(store: DownloadsStore): Command[] {
     });
   }
 
-  const selected = state.items.find((item) => item.id === state.selected);
+  const toggle = { key: "p", label: ["P"] };
+  const removeKeys = { key: "delete", label: ["Del"] };
+  if (state.page === "downloads") {
+    list.push({
+      id: "select-all",
+      title: "Select all",
+      group: "Downloads",
+      icon: ListChecks,
+      keys: { key: "a", ctrl: true, label: ["Ctrl", "A"] },
+      run: () => {
+        state.markAll();
+      },
+    });
+  }
+  const many = chosen(state);
+  const selected = many.length > 1 ? undefined : state.items.find((item) => item.id === state.selected);
+  if (many.length > 1) {
+    const ids = many.map((item) => item.id);
+    const any = (...states: string[]) => many.some((item) => states.includes(item.state));
+    const group = "Selected downloads";
+    if (any("queued")) list.push({ id: "start-next", title: "Start next", group, icon: ListStart, run: () => void state.moveMany(ids, "first") });
+    if (any("downloading", "queued")) {
+      list.push({ id: "pause", title: "Pause", group, icon: Pause, keys: toggle, run: () => void state.pauseMany(ids) });
+    } else if (any("paused", "failed")) {
+      const resume = any("paused");
+      list.push({ id: "resume", title: resume ? "Resume" : "Retry", group, icon: resume ? Play : RotateCw, keys: toggle, run: () => void state.resumeMany(ids) });
+    }
+    list.push(
+      {
+        id: "copy",
+        title: "Copy links",
+        group,
+        icon: Copy,
+        run: () => {
+          navigator.clipboard.writeText(many.map((item) => item.url).join("\n")).catch(() => {
+            state.notify("couldn't copy the links");
+          });
+        },
+      },
+      {
+        id: "remove",
+        title: "Remove…",
+        group,
+        icon: Trash2,
+        keys: removeKeys,
+        run: () => {
+          state.askRemove(ids);
+        },
+      },
+      {
+        id: "close",
+        title: "Clear the selection",
+        group,
+        icon: X,
+        keys: { key: "escape", label: ["Esc"] },
+        run: () => {
+          const back = state.selected;
+          state.select(null);
+          if (back !== null) focusRow(back);
+        },
+      },
+    );
+  }
   if (selected) {
     const { id } = selected;
-    const toggle = { key: "p", label: ["P"] };
     if (selected.state === "queued") {
       list.push({ id: "start-next", title: "Start next", group: "Selected download", icon: ListStart, run: () => void state.startNext(id) });
     }
@@ -157,6 +220,16 @@ export function commands(store: DownloadsStore): Command[] {
           navigator.clipboard.writeText(selected.url).catch(() => {
             state.notify("couldn't copy the link");
           });
+        },
+      },
+      {
+        id: "remove",
+        title: "Remove…",
+        group: "Selected download",
+        icon: Trash2,
+        keys: removeKeys,
+        run: () => {
+          state.askRemove([id]);
         },
       },
       {
@@ -237,7 +310,12 @@ export const KEYMAP: readonly { group: string; entries: readonly { title: string
     group: "Downloads",
     entries: [
       ...NAVIGATION.map(({ title, keys }) => ({ title, label: keys.label })),
+      { title: "Select more, one by one", label: ["Ctrl", "Click"] },
+      { title: "Select a range", label: ["Shift", "↑", "↓"] },
+      { title: "Select all", label: ["Ctrl", "A"] },
+      { title: "Menu for the selection", label: ["Shift", "F10"] },
       { title: "Pause, resume or retry", label: ["P"] },
+      { title: "Remove", label: ["Del"] },
       { title: "Open a finished file", label: ["Ctrl", "O"] },
     ],
   },

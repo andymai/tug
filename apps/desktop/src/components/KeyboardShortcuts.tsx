@@ -19,15 +19,16 @@ export function KeyboardShortcuts() {
       }
       if (editable(event.target)) return;
       const onList = state.page === "downloads";
-      const step = NAVIGATION.findIndex(({ keys }) => matches(keys, event));
+      const plain = { key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: false };
+      const step = NAVIGATION.findIndex(({ keys }) => matches(keys, plain));
       if (step !== -1 && onList) {
         event.preventDefault();
-        const id = state.step(step === 0 ? -1 : 1);
+        const id = state.step(step === 0 ? -1 : 1, event.shiftKey);
         if (id !== null) focusRow(id);
         return;
       }
       const command = commands(store).find(
-        (c) => c.id !== "close" && c.keys !== undefined && (onList || c.group !== "Selected download") && matches(c.keys, event),
+        (c) => c.id !== "close" && c.keys !== undefined && (onList || !c.group.startsWith("Selected")) && matches(c.keys, event),
       );
       if (command) {
         event.preventDefault();

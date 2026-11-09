@@ -56,5 +56,9 @@ describe("keyboard map", () => {
         if (command.keys !== undefined) expect(mapped, command.title).toContain(command.keys.label.join("+"));
       }
     }
+    store.getState().markAll();
+    for (const command of commands(store)) {
+      if (command.keys !== undefined) expect(mapped, command.title).toContain(command.keys.label.join("+"));
+    }
   });
 });

@@ -1,5 +1,6 @@
-import { Check, Copy, ExternalLink, FolderOpen, ListStart, Pause, Play, RotateCw, X } from "lucide-react";
+import { Check, Copy, ExternalLink, FolderOpen, ListStart, Pause, Play, RotateCw, Trash2, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { useShallow } from "zustand/shallow";
 
 import type { Download, DownloadEvent } from "../backend/backend";
 import {
@@ -16,7 +17,7 @@ import {
 import { focusRow } from "../lib/dom";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
-import { modalOpen } from "../state/downloads";
+import { chosen, modalOpen } from "../state/downloads";
 import { Button } from "./Button";
 import { ConnectionsPanel, InspectorTabs, LogPanel, tabIds, useInspection } from "./Inspector";
 
@@ -87,6 +88,9 @@ function hostOf(link: string): string {
     return link;
   }
 }
+
+const PANEL =
+  "flex w-80 shrink-0 flex-col overflow-y-auto border-l border-line bg-surface @max-2xl/main:absolute @max-2xl/main:z-20 @max-2xl/main:inset-y-0 @max-2xl/main:right-0 @max-2xl/main:w-[min(20rem,100%)] @max-2xl/main:bg-surface-raised @max-2xl/main:shadow-popover";
 
 function Panel({ download }: { download: Download }) {
   const live = useDownloads((s) => s.live[download.id]);
@@ -170,11 +174,7 @@ function Panel({ download }: { download: Download }) {
   };
 
   return (
-    <aside
-      ref={panel}
-      aria-labelledby={titleId}
-      className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-line bg-surface @max-2xl/main:absolute @max-2xl/main:z-20 @max-2xl/main:inset-y-0 @max-2xl/main:right-0 @max-2xl/main:w-[min(20rem,100%)] @max-2xl/main:bg-surface-raised @max-2xl/main:shadow-popover"
-    >
+    <aside ref={panel} aria-labelledby={titleId} className={PANEL}>
       <div className="flex items-start gap-2 px-4 pt-3">
         <h2 id={titleId} className="min-w-0 flex-1 pt-0.5 text-title [overflow-wrap:anywhere] text-ink">
           {download.name}
@@ -263,8 +263,125 @@ function Panel({ download }: { download: Download }) {
   );
 }
 
+function useEscapeCloses(back: number | null) {
+  const select = useDownloads((s) => s.select);
+  const store = useDownloadsStore();
+  const panel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || modalOpen(store.getState())) return;
+      const inside = panel.current?.contains(document.activeElement) ?? false;
+      select(null);
+      if (inside && back !== null) focusRow(back);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [back, select, store]);
+  return panel;
+}
+
+const ORDER: readonly Download["state"][] = ["downloading", "queued", "paused", "failed", "done"];
+
+function SelectionPanel({ list }: { list: readonly Download[] }) {
+  const live = useDownloads((s) => s.live);
+  const selected = useDownloads((s) => s.selected);
+  const select = useDownloads((s) => s.select);
+  const pauseMany = useDownloads((s) => s.pauseMany);
+  const resumeMany = useDownloads((s) => s.resumeMany);
+  const moveMany = useDownloads((s) => s.moveMany);
+  const askRemove = useDownloads((s) => s.askRemove);
+  const titleId = useId();
+  const panel = useEscapeCloses(selected);
+  const ids = list.map((item) => item.id);
+  const any = (...states: Download["state"][]) => list.some((item) => states.includes(item.state));
+  const counts = ORDER.flatMap((state) => {
+    const count = list.filter((item) => item.state === state).length;
+    return count === 0 ? [] : [`${String(count)} ${STATES[state].word.toLowerCase()}`];
+  });
+  const known = list.filter((item) => (live[item.id]?.total ?? item.size) !== null);
+  const size = known.reduce((sum, item) => sum + (live[item.id]?.total ?? item.size ?? 0), 0);
+  const received = list.reduce((sum, item) => sum + (live[item.id]?.received ?? item.received), 0);
+  const facts: Fact[] = [
+    { label: "Size", value: known.length === list.length ? formatBytes(size) : `${formatBytes(size)} and ${String(list.length - known.length)} unknown`, mono: true },
+    { label: "Received", value: formatBytes(received), mono: true },
+  ];
+
+  return (
+    <aside ref={panel} aria-labelledby={titleId} className={PANEL}>
+      <div className="flex items-start gap-2 px-4 pt-3">
+        <h2 id={titleId} className="min-w-0 flex-1 pt-0.5 text-title text-ink">
+          {`${String(list.length)} downloads`}
+        </h2>
+        <Button
+          variant="quiet"
+          size="icon"
+          icon={X}
+          aria-label="Clear the selection"
+          onClick={() => {
+            select(null);
+            if (selected !== null) focusRow(selected);
+          }}
+        />
+      </div>
+      <p className="px-4 pt-1 text-small text-ink-muted">{counts.join(" · ")}</p>
+      <div className="flex flex-wrap gap-2 border-b border-line px-4 pt-3 pb-4">
+        {any("queued") && (
+          <Button icon={ListStart} onClick={() => void moveMany(ids, "first")}>
+            Start next
+          </Button>
+        )}
+        {any("downloading", "queued") && (
+          <Button icon={Pause} onClick={() => void pauseMany(ids)}>
+            Pause
+          </Button>
+        )}
+        {any("paused", "failed") && (
+          <Button icon={any("paused") ? Play : RotateCw} onClick={() => void resumeMany(ids)}>
+            {any("paused") ? "Resume" : "Retry"}
+          </Button>
+        )}
+        <Button
+          icon={Trash2}
+          onClick={() => {
+            askRemove(ids);
+          }}
+        >
+          Remove…
+        </Button>
+      </div>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 px-4 py-4 text-small">
+        {facts.map((fact) => (
+          <div key={fact.label} className="contents">
+            <dt className="text-ink-muted">{fact.label}</dt>
+            <dd className={`truncate text-ink ${fact.mono ? "text-mono" : ""}`}>{fact.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <ul aria-label="Selected downloads" className="flex flex-col gap-1.5 border-t border-line px-4 py-4 text-small">
+        {list.map((item) => {
+          const look = STATES[item.state];
+          return (
+            <li key={item.id} className="flex min-w-0 items-center gap-2">
+              <look.Icon {...ICON} size={14} className={`shrink-0 ${look.tone}`} />
+              <span className="min-w-0 flex-1 truncate text-ink">{item.name}</span>
+              <span className={`shrink-0 ${look.colorWord ? look.tone : "text-ink-muted"}`}>{look.word}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </aside>
+  );
+}
+
+const NONE: readonly Download[] = [];
+
 export function DetailPanel() {
+  // Sorting the view on every tick costs, so only for a real multiple selection.
+  const list = useDownloads(useShallow((s) => (s.marked.length > 1 ? chosen(s) : NONE)));
   const download = useDownloads((s) => s.items.find((item) => item.id === s.selected));
+  if (list.length > 1) return <SelectionPanel list={list} />;
   if (!download) return null;
   return <Panel key={download.id} download={download} />;
 }

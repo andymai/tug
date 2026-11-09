@@ -610,6 +610,104 @@ describe("downloads store", () => {
     expect(store.getState().notice).toBe("the run lock is poisoned");
   });
 
+  it("marks with Ctrl, a range with Shift and all, and a plain select takes one", async () => {
+    const { store } = await ready();
+    const id = (name: string) => store.getState().items.find((d) => d.name === name)?.id ?? -1;
+    const names = () => {
+      const { items, marked } = store.getState();
+      return marked.map((m) => items.find((d) => d.id === m)?.name);
+    };
+    store.getState().select(id("fedora.iso"));
+    store.getState().toggleMark(id("talk.mp4"));
+    expect(names()).toEqual(["fedora.iso", "talk.mp4"]);
+    expect(store.getState().selected).toBe(id("talk.mp4"));
+
+    store.getState().markTo(id("shard.parquet"));
+    expect(names()).toEqual(["talk.mp4", "fonts.zip", "shard.parquet"]);
+    store.getState().toggleMark(id("fonts.zip"));
+    expect(names()).toEqual(["talk.mp4", "shard.parquet"]);
+    expect(store.getState().selected).toBe(id("shard.parquet"));
+
+    store.getState().select(id("fedora.iso"));
+    store.getState().step(1, true);
+    store.getState().step(1, true);
+    expect(names()).toEqual(["fedora.iso", "blender.tar.xz", "talk.mp4"]);
+    store.getState().step(-1);
+    expect(names()).toEqual(["blender.tar.xz"]);
+
+    store.getState().markAll();
+    expect(names()).toHaveLength(5);
+    store.getState().setView("done");
+    expect(store.getState().marked).toEqual([]);
+  });
+
+  it("pauses the waiting ones first, moves the queue in order, and words the failures", async () => {
+    const queue = [
+      { url: "https://example.org/run.iso", state: "downloading" as const, progress: 0.2 },
+      { url: "https://example.org/q1.iso", state: "queued" as const },
+      { url: "https://example.org/q2.iso", state: "queued" as const },
+      { url: "https://example.org/q3.iso", state: "queued" as const },
+    ];
+    const backend = createMockBackend({ seed: queue });
+    const paused: number[] = [];
+    const store = createDownloadsStore({
+      ...backend,
+      pause: (id) => {
+        paused.push(id);
+        return backend.pause(id);
+      },
+      resume: (id) => Promise.reject(new BackendError("engine", `download ${String(id)} can't resume`)),
+    });
+    await store.getState().init();
+    const id = (name: string) => store.getState().items.find((d) => d.name === name)?.id ?? -1;
+    const queued = () =>
+      store
+        .getState()
+        .items.filter((d) => d.state === "queued")
+        .sort((a, b) => a.position - b.position)
+        .map((d) => d.name);
+
+    await store.getState().moveMany([id("q2.iso"), id("q3.iso")], "first");
+    expect(queued()).toEqual(["q2.iso", "q3.iso", "q1.iso"]);
+    await store.getState().moveMany([id("q2.iso"), id("run.iso")], "last");
+    expect(queued()).toEqual(["q3.iso", "q1.iso", "q2.iso"]);
+
+    await store.getState().pauseMany([id("run.iso"), id("q1.iso")]);
+    expect(paused).toEqual([id("q1.iso"), id("run.iso")]);
+
+    await store.getState().resumeMany([id("run.iso"), id("q1.iso")]);
+    expect(store.getState().notice).toBe(`couldn't resume 2 downloads: download ${String(id("run.iso"))} can't resume`);
+  });
+
+  it("removes only the marked downloads that the view shows, with their files when asked", async () => {
+    const { backend, store } = await ready();
+    const removed: [number, boolean][] = [];
+    const remove = backend.remove.bind(backend);
+    const watched = createDownloadsStore({
+      ...backend,
+      remove: (id, deleteFile) => {
+        removed.push([id, deleteFile]);
+        return remove(id, deleteFile);
+      },
+    });
+    await watched.getState().init();
+    const id = (name: string) => store.getState().items.find((d) => d.name === name)?.id ?? -1;
+    watched.getState().select(id("fedora.iso"));
+    watched.getState().toggleMark(id("fonts.zip"));
+    watched.getState().setSearch("fonts");
+    await vi.waitFor(() => {
+      expect(watched.getState().matches).not.toBeNull();
+    });
+    watched.getState().askRemove(watched.getState().marked);
+    expect(watched.getState().removing).toHaveLength(2);
+
+    await watched.getState().removeMany(watched.getState().marked, true);
+    expect(removed).toEqual([[id("fonts.zip"), true]]);
+    expect(watched.getState().removing).toBeNull();
+    expect(watched.getState().marked).toEqual([]);
+    expect(watched.getState().items.map((d) => d.name)).not.toContain("fonts.zip");
+  });
+
   it("steps through the visible downloads and stops at the ends", async () => {
     const { store } = await ready();
     const names = () => store.getState().items.find((d) => d.id === store.getState().selected)?.name;
