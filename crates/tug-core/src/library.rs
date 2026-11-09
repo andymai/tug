@@ -202,6 +202,9 @@ impl Library {
     pub async fn pause_all(&self) -> Result<(), LibraryError> {
         let mut running = self.running.lock().await;
         let held = self.hold_queue();
+        for target in self.stopping().values_mut() {
+            *target = DownloadState::Paused;
+        }
         let stopped: Vec<(DownloadId, Running)> = running.drain().collect();
         drop(running);
         for (_, entry) in &stopped {
@@ -229,6 +232,12 @@ impl Library {
             }
         }
         drop(store);
+        for (id, target) in self.stopping().iter_mut() {
+            if *target == DownloadState::Paused {
+                *target = DownloadState::Queued;
+                queued.push(*id);
+            }
+        }
         self.news().changed.extend(&queued);
         let filled = self.fill(&mut running);
         drop(running);
@@ -410,6 +419,11 @@ impl Library {
         if within_hours(settings) {
             return Ok(());
         }
+        let stopped = self.begin_stop().await;
+        self.end_stop(stopped).await
+    }
+
+    async fn begin_stop(&self) -> Vec<(DownloadId, Running)> {
         let mut running = self.running.lock().await;
         let stopped: Vec<(DownloadId, Running)> = running.drain().collect();
         self.stopping()
@@ -418,6 +432,10 @@ impl Library {
         for (_, entry) in &stopped {
             entry.transfer.stop();
         }
+        stopped
+    }
+
+    async fn end_stop(&self, stopped: Vec<(DownloadId, Running)>) -> Result<(), LibraryError> {
         let mut first = None;
         for (id, entry) in stopped {
             let last = entry.transfer.progress();
@@ -657,34 +675,60 @@ mod tests {
         assert_eq!(library.tick().await.unwrap().settled, [id]);
     }
 
+    async fn running(lab: &LabServer, dir: &Path, library: &Library, seed: u32) -> DownloadId {
+        let url = lab
+            .url(&format!("/gen/4M/{seed}.bin?seed={seed}&rate=1M"))
+            .parse()
+            .unwrap();
+        let id = library.add(url, dir).await.unwrap();
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while !library
+            .tick()
+            .await
+            .unwrap()
+            .live
+            .iter()
+            .any(|(live, p)| *live == id && p.received > 0)
+        {
+            assert!(Instant::now() < deadline, "the download never started");
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        id
+    }
+
     #[tokio::test(flavor = "multi_thread")]
-    async fn a_pause_while_the_hours_stop_a_download_is_kept() {
+    async fn a_pause_or_resume_while_the_hours_stop_a_download_decides_how_it_settles() {
+        let lab = LabServer::start(Config::default()).await.unwrap();
+        let dir = tempfile::tempdir().unwrap();
         let library = Library::open(Store::open_in_memory().unwrap())
             .await
             .unwrap();
-        let dir = tempfile::tempdir().unwrap();
-        let id = library
-            .add_paused(
-                "https://example.org/a.iso".parse().unwrap(),
-                dir.path(),
-                &Origin::default(),
-            )
-            .unwrap();
-        library
-            .store()
-            .unwrap()
-            .set_state(id, DownloadState::Downloading, None, SystemTime::now())
-            .unwrap();
-        library.stopping().insert(id, DownloadState::Queued);
+        let state = |id| library.get(id).unwrap().state;
 
+        let id = running(&lab, dir.path(), &library, 1).await;
+        let stopping = library.begin_stop().await;
         library.pause(id).await.unwrap();
-        assert_eq!(library.stopping().get(&id), Some(&DownloadState::Paused));
+        library.end_stop(stopping).await.unwrap();
+        assert_eq!(state(id), DownloadState::Paused, "a pause holds");
+
         library.resume(id).await.unwrap();
-        assert_eq!(library.stopping().get(&id), Some(&DownloadState::Queued));
-        assert_eq!(
-            library.get(id).unwrap().state,
-            DownloadState::Downloading,
-            "the stopping download settles once, as its target"
-        );
+        let stopping = library.begin_stop().await;
+        library.pause(id).await.unwrap();
+        library.resume(id).await.unwrap();
+        library.end_stop(stopping).await.unwrap();
+        assert_eq!(state(id), DownloadState::Queued, "a later resume wins");
+
+        library.resume(id).await.unwrap();
+        let stopping = library.begin_stop().await;
+        library.pause_all().await.unwrap();
+        library.end_stop(stopping).await.unwrap();
+        assert_eq!(state(id), DownloadState::Paused, "pause all reaches it");
+
+        library.resume(id).await.unwrap();
+        let stopping = library.begin_stop().await;
+        library.pause(id).await.unwrap();
+        assert!(library.resume_all().await.unwrap().contains(&id));
+        library.end_stop(stopping).await.unwrap();
+        assert_eq!(state(id), DownloadState::Queued, "resume all reaches it");
     }
 }
