@@ -375,6 +375,8 @@ impl Library {
         filled
     }
 
+    // Under the run lock to the end, so no tick, resume or Resume all can start
+    // the download while its files go.
     pub async fn remove(&self, id: DownloadId, delete_file: bool) -> Result<(), LibraryError> {
         let mut running = self.running.lock().await;
         let download = self.get(id)?;
@@ -383,20 +385,11 @@ impl Library {
         if delete_file && download.is_torrent() && self.swarm.is_none() {
             return Err(LibraryError::NoTorrents);
         }
-        let stopped = running.remove(&id);
-        // Held first, so a tick can't start a waiting download while its files go.
-        if stopped.is_none() && download.state == DownloadState::Queued {
-            self.store()?
-                .set_state(id, DownloadState::Paused, None, SystemTime::now())?;
-        }
-        drop(running);
         // Settled as paused, so a removal that fails below leaves a true state,
         // and the file that the run learned is known to the delete.
-        if let Some(running) = stopped {
-            running.transfer.stop();
-            let settled = self
-                .settle(id, running.transfer, DownloadState::Paused)
-                .await;
+        if let Some(entry) = running.remove(&id) {
+            entry.transfer.stop();
+            let settled = self.settle(id, entry.transfer, DownloadState::Paused).await;
             self.changed(id);
             settled?;
         }
@@ -408,6 +401,7 @@ impl Library {
             delete_files(&download)?;
         }
         self.store()?.remove(id)?;
+        drop(running);
         self.keep_inspection(id, None);
         self.changed(id);
         self.pump().await

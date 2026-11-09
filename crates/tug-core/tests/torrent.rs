@@ -214,6 +214,27 @@ async fn a_tug_without_torrents_keeps_a_torrent_it_cant_delete() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn resume_all_waits_while_a_torrent_and_its_files_go() {
+    let tmp = tempfile::tempdir().unwrap();
+    let seeder = seeder(tmp.path(), vec![("a.bin", bytes(200_000, 251))]).await;
+    let library = leecher(tmp.path(), Some(&seeder)).await;
+    let id = library
+        .add_torrent_paused(
+            TorrentSource::File(seeder.torrent.clone()),
+            &tmp.path().join("got"),
+        )
+        .await
+        .unwrap();
+
+    let (removed, resumed) = tokio::join!(library.remove(id, true), library.resume_all());
+    removed.unwrap();
+    assert_eq!(resumed.unwrap(), Vec::<DownloadId>::new());
+    let live = library.tick().await.unwrap().live;
+    assert!(live.is_empty(), "a removed torrent runs: {live:?}");
+    assert!(library.list().unwrap().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_refused_delete_leaves_a_waiting_torrent_as_it_was() {
     let tmp = tempfile::tempdir().unwrap();
     let db = tmp.path().join("tug.db");
