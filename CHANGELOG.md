@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/andymai/tug/compare/v0.27.0...v0.28.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** add magnet links in the window, with tug add, and as the system handler ([#122](https://github.com/andymai/tug/issues/122)) ([828da68](https://github.com/andymai/tug/commit/828da6800caa74dc4b288a4f4731076ec7203500))
+
 ## [0.27.0](https://github.com/andymai/tug/compare/v0.26.0...v0.27.0) (2026-11-09)
 
 
