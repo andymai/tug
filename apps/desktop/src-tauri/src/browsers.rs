@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::{Map, Value};
 
@@ -11,6 +12,9 @@ pub const HOST_NAME: &str = "io.github.andymai.tug";
 const CHROMIUM_ORIGINS: &[&str] = &["chrome-extension://adkjolghaomejbdpmjgloncdniplghfg/"];
 const FIREFOX_EXTENSIONS: &[&str] = &["tug@andymai.github.io"];
 const FIREFOX_FLATPAK: &str = "org.mozilla.firefox";
+// Each writer stages its own file: a release start and `tug browsers` can
+// write the same manifest or host at once.
+static STAGED: AtomicU64 = AtomicU64::new(0);
 
 const CHROMIUM: &[(&str, &str, &str)] = &[
     ("Google Chrome", "google-chrome", "com.google.Chrome"),
@@ -271,18 +275,27 @@ fn write_file(path: &Path, bytes: &[u8], mode: u32) -> io::Result<()> {
     };
     fs::create_dir_all(dir)?;
     let mut staged = name.to_os_string();
-    staged.push(".new");
+    staged.push(format!(
+        ".{}-{}.new",
+        std::process::id(),
+        STAGED.fetch_add(1, Ordering::Relaxed)
+    ));
     let staged = dir.join(staged);
+    let result = stage(&staged, bytes, mode).and_then(|()| fs::rename(&staged, path));
+    if result.is_err() {
+        let _removed = fs::remove_file(&staged);
+    }
+    result
+}
+
+fn stage(staged: &Path, bytes: &[u8], mode: u32) -> io::Result<()> {
     let mut file = OpenOptions::new()
         .write(true)
-        .create(true)
-        .truncate(true)
+        .create_new(true)
         .mode(mode)
-        .open(&staged)?;
+        .open(staged)?;
     file.write_all(bytes)?;
-    file.set_permissions(Permissions::from_mode(mode))?;
-    drop(file);
-    fs::rename(&staged, path)
+    file.set_permissions(Permissions::from_mode(mode))
 }
 
 pub fn register_everywhere() -> Result<Vec<Report>, String> {
@@ -493,6 +506,33 @@ mod tests {
         ));
     }
 
+    fn leftovers(dir: &Path) -> Vec<String> {
+        fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .filter(|name| Path::new(name).extension().is_some_and(|e| e == "new"))
+            .collect()
+    }
+
+    #[test]
+    fn writers_at_once_each_land_a_whole_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("hosts").join("io.github.andymai.tug.json");
+        let contents: Vec<Vec<u8>> = (1..=8).map(|n| vec![b'a' + n; n as usize * 4096]).collect();
+        std::thread::scope(|scope| {
+            for bytes in &contents {
+                let file = &file;
+                scope.spawn(move || {
+                    for _ in 0..50 {
+                        write_file(file, bytes, 0o644).unwrap();
+                    }
+                });
+            }
+        });
+        assert!(contents.contains(&fs::read(&file).unwrap()));
+        assert_eq!(leftovers(file.parent().unwrap()), Vec::<String>::new());
+    }
+
     #[test]
     fn an_unchanged_manifest_is_not_rewritten_and_a_changed_one_is() {
         let (_dir, places) = places();
@@ -511,11 +551,7 @@ mod tests {
         register(&places, Path::new("/usr/bin/tug-host"), &|_| None);
         assert_eq!(read(&file)["path"], "/usr/bin/tug-host");
         assert_eq!(fs::metadata(&file).unwrap().mode() & 0o777, 0o644);
-        assert!(
-            !file
-                .with_file_name("io.github.andymai.tug.json.new")
-                .exists()
-        );
+        assert_eq!(leftovers(file.parent().unwrap()), Vec::<String>::new());
     }
 
     #[test]
