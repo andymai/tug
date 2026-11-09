@@ -385,6 +385,12 @@ impl AppState {
         }
     }
 
+    fn prune(&self, batch: &Batch) -> bool {
+        self.captures
+            .lock()
+            .is_ok_and(|mut captures| drop_started(&mut captures, batch))
+    }
+
     pub fn captures(&self) -> Vec<DownloadDto> {
         let waiting = self
             .captures
@@ -423,13 +429,29 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// A capture that another action started (Resume all, the list's Resume) no
+// longer waits for an answer, and the sheet must stop asking about it.
+fn drop_started(captures: &mut Vec<DownloadId>, batch: &Batch) -> bool {
+    let before = captures.len();
+    captures.retain(|id| {
+        !batch.settled.contains(id) && !batch.updates.iter().any(|update| update.id == *id)
+    });
+    captures.len() != before
+}
+
 fn forward_progress(app: AppHandle, stream: &ProgressStream) {
     let mut rx = stream.subscribe();
     tauri::async_runtime::spawn(async move {
         while rx.changed().await.is_ok() {
-            let batch = BatchDto::from(&**rx.borrow_and_update());
-            if app.emit(PROGRESS_EVENT, batch).is_err() {
+            let batch = Arc::clone(&rx.borrow_and_update());
+            if app.emit(PROGRESS_EVENT, BatchDto::from(&*batch)).is_err() {
                 break;
+            }
+            if app
+                .try_state::<AppState>()
+                .is_some_and(|state| state.prune(&batch))
+            {
+                emit_captures(&app);
             }
         }
     });
@@ -533,7 +555,13 @@ pub async fn answer_capture(
     state.answered(id);
     let result = match answer {
         CaptureAnswer::Download => state.library.resume(id).await,
-        CaptureAnswer::Cancel => state.library.remove(id, true).await,
+        CaptureAnswer::Cancel => match state.library.get(id) {
+            Ok(download) if download.state == DownloadState::Paused => {
+                state.library.remove(id, true).await
+            }
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        },
         CaptureAnswer::Later => Ok(()),
     };
     emit_captures(&app);
@@ -947,6 +975,35 @@ mod tests {
         ));
         assert_eq!(invalid.kind, ErrorKind::Invalid);
         assert!(invalid.message.contains("speed limit"));
+    }
+
+    #[test]
+    fn a_capture_that_starts_elsewhere_stops_waiting() {
+        let id = |n: i64| DownloadId::from(n);
+        let mut captures = vec![id(1), id(2), id(3)];
+        let quiet = Batch {
+            seq: 1,
+            updates: Vec::new(),
+            settled: Vec::new(),
+            error: None,
+        };
+        assert!(!drop_started(&mut captures, &quiet));
+        let started = Batch {
+            seq: 2,
+            updates: vec![Update {
+                id: id(2),
+                phase: Phase::Downloading,
+                received: 0,
+                total: None,
+                speed: 0,
+                left: None,
+                connections: 1,
+            }],
+            settled: vec![id(3)],
+            error: None,
+        };
+        assert!(drop_started(&mut captures, &started));
+        assert_eq!(captures, vec![id(1)]);
     }
 
     #[test]

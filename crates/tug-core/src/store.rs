@@ -237,13 +237,22 @@ impl Store {
         new: &NewDownload,
         origin: &Origin,
     ) -> Result<DownloadId, StoreError> {
+        self.insert_as(new, origin, DownloadState::Queued)
+    }
+
+    pub fn insert_as(
+        &self,
+        new: &NewDownload,
+        origin: &Origin,
+        state: DownloadState,
+    ) -> Result<DownloadId, StoreError> {
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(
             "INSERT INTO downloads (url, dir, state, added_ms) VALUES (?1, ?2, ?3, ?4)",
             params![
                 new.url.as_str(),
                 new.dir.as_os_str().as_bytes(),
-                DownloadState::Queued.as_str(),
+                state.as_str(),
                 to_ms(new.added),
             ],
         )?;
@@ -705,6 +714,21 @@ mod tests {
                 .is_err()
         );
         assert_eq!(store.get(id).unwrap().unwrap().state, DownloadState::Queued);
+        assert_eq!(store.origin(id).unwrap(), origin);
+    }
+
+    #[test]
+    fn a_download_can_start_out_paused_with_its_origin_in_one_write() {
+        let store = Store::open_in_memory().unwrap();
+        let origin = Origin::new(None, Some("session=abc"), None).unwrap();
+        let id = store
+            .insert_as(
+                &new("https://example.org/a.iso", "/d"),
+                &origin,
+                DownloadState::Paused,
+            )
+            .unwrap();
+        assert_eq!(store.get(id).unwrap().unwrap().state, DownloadState::Paused);
         assert_eq!(store.origin(id).unwrap(), origin);
     }
 

@@ -195,6 +195,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     resume: (id) =>
       attempt(() => {
         const download = find(id);
+        if (waiting.includes(id)) {
+          waiting = waiting.filter((entry) => entry !== id);
+          announce();
+        }
         if (download.state === "paused" || download.state === "failed") {
           download.state = "downloading";
           download.error = null;
@@ -297,6 +301,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     },
     capture: (url) =>
       attempt(() => {
+        if (!settings.confirmCaptures) {
+          addNow(url);
+          return;
+        }
         ask(url);
         announce();
       }),
