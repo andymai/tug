@@ -1,0 +1,62 @@
+crates/tug-core/src/store.rs
+  s_b321718d129a1e::t_17a735169fe2f8 80-81,239-240,245-248,531-544,771,827,851,895,908,968,1171,1287
+  s_b321718d129a1e::t_954b8e3dca1d92 79
+apps/desktop/src-tauri/src/notify.rs
+  s_b321718d129a1e::t_17a735169fe2f8 242
+apps/desktop/src/backend/tauri.test.ts
+  s_b321718d129a1e::t_d89abc7e979cf3 24,26,47,49
+apps/desktop/src/backend/tauri.ts
+  s_b321718d129a1e::t_d89abc7e979cf3 35
+apps/desktop/src/App.test.tsx
+  s_b321718d129a1e::t_46bf9490adc2a5 183
+  s_b321718d129a1e::t_db51a6858e6138 189-208,499-527
+  s_b321718d129a1e::t_0decc87a498223 528
+crates/tug-core/src/transfer.rs
+  s_b321718d129a1e::t_cf4417933b692a 139-150
+apps/desktop/src/lib/commands.ts
+  s_b321718d129a1e::t_46bf9490adc2a5 19,28,249-262,369
+apps/desktop/src-tauri/src/bridge.rs
+  s_b321718d129a1e::t_3178925140526d 136,145,155,676-682,905-913
+  s_b321718d129a1e::t_17a735169fe2f8 1268
+  s_b321718d129a1e::t_4c3acf1989fd24 914-915
+apps/desktop/src/components/RowMenu.tsx
+  s_b321718d129a1e::t_46bf9490adc2a5 1,9,30-40
+apps/desktop/src/backend/mock.ts
+  s_b321718d129a1e::t_d89abc7e979cf3 166-173,370,386-397
+  s_b321718d129a1e::t_16bd50c3081434 398-400
+apps/desktop/src/components/AddDialog.tsx
+  s_b321718d129a1e::t_c257c241c4243d 45,48,76-77,155-171
+apps/desktop/src/backend/bindings/AddOptions.ts
+  s_b321718d129a1e::t_b0aa6c53a10ec1 3
+apps/desktop/src-tauri/src/main.rs
+  s_b321718d129a1e::t_3178925140526d 86
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_c257c241c4243d 134-137,260,777-792,869-873
+  s_b321718d129a1e::t_b2900aa3522a1e 874-875
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_cf4417933b692a 48-55,58,65-80,173,180-210,269,307,317,320,335-337,745-750,911-914
+  s_b321718d129a1e::t_e73ea32b86f547 915-916
+apps/desktop/src/backend/backend.ts
+  s_b321718d129a1e::t_d89abc7e979cf3 56-57
+apps/desktop/src/components/DetailPanel.tsx
+  s_b321718d129a1e::t_46bf9490adc2a5 1,21,85-130,244-245,319,322-334
+crates/tug-core/tests/library.rs
+  s_b321718d129a1e::t_ccda7713971584 706-777
+  s_b321718d129a1e::t_31c27a76f1e30b 705
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0e8dfd0be6469743beb1e367e4c7e5c1720a1692",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
