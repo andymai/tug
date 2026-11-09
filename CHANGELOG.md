@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.18.0](https://github.com/andymai/tug/compare/v0.17.0...v0.18.0) (2026-11-09)
+
+
+### Features
+
+* **extension:** hand browser downloads to Tug from Chromium and Firefox ([#77](https://github.com/andymai/tug/issues/77)) ([0a0ca5a](https://github.com/andymai/tug/commit/0a0ca5a569cc463604f406170accd30ea6993c0f))
+
+
+### Bug Fixes
+
+* **core:** forget a download's cookies in the same write that marks it done ([#78](https://github.com/andymai/tug/issues/78)) ([a0aefab](https://github.com/andymai/tug/commit/a0aefabf176993f391c3b439ca4be743eb5cccd3))
+
 ## [0.17.0](https://github.com/andymai/tug/compare/v0.16.1...v0.17.0) (2026-11-09)
 
 
