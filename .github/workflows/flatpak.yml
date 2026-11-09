@@ -34,6 +34,23 @@ jobs:
           bundle: io.github.andymai.Tug.flatpak
           manifest-path: packaging/flatpak/io.github.andymai.Tug.yml
           cache-key: flatpak-builder-${{ github.sha }}
+      - name: Check that the Flatpak starts
+        run: |
+          set -euo pipefail
+          if command -v dnf > /dev/null; then
+            dnf install -y --setopt=install_weak_deps=False xorg-x11-server-Xvfb > /dev/null
+          else
+            apt-get update > /dev/null && apt-get install -y --no-install-recommends xvfb > /dev/null
+          fi
+          flatpak install --user -y --noninteractive ./io.github.andymai.Tug.flatpak
+          Xvfb :99 -screen 0 1280x800x24 &
+          export DISPLAY=:99
+          sleep 2
+          # The app must still be running when timeout stops it (exit 124).
+          status=0
+          dbus-run-session -- timeout 20 flatpak run io.github.andymai.Tug || status=$?
+          [ "$status" -eq 124 ] || { echo "::error::the Flatpak exited early with $status"; exit 1; }
+          test -f "$HOME/.var/app/io.github.andymai.Tug/data/io.github.andymai.Tug/tug.db"
 
   upload:
     name: Upload the Flatpak
