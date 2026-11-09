@@ -1,0 +1,35 @@
+apps/desktop/src-tauri/src/cli.rs
+  s_b050dc8a593981::t_1801582a161870 14,45,62,226-239,257
+  s_b050dc8a593981::t_e663725c35d9b8 338-342
+apps/desktop/src-tauri/src/main.rs
+  s_b050dc8a593981::t_1801582a161870 2,48-50
+  s_b050dc8a593981::t_83b9cea55fb4fb 51
+crates/tug-host/src/lib.rs
+  s_b050dc8a593981::t_0a9ab9e74dd13f 75-81
+CLAUDE.md
+  s_b050dc8a593981::t_2d49d7e127c263 58
+  s_b050dc8a593981::t_cec5134a172574 15,46,56-57
+  s_b050dc8a593981::t_8abe12c9aabb2c 59
+apps/desktop/src-tauri/src/browsers.rs
+  s_b050dc8a593981::t_4b17f83415ffd3 1-205,207-328,336-379,385-425,432-455,460,465-484,490-504,508-514
+  s_b050dc8a593981::t_9b849cb25abdff 206,329-335,380-384,426-431,456-459,461-464,485-489,505-507
+scripts/ipc/check.sh
+  s_b050dc8a593981::t_c667dee4c87f06 11-24,75-93
+  s_b050dc8a593981::t_71689a69d987e9 94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c40bd038570e3e6c4e9f3544b4808abe7a5881f6",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
