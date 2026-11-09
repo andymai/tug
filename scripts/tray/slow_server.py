@@ -54,6 +54,14 @@ class Slow(http.server.BaseHTTPRequestHandler):
         self.send_range(False)
 
     def do_GET(self):
+        if self.path.endswith(".html"):
+            body = b'<!doctype html><a id="file" href="/captured.bin">captured.bin</a>'
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         try:
             self.send_range(True)
         except (BrokenPipeError, ConnectionResetError):

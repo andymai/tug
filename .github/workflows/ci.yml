@@ -147,6 +147,10 @@ jobs:
           path: apps/desktop/.vitest/attachments
           retention-days: 7
       - run: pnpm --filter @tug/desktop build
+      - run: pnpm --filter @tug/extension typecheck
+      - run: pnpm --filter @tug/extension lint
+      - run: pnpm --filter @tug/extension test
+      - run: pnpm --filter @tug/extension build
 
   # A prebuilt cargo-audit: compiling it from source on the runner pulls the
   # newest releases of its dependencies, and one bad upstream publish then
