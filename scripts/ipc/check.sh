@@ -8,6 +8,20 @@ mkdir -m 700 "$work/runtime"
 # Tug's default folder comes from user-dirs.dirs; without one it is the real ~/Downloads.
 mkdir -p "$work/config" "$work/downloads"
 printf 'XDG_DOWNLOAD_DIR="%s"\n' "$work/downloads" > "$work/config/user-dirs.dirs"
+# `tug browsers` gets its own home with one browser of each kind, and a stand-in
+# flatpak that grants the Flatpak Chrome flatpak-spawn and the Flatpak Vivaldi nothing.
+chrome="$work/home/.var/app/com.google.Chrome"
+vivaldi="$work/home/.var/app/com.vivaldi.Vivaldi"
+mkdir -p "$work/bin" "$work/config/google-chrome" "$work/home/.mozilla/firefox" \
+  "$chrome/config/google-chrome" "$vivaldi/config/vivaldi"
+touch "$work/config/google-chrome/Local State" "$work/home/.mozilla/firefox/profiles.ini" \
+  "$chrome/config/google-chrome/Local State" "$vivaldi/config/vivaldi/Local State"
+cat > "$work/bin/flatpak" <<'EOF'
+#!/bin/sh
+[ "$3" = com.google.Chrome ] && echo org.freedesktop.Flatpak=talk
+exit 0
+EOF
+chmod +x "$work/bin/flatpak"
 cd "$repo"
 RUSTFLAGS="" PKG_CONFIG=/usr/bin/pkg-config cargo build -p tug-desktop -p tug-host --quiet
 
@@ -57,6 +71,26 @@ assert listed[\"id\"] == 2 and listed[\"downloads\"][0][\"name\"] == \"big.bin\"
 assert added[\"id\"] == 3 and added[\"added\"][0][\"name\"] == \"two.bin\", added
 " <<<"$replies" || fail "tug-host replies: $replies"
     echo "ok: tug-host pings, lists and adds"
+
+    root=$(dirname "$XDG_CONFIG_HOME")
+    browsers=$(HOME="$root/home" PATH="$root/bin:$PATH" $tug browsers)
+    expect "tug browsers finds four" "$(wc -l <<<"$browsers")" 4
+    for line in "Google Chrome  *Registered" "Google Chrome (Flatpak)  *Registered" "Firefox  *Registered" \
+      "Vivaldi (Flatpak)  *Needs permission.* com.vivaldi.Vivaldi"; do
+      grep -qx "$line" <<<"$browsers" || fail "tug browsers, no \"$line\": $browsers"
+    done
+    echo "ok: tug browsers registers each browser that ran"
+    manifest="$XDG_CONFIG_HOME/google-chrome/NativeMessagingHosts/io.github.andymai.tug.json"
+    path=$(python3 -c "import json, sys; print(json.load(open(sys.argv[1]))[\"path\"])" "$manifest")
+    expect "the manifest names tug-host" "$path" "$(readlink -f ./target/debug/tug-host)"
+    pong=$(/usr/bin/python3 scripts/host/talk.py "$path" "{\"id\":7,\"type\":\"ping\"}")
+    expect "the registered host reaches Tug" "$pong" "{\"id\": 7, \"ok\": true, \"running\": true, \"type\": \"pong\"}"
+    wrapper="$root/home/.var/app/com.google.Chrome/data/io.github.andymai.Tug/tug-host"
+    [ -x "$wrapper" ] && sh -n "$wrapper" && grep -qF "flatpak-spawn --host" "$wrapper" && grep -qF "$path" "$wrapper" \
+      || fail "the Flatpak bridge: $(cat "$wrapper")"
+    echo "ok: the Flatpak bridge runs the same tug-host"
+    [ ! -e "$root/home/.var/app/com.vivaldi.Vivaldi/data" ] || fail "Vivaldi got a bridge without permission"
+    echo "ok: a Flatpak without permission gets nothing"
 
     sleep 2
     expect "one window" "$(visible)" 1

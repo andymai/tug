@@ -1,4 +1,5 @@
 mod bridge;
+mod browsers;
 mod cli;
 mod format;
 mod ipc;
@@ -43,6 +44,10 @@ fn main() -> Result<ExitCode, tauri::Error> {
             );
             if let Some(server) = server {
                 ipc::serve(app.handle(), state.library(), server);
+            }
+            // A development build would point every browser at itself.
+            if !cfg!(debug_assertions) {
+                std::thread::spawn(browsers::register_everywhere);
             }
             Ok(())
         })

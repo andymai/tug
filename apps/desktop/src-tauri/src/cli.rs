@@ -11,6 +11,7 @@ pub const USAGE: &str = "Usage:
   tug                  Open Tug
   tug add <link>...    Download each link
   tug list [--json]    Show every download
+  tug browsers         Connect Tug to each browser
 ";
 
 const START_TIMEOUT: Duration = Duration::from_secs(20);
@@ -41,6 +42,7 @@ pub enum Command {
     Open,
     Add(Vec<String>),
     List { json: bool },
+    Browsers,
     Help,
     Usage(String),
 }
@@ -57,6 +59,7 @@ pub fn parse(args: &[String]) -> Command {
         }
         [command] if command == "list" => Command::List { json: false },
         [command, flag] if command == "list" && flag == "--json" => Command::List { json: true },
+        [command] if command == "browsers" => Command::Browsers,
         [flag] if matches!(flag.as_str(), "-h" | "--help" | "help") => Command::Help,
         [other, ..] => Command::Usage(format!("unknown command {other}")),
     }
@@ -220,6 +223,20 @@ async fn list(endpoint: &Endpoint, json: bool, limits: Limits) -> Result<bool, S
     }
 }
 
+fn browsers() -> Result<bool, String> {
+    let reports = crate::browsers::register_everywhere()?;
+    let mut out = io::stdout().lock();
+    if reports.is_empty() {
+        let _written = writeln!(out, "No supported browser found.");
+    }
+    for report in &reports {
+        let _written = writeln!(out, "{:<25} {}", report.browser, report.status);
+    }
+    Ok(!reports
+        .iter()
+        .any(|report| matches!(report.status, crate::browsers::Status::Failed(_))))
+}
+
 pub fn run(command: Command) -> ExitCode {
     let result = match command {
         Command::Open => Ok(true),
@@ -237,6 +254,7 @@ pub fn run(command: Command) -> ExitCode {
         Command::List { json } => Endpoint::from_env()
             .map_err(|e| e.to_string())
             .and_then(|endpoint| tauri::async_runtime::block_on(list(&endpoint, json, LIMITS))),
+        Command::Browsers => browsers(),
     };
     match result {
         Ok(true) => ExitCode::SUCCESS,
@@ -317,6 +335,11 @@ mod tests {
             parse(&args(&["list", "--json"])),
             Command::List { json: true }
         );
+        assert_eq!(parse(&args(&["browsers"])), Command::Browsers);
+        assert!(matches!(
+            parse(&args(&["browsers", "chrome"])),
+            Command::Usage(_)
+        ));
         assert_eq!(parse(&args(&["--help"])), Command::Help);
         assert!(matches!(parse(&args(&["add"])), Command::Usage(_)));
         assert!(matches!(parse(&args(&["remove", "1"])), Command::Usage(_)));

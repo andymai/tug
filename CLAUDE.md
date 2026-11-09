@@ -12,7 +12,7 @@ Design tokens: `design/tokens.json`. Brand sources: `brand/`.
 | `apps/desktop` | React 19 UI (Vite, Tailwind 4, TypeScript) | the design tokens |
 | `apps/desktop/src-tauri` | Tauri 2 shell, crate `tug-desktop`, binary `tug` | `tug-core`, never `mdm-*` |
 | `crates/tug-ipc` | The local socket: one Tug per session, `tug add` and `tug list`, the browser host. JSON lines over a Unix socket in `$XDG_RUNTIME_DIR/app/io.github.andymai.Tug/` (`…Tug.Devel/` for debug builds) with a 0600 token; a lock file decides which Tug owns it | std, serde, thiserror, tokio |
-| `crates/tug-host` | The browser's native messaging host, binary `tug-host`: length-prefixed JSON on stdin and stdout, passed to Tug over the socket; starts Tug when it isn't running | `tug-ipc` |
+| `crates/tug-host` | The browser's native messaging host, binary `tug-host`: length-prefixed JSON on stdin and stdout, passed to Tug over the socket; starts Tug when it isn't running, the `tug` beside it first | `tug-ipc` |
 | `design/tokens.json` | The design system's tokens; `scripts/gen-tokens.py` writes `apps/desktop/src/styles/tokens.css` (CSS variables, Tailwind `@theme`, `.text-*` type styles) | nothing |
 | `brand/` | Mark, icons, wordmark: `build.py` draws every SVG, `export.sh` renders PNGs | nothing |
 
@@ -43,7 +43,7 @@ distrobox enter dev -- bash -lc 'cd ~/Git/tug && PKG_CONFIG=/usr/bin/pkg-config 
 
 Screenshots of the real app, off the screen: run `pnpm --filter @tug/desktop dev` on the host, then in the container run `target/debug/tug` under `dbus-run-session -- xvfb-run` with `WAYLAND_DISPLAY` and `DBUS_SESSION_BUS_ADDRESS` unset, `GDK_BACKEND=x11` and `GSETTINGS_BACKEND=memory`, and capture with `import -window root`. Light needs an empty `XDG_CONFIG_HOME`; dark needs one whose `gtk-3.0/settings.ini` sets `gtk-application-prefer-dark-theme=1`. Without these the window opens on the real screen or inherits the desktop's theme.
 
-The CLI, the browser host and single instance, off the screen: with the dev server running, run `scripts/ipc/check.sh` in the container. It checks `tug add` (which starts Tug), `tug list`, `tug-host` through framed messages (`scripts/host/talk.py`), the socket's permissions, a second `tug` handing off, two launches at once, and a stale socket after a crash.
+The CLI, the browser host and single instance, off the screen: with the dev server running, run `scripts/ipc/check.sh` in the container. It checks `tug add` (which starts Tug), `tug list`, `tug-host` through framed messages (`scripts/host/talk.py`), `tug browsers` in a private home with a stand-in `flatpak` (then a ping through the manifest it wrote), the socket's permissions, a second `tug` handing off, two launches at once, and a stale socket after a crash.
 
 The tray, off the screen: with the dev server running, run `scripts/tray/check.sh` in the container. It starts the app on a private session bus with a stand-in StatusNotifierWatcher (`scripts/tray/watcher.py`), reads the item and its menu with `busctl`, closes the window with `WM_DELETE_WINDOW` (`scripts/tray/close.py`), and expects Tug to keep running, to show again on Activate, and to exit on **Quit Tug**. It also stops the stand-in host (the window must come back, and closing must quit), and seeds a queued download from a local server that paces every connection to 1 MB/s (`scripts/tray/slow_server.py`) to check the ring icon, the tooltip, and **Pause all** and **Resume all**.
 
@@ -52,6 +52,10 @@ The AppImage: `.github/workflows/appimage.yml` builds it on ubuntu-22.04 for eac
 The Flatpak: `packaging/flatpak/io.github.andymai.Tug.yml` builds from source on the GNOME 51 runtime, which still ships `webkit2gtk-4.1`, with the Rust and Node SDK extensions and network during the build. That suits our own release bundle, but Flathub needs vendored sources. `.github/workflows/flatpak.yml` builds it in Flathub's builder image for each release tag and on pull requests that touch packaging. In the sandbox the tray registers under its unique bus name, because a Flatpak can't own `org.kde.StatusNotifierItem-*`.
 
 CI (`.github/workflows/ci.yml`) runs all of these behind the `CI Pass` gate. Commits and PR titles are conventional commits; release-please cuts releases from them.
+
+## Browsers
+
+`tug browsers` (and every start of a release build) writes the native messaging manifest `io.github.andymai.tug.json` for each browser that ran at least once: Chrome, Chromium, Brave, Vivaldi and Edge (`Local State` in the profile folder), and Firefox (`firefox/profiles.ini`; manifests always go to `~/.mozilla/native-messaging-hosts`). The manifest names the `tug-host` beside `tug`. A Flatpak browser gets a `flatpak-spawn --host` wrapper in `~/.var/app/<id>/data/io.github.andymai.Tug/` only when `flatpak info --show-permissions` already lists `org.freedesktop.Flatpak=talk`. Tug never grants that; it prints the `flatpak override` command. The code is `src-tauri/src/browsers.rs`; the extension IDs are its constants.
 
 ## Engine tests
 
