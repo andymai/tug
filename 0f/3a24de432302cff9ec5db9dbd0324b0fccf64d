@@ -1,0 +1,62 @@
+apps/desktop/src/lib/commands.ts
+  s_b321718d129a1e::t_de59095aab66ad 4-5,24,99-109,111-121
+crates/tug-core/src/settings.rs
+  s_b321718d129a1e::t_db8a85cacac4a2 392
+  s_b321718d129a1e::t_7e3eb4fa62b321 673
+  s_b321718d129a1e::t_bceee99c68091b 366,530-597,663
+  s_b321718d129a1e::t_b11e6c48d245f8 25-26,76-110,122,139-144,177,213-224,302-315,326,361-365
+apps/desktop/src-tauri/src/bridge.rs
+  s_b321718d129a1e::t_8fb98ca6d38d25 11-12,380-388,403,418-426,458-466,1225-1229
+  s_b321718d129a1e::t_db8a85cacac4a2 1069
+apps/desktop/src/components/Sidebar.tsx
+  s_b321718d129a1e::t_39a90e3b4b537d 1,11,22-36,38,46-47,49-59,64-65,75-78,97,118,128-147
+  s_b321718d129a1e::t_8e1bba63928233 6
+  s_b321718d129a1e::t_ae0edc7350f57d 148-150
+apps/desktop/src/App.test.tsx
+  s_b321718d129a1e::t_d0cd5bf4f0a94f 658-688
+apps/desktop/src/backend/mock.ts
+  s_b321718d129a1e::t_4be9f07878d2d4 100,363-365,367-371
+  s_b321718d129a1e::t_8e1bba63928233 366
+  s_b321718d129a1e::t_c0ff04069a2077 372
+apps/desktop/src/window.visual.tsx
+  s_b321718d129a1e::t_2b7830e4d316cb 135-151
+apps/desktop/src/backend/backend.ts
+  s_b321718d129a1e::t_4be9f07878d2d4 25
+crates/tug-core/tests/settings.rs
+  s_b321718d129a1e::t_db8a85cacac4a2 40,87,117
+crates/tug-core/src/lib.rs
+  s_b321718d129a1e::t_db8a85cacac4a2 18-19
+apps/desktop/src/backend/bindings/SavedView.ts
+  s_b321718d129a1e::t_7e3eb4fa62b321 1-3
+apps/desktop/src/components/DownloadList.tsx
+  s_b321718d129a1e::t_39a90e3b4b537d 1,12,65-66,91,93-103
+apps/desktop/src/backend/mock.test.ts
+  s_b321718d129a1e::t_4be9f07878d2d4 69
+apps/desktop/src/backend/bindings/Settings.ts
+  s_b321718d129a1e::t_7e3eb4fa62b321 3,7
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_4be9f07878d2d4 15,66-68,369-386,516-527
+  s_b321718d129a1e::t_9e63fc4ef7eda1 18
+  s_b321718d129a1e::t_e7a96d31fd01c0 528
+apps/desktop/src/state/downloads.test.ts
+  s_b321718d129a1e::t_d0cd5bf4f0a94f 1,5,159-172
+  s_b321718d129a1e::t_bb9e9229772ba7 173-174
+apps/desktop/src/backend/tauri.test.ts
+  s_b321718d129a1e::t_4be9f07878d2d4 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f3a24de432302cff9ec5db9dbd0324b0fccf64d",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
