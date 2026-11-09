@@ -162,9 +162,16 @@ impl Server {
             Err(TryLockError::Error(e)) => return Err(e.into()),
         }
         let socket = endpoint.socket();
+        // Only these two prove the socket is stale. A live server whose accept
+        // queue is full fails the connect at once with WouldBlock.
         match tokio::time::timeout(PROBE_TIMEOUT, UnixStream::connect(&socket)).await {
-            Ok(Err(_)) => {}
-            Ok(Ok(_)) | Err(_) => return Err(IpcError::AlreadyRunning),
+            Ok(Err(e))
+                if matches!(
+                    e.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
+                ) => {}
+            Ok(Err(e)) if e.kind() != io::ErrorKind::WouldBlock => return Err(e.into()),
+            Ok(_) | Err(_) => return Err(IpcError::AlreadyRunning),
         }
         match std::fs::remove_file(&socket) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.into()),

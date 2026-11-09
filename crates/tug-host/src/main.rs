@@ -24,7 +24,7 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let host = Host::new(endpoint, SystemLauncher, Duration::from_secs(20));
+    let host = Host::new(endpoint, SystemLauncher::default(), Duration::from_secs(20));
     let result = host.run(&runtime, &mut io::stdin().lock(), &mut io::stdout().lock());
     match result {
         Ok(()) => ExitCode::SUCCESS,

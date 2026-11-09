@@ -3,10 +3,10 @@
 use std::future::Future;
 use std::io::{self, Cursor};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
-use tug_host::{Host, Launcher, MAX_MESSAGE, read_message, write_message};
+use tug_host::{Host, Launcher, MAX_MESSAGE, SystemLauncher, read_message, write_message};
 use tug_ipc::{Endpoint, Entry, Failure, Handler, Request, Response, Server};
 
 struct Fake {
@@ -248,4 +248,34 @@ fn run_answers_each_framed_message_in_order() {
         (json!(1), json!(2))
     );
     assert!(read_message(&mut replies).unwrap().is_none());
+}
+
+#[test]
+fn a_launched_tug_is_reaped_after_it_exits() {
+    let dir = tempfile::tempdir().unwrap();
+    let pid_file = dir.path().join("pid");
+    let launcher = SystemLauncher::new(vec![
+        vec!["tug-host-test-missing".into()],
+        vec![
+            "sh".into(),
+            "-c".into(),
+            "echo $$ > \"$0.new\" && mv \"$0.new\" \"$0\"".into(),
+            pid_file.display().to_string(),
+        ],
+    ]);
+    launcher.launch().unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let pid = loop {
+        if let Ok(pid) = std::fs::read_to_string(&pid_file) {
+            break pid.trim().to_owned();
+        }
+        assert!(Instant::now() < deadline, "the child never ran");
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    let entry = std::path::Path::new("/proc").join(pid);
+    while entry.exists() {
+        assert!(Instant::now() < deadline, "the child stays a zombie");
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
