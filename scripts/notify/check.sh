@@ -32,10 +32,11 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
 
     /usr/bin/python3 scripts/tray/watcher.py "$work/registered" & watcher=$!
     /usr/bin/python3 scripts/notify/server.py "$work/notified" & server=$!
+    /usr/bin/python3 scripts/notify/launcher.py "$work/launcher" & launcher=$!
     /usr/bin/python3 scripts/tray/slow_server.py 8769 & files=$!
     sleep 1
     $tug > "$work/app.log" 2>&1 & app=$!
-    trap "kill $app $watcher $server $files 2>/dev/null || true" EXIT
+    trap "kill $app $watcher $server $launcher $files 2>/dev/null || true" EXIT
     for _ in $(seq 1 30); do [ -s "$work/registered" ] && $tug list > /dev/null 2>&1 && break; sleep 0.5; done
 
     $tug add "http://127.0.0.1:8769/note.bin?size=65536" > /dev/null
@@ -65,4 +66,22 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     notice 1 "{\"summary\": \"Download failed\", \"actions\": [\"default\", \"Show in Tug\"], \"hints.category\": \"transfer.error\", \"hints.x-kde-urls\": null}" > /dev/null
     grep "Download failed" "$work/notified" | grep -q "\"body\": \"gone.bin: " || fail "the failure body: $(grep "Download failed" "$work/notified")"
     echo "ok: a failed download notifies with the reason and only Show in Tug"
+
+    start=$(wc -l < "$work/launcher")
+    $tug add "http://127.0.0.1:8769/paced.bin?size=4194304" > /dev/null
+    for _ in $(seq 1 60); do grep -q " paced.bin$" <<<"$($tug list)" && grep -q "^Done" <<<"$($tug list | grep " paced.bin$")" && break; sleep 0.5; done
+    sleep 1
+    /usr/bin/python3 -c "
+import json, sys
+updates = [json.loads(line) for line in open(sys.argv[1]).readlines()[int(sys.argv[2]):]]
+assert updates, \"no Update signal\"
+assert all(u[\"uri\"] == \"application://io.github.andymai.Tug.desktop\" for u in updates), updates
+running = [u for u in updates if u[\"progress-visible\"]]
+assert running and all(u[\"count\"] == 1 and u[\"count-visible\"] for u in running), updates
+shares = [u[\"progress\"] for u in running]
+assert len(set(shares)) > 2 and shares == sorted(shares) and 0 <= shares[0] < shares[-1] <= 1, shares
+assert not updates[-1][\"progress-visible\"] and not updates[-1][\"count-visible\"], updates[-1]
+print(len(updates), \"updates, progress\", shares[0], \"to\", shares[-1])
+" "$work/launcher" "$start" || fail "task manager updates: $(cat "$work/launcher")"
+    echo "ok: the task manager shows progress and the count while it runs, and nothing after"
   '

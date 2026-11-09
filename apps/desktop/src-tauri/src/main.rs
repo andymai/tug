@@ -3,6 +3,7 @@ mod browsers;
 mod cli;
 mod format;
 mod ipc;
+mod launcher;
 mod notify;
 mod tray;
 
@@ -44,6 +45,7 @@ fn main() -> Result<ExitCode, tauri::Error> {
                 state.subscribe(),
             );
             notify::spawn(app.handle(), state.library(), state.subscribe());
+            launcher::spawn(state.subscribe());
             if let Some(server) = server {
                 ipc::serve(app.handle(), state.library(), server);
             }
