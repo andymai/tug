@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop/src-tauri", "crates/tug-core", "crates/tug-ipc"]
+members = ["apps/desktop/src-tauri", "crates/tug-core", "crates/tug-host", "crates/tug-ipc"]
 resolver = "3"
 
 [workspace.package]

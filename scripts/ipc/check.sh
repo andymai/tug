@@ -9,7 +9,7 @@ mkdir -m 700 "$work/runtime"
 mkdir -p "$work/config" "$work/downloads"
 printf 'XDG_DOWNLOAD_DIR="%s"\n' "$work/downloads" > "$work/config/user-dirs.dirs"
 cd "$repo"
-RUSTFLAGS="" PKG_CONFIG=/usr/bin/pkg-config cargo build -p tug-desktop --quiet
+RUSTFLAGS="" PKG_CONFIG=/usr/bin/pkg-config cargo build -p tug-desktop -p tug-host --quiet
 
 env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BACKEND=memory \
   XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" XDG_CACHE_HOME="$work/cache" \
@@ -46,6 +46,18 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     status=0; $tug frobnicate 2>/dev/null || status=$?
     expect "an unknown command is a usage error" "$status" 2
 
+    talk() { /usr/bin/python3 scripts/host/talk.py ./target/debug/tug-host "$@"; }
+    replies=$(talk '"'"'{"id":1,"type":"ping"}'"'"' '"'"'{"id":2,"type":"list"}'"'"' '"'"'{"id":3,"type":"add","urls":["http://127.0.0.1:8766/two.bin"]}'"'"')
+    expect "tug-host answers each message" "$(wc -l <<<"$replies")" 3
+    python3 -c "
+import json, sys
+ping, listed, added = (json.loads(l) for l in sys.stdin)
+assert ping == {\"id\": 1, \"ok\": True, \"running\": True, \"type\": \"pong\"}, ping
+assert listed[\"id\"] == 2 and listed[\"downloads\"][0][\"name\"] == \"big.bin\", listed
+assert added[\"id\"] == 3 and added[\"added\"][0][\"name\"] == \"two.bin\", added
+" <<<"$replies" || fail "tug-host replies: $replies"
+    echo "ok: tug-host pings, lists and adds"
+
     sleep 2
     expect "one window" "$(visible)" 1
     status=0; timeout 10 $tug || status=$?
@@ -61,7 +73,8 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     expect "and says so" "$out" "Tug isn'"'"'t running"
     $tug > /dev/null 2>&1 &
     for _ in $(seq 1 40); do $tug list > /dev/null 2>&1 && break; sleep 0.5; done
-    case "$($tug list)" in *" big.bin") echo "ok: a new Tug replaces the stale socket";; *) fail "after restart: $($tug list)";; esac
+    grep -q " big.bin$" <<<"$($tug list)" || fail "after restart: $($tug list)"
+    echo "ok: a new Tug replaces the stale socket"
 
     kill $(ours)
     for _ in $(seq 1 20); do [ -z "$(ours)" ] && break; sleep 0.5; done
@@ -70,7 +83,8 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     for _ in $(seq 1 40); do $tug list > /dev/null 2>&1 && break; sleep 0.5; done
     sleep 6
     expect "two launches at once leave one Tug" "$(ours | wc -l)" 1
-    case "$($tug list)" in *" big.bin") echo "ok: and it answers";; *) fail "after the race: $($tug list)";; esac
+    grep -q " big.bin$" <<<"$($tug list)" || fail "after the race: $($tug list)"
+    echo "ok: and it answers"
   '
 # A Tug that is still stopping can write into $work for a moment.
 for _ in 1 2 3 4 5; do rm -rf "$work" 2>/dev/null && break; sleep 1; done
