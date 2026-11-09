@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "types": [],
+    "rootDir": "src",
+    "outDir": "dist/js"
+  },
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/manifest.ts"
+  ]
+}
