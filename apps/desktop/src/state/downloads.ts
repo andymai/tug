@@ -10,6 +10,7 @@ import {
   type DownloadEvent,
   type DownloadState,
   type Inspection,
+  type Place,
   type ProgressBatch,
   type ProgressUpdate,
   type ResizeEdge,
@@ -50,6 +51,9 @@ export interface DownloadsState {
   marked: number[];
   menu: { x: number; y: number } | null;
   removing: number[] | null;
+  // The queued rows a drag carries, and where they would land.
+  dragging: number[] | null;
+  dropMark: { id: number; edge: "top" | "bottom" } | null;
   status: "loading" | "ready" | "error";
   loadError: string | null;
   notice: string | null;
@@ -96,6 +100,11 @@ export interface DownloadsState {
   pauseMany: (ids: readonly number[]) => Promise<void>;
   resumeMany: (ids: readonly number[]) => Promise<void>;
   moveMany: (ids: readonly number[], to: "first" | "last") => Promise<void>;
+  moveNextTo: (ids: readonly number[], target: number, after: boolean) => Promise<void>;
+  moveOne: (id: number, to: "up" | "down") => Promise<void>;
+  startDrag: (ids: readonly number[]) => void;
+  markDrop: (mark: { id: number; edge: "top" | "bottom" } | null) => void;
+  endDrag: () => void;
   removeMany: (ids: readonly number[], deleteFiles: boolean) => Promise<void>;
   setOverlay: (overlay: Overlay) => void;
   requestFocus: (id: number | null) => void;
@@ -239,6 +248,8 @@ export function createDownloadsStore(backend: Backend) {
       marked: [],
       menu: null,
       removing: null,
+      dragging: null,
+      dropMark: null,
       status: "loading",
       loadError: null,
       notice: null,
@@ -515,6 +526,35 @@ export function createDownloadsStore(backend: Backend) {
           .filter((item) => item.state === "queued")
           .sort((a, b) => a.position - b.position);
         return many(to === "first" ? waiting.reverse() : waiting, "move", (id) => backend.place(id, to));
+      },
+
+      // Before the target in order, after it in reverse, so the moved keep their order.
+      moveNextTo: (ids, target, after) => {
+        const moving = chosenOf(get(), ids)
+          .filter((item) => item.state === "queued" && item.id !== target)
+          .sort((a, b) => a.position - b.position);
+        const place: Place = after ? { after: target } : { before: target };
+        return many(after ? moving.reverse() : moving, "move", (id) => backend.place(id, place));
+      },
+
+      moveOne: (id, to) =>
+        act(async () => {
+          await backend.place(id, to);
+          await get().reload();
+        }),
+
+      startDrag: (ids) => {
+        set({ dragging: [...ids], menu: null });
+      },
+
+      markDrop: (mark) => {
+        const now = get().dropMark;
+        if (now?.id === mark?.id && now?.edge === mark?.edge) return;
+        set({ dropMark: mark });
+      },
+
+      endDrag: () => {
+        set({ dragging: null, dropMark: null });
       },
 
       removeMany: async (ids, deleteFiles) => {

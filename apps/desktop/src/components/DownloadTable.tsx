@@ -127,6 +127,7 @@ export function DownloadTable({ title }: { title: string }) {
   }, []);
   const columns = fit(chosen, width);
   const sort = sortOf(settings);
+  const queueOrder = sort.by === "queue" ? (sort.down ? "down" : "up") : null;
   const ranks = useMemo(() => queueRanks(allItems), [allItems]);
   const tabbable = items.some((item) => item.id === selected) ? selected : (items[0]?.id ?? null);
 
@@ -153,6 +154,7 @@ export function DownloadTable({ title }: { title: string }) {
                 >
                   <button
                     type="button"
+                    title={column.id === "queue" ? "Sorted by the queue, waiting downloads move with a drag" : undefined}
                     onClick={() => {
                       void savePreference({ sort: sortText(nextSort(sort, column)) }, "the sort");
                     }}
@@ -182,6 +184,7 @@ export function DownloadTable({ title }: { title: string }) {
               columns={columns}
               rank={ranks.get(download.id)}
               tabbable={download.id === tabbable}
+              queueOrder={queueOrder}
             />
           ))}
         </tbody>

@@ -25,6 +25,8 @@ pub enum PlaceDto {
     Last,
     Up,
     Down,
+    Before(#[ts(type = "number")] i64),
+    After(#[ts(type = "number")] i64),
 }
 
 impl From<PlaceDto> for Place {
@@ -34,6 +36,8 @@ impl From<PlaceDto> for Place {
             PlaceDto::Last => Self::Last,
             PlaceDto::Up => Self::Up,
             PlaceDto::Down => Self::Down,
+            PlaceDto::Before(other) => Self::Before(DownloadId::from(other)),
+            PlaceDto::After(other) => Self::After(DownloadId::from(other)),
         }
     }
 }
@@ -1172,6 +1176,22 @@ mod tests {
                 "bytes": 1024,
                 "detail": "the server closed the connection",
             })
+        );
+    }
+
+    #[test]
+    fn a_place_crosses_as_a_word_or_a_neighbor() {
+        let place = |json: serde_json::Value| {
+            Place::from(serde_json::from_value::<PlaceDto>(json).unwrap())
+        };
+        assert_eq!(place(serde_json::json!("first")), Place::First);
+        assert_eq!(
+            place(serde_json::json!({"before": 7})),
+            Place::Before(DownloadId::from(7))
+        );
+        assert_eq!(
+            place(serde_json::json!({"after": 9})),
+            Place::After(DownloadId::from(9))
         );
     }
 

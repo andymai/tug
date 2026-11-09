@@ -672,6 +672,13 @@ describe("downloads store", () => {
     await store.getState().moveMany([id("q2.iso"), id("run.iso")], "last");
     expect(queued()).toEqual(["q3.iso", "q1.iso", "q2.iso"]);
 
+    await store.getState().moveNextTo([id("q1.iso"), id("q2.iso")], id("q3.iso"), false);
+    expect(queued()).toEqual(["q1.iso", "q2.iso", "q3.iso"]);
+    await store.getState().moveNextTo([id("q1.iso"), id("q2.iso")], id("q3.iso"), true);
+    expect(queued()).toEqual(["q3.iso", "q1.iso", "q2.iso"]);
+    await store.getState().moveOne(id("q2.iso"), "up");
+    expect(queued()).toEqual(["q3.iso", "q2.iso", "q1.iso"]);
+
     await store.getState().pauseMany([id("run.iso"), id("q1.iso")]);
     expect(paused).toEqual([id("q1.iso"), id("run.iso")]);
 
