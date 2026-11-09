@@ -1441,6 +1441,9 @@ fn unix_ms(t: SystemTime) -> u64 {
 }
 
 #[cfg(test)]
+mod contract;
+
+#[cfg(test)]
 mod tests {
     use std::time::Duration;
 

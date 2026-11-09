@@ -34,7 +34,7 @@ Run `/code-review high` on the branch, and fix what it finds before you open the
 
 - **A late answer.** An answer that arrives after the person moved on must not overwrite newer state. Keep it only if its request is still the newest and its download is still the one on screen. A field keeps text typed after its save started.
 - **Check, then act.** A check and the write that it allows happen under one lock. Between them, no `await` happens unless the run lock holds. A row that says `downloading` with no transfer in `running` still settles, so treat it as busy.
-- **The mock.** The mock refuses what Rust refuses, before it inserts a row, and it cleans up values (trims, URL cleanup) as Rust does. Its sizes and types follow a change as Rust's do.
+- **The mock.** The mock refuses what Rust refuses, before it inserts a row, and it cleans up values (trims, URL cleanup) as Rust does. Its sizes and types follow a change as Rust's do. When a check in Rust changes, add a case to `src-tauri/src/bridge/contract.rs`: `cargo test` writes the cases from Rust's own checks to `src/backend/contract`, and `contract.test.ts` runs the mock on each.
 - **Lists.** A new variant reaches every list that names the variants: command groups, tabs, error kinds, the keyboard map.
 - **Unmount.** State that a component owns (a menu, a drag, a draft) ends when the component goes.
 - **The window's thread.** A plain Tauri command runs on the window's thread. A command that reads files, starts a process or waits on the network is `async`.

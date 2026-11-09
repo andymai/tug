@@ -1,0 +1,138 @@
+[
+  {
+    "cookies": null,
+    "outcome": {
+      "ok": {
+        "hasCookies": false,
+        "referrer": null,
+        "userAgent": null
+      }
+    },
+    "referrer": null,
+    "userAgent": null
+  },
+  {
+    "cookies": " a=1 ",
+    "outcome": {
+      "ok": {
+        "hasCookies": true,
+        "referrer": "https://example.org/page?x=1",
+        "userAgent": "Mozilla/5.0"
+      }
+    },
+    "referrer": " https://u:p@example.org/page?x=1#top ",
+    "userAgent": " Mozilla/5.0 "
+  },
+  {
+    "cookies": null,
+    "outcome": {
+      "ok": {
+        "hasCookies": false,
+        "referrer": "https://example.org/",
+        "userAgent": null
+      }
+    },
+    "referrer": "https://example.org",
+    "userAgent": null
+  },
+  {
+    "cookies": "",
+    "outcome": {
+      "ok": {
+        "hasCookies": false,
+        "referrer": "http://example.org/a",
+        "userAgent": null
+      }
+    },
+    "referrer": "http://example.org/a",
+    "userAgent": "  "
+  },
+  {
+    "cookies": null,
+    "outcome": {
+      "error": "the referrer isn't a web address"
+    },
+    "referrer": "ftp://example.org/",
+    "userAgent": null
+  },
+  {
+    "cookies": null,
+    "outcome": {
+      "error": "the referrer isn't a web address"
+    },
+    "referrer": "not a page",
+    "userAgent": null
+  },
+  {
+    "cookies": "a=1\u0001",
+    "outcome": {
+      "error": "the cookies can't be sent as a header"
+    },
+    "referrer": null,
+    "userAgent": null
+  },
+  {
+    "cookies": null,
+    "outcome": {
+      "error": "the User-Agent can't be sent as a header"
+    },
+    "referrer": null,
+    "userAgent": "agent\nnext"
+  },
+  {
+    "cookies": null,
+    "outcome": {
+      "error": "the User-Agent can't be sent as a header"
+    },
+    "referrer": null,
+    "userAgent": "agent"
+  },
+  {
+    "cookies": "café=1",
+    "outcome": {
+      "ok": {
+        "hasCookies": true,
+        "referrer": null,
+        "userAgent": null
+      }
+    },
+    "referrer": null,
+    "userAgent": null
+  },
+  {
+    "cookies": "a=1;\tb=2",
+    "outcome": {
+      "ok": {
+        "hasCookies": true,
+        "referrer": null,
+        "userAgent": null
+      }
+    },
+    "referrer": null,
+    "userAgent": null
+  },
+  {
+    "cookies": "a=1; b=2",
+    "outcome": {
+      "ok": {
+        "hasCookies": true,
+        "referrer": null,
+        "userAgent": "Tug/1 (X11)"
+      }
+    },
+    "referrer": null,
+    "userAgent": "Tug/1 (X11)"
+  },
+  {
+    "cookies": null,
+    "outcome": {
+      "ok": {
+        "hasCookies": false,
+        "referrer": null,
+        "userAgent": "﻿Tug/1"
+      }
+    },
+    "referrer": null,
+    "userAgent": "﻿Tug/1"
+  }
+]
