@@ -590,4 +590,38 @@ mod tests {
         assert!(tick.error.is_some_and(|e| e.contains("events")));
         assert_eq!(library.get(id).unwrap().state, DownloadState::Done);
     }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_start_that_fails_still_settles_when_its_history_cannot_be_written() {
+        let lab = LabServer::start(Config::default()).await.unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let library = Library::open(Store::open_in_memory().unwrap())
+            .await
+            .unwrap();
+        let url = lab.url("/gen/4M/b.bin?seed=7&rate=1M").parse().unwrap();
+        let id = library.add(url, dir.path()).await.unwrap();
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let file = loop {
+            let tick = library.tick().await.unwrap();
+            let file = library.get(id).unwrap().file;
+            if let Some(file) = file.filter(|f| state_path(f).exists())
+                && tick.live.iter().any(|(_, p)| p.received > 0)
+            {
+                break file;
+            }
+            assert!(Instant::now() < deadline, "the download never started");
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        };
+        library.pause(id).await.unwrap();
+        std::fs::write(state_path(&file), "not a state file").unwrap();
+        library.tick().await.unwrap();
+        library.store().unwrap().break_events();
+
+        assert!(
+            library.resume(id).await.is_err(),
+            "the Failed event can't be saved"
+        );
+        assert_eq!(library.get(id).unwrap().state, DownloadState::Failed);
+        assert_eq!(library.tick().await.unwrap().settled, [id]);
+    }
 }
