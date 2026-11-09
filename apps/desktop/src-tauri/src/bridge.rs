@@ -408,6 +408,10 @@ impl AppState {
     pub fn subscribe(&self) -> tokio::sync::watch::Receiver<Arc<Batch>> {
         self.stream.subscribe()
     }
+
+    pub fn settled(&self) -> tokio::sync::broadcast::Receiver<DownloadId> {
+        self.stream.settled()
+    }
 }
 
 pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {

@@ -427,6 +427,24 @@ describe("notifications", () => {
     expect(await screen.findByRole("complementary", { name: done?.name ?? "" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1, name: "Settings" })).not.toBeInTheDocument();
   });
+
+  it("closes the command bar before it goes to the download", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const store = createDownloadsStore(backend);
+    render(<App store={store} />);
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    act(() => {
+      store.getState().setOverlay("commands");
+    });
+    expect(screen.getByRole("dialog", { name: "Command bar" })).toBeInTheDocument();
+    const done = (await backend.list()).find((d) => d.state === "done");
+
+    act(() => {
+      backend.focus(done?.id ?? 0);
+    });
+    expect(await screen.findByRole("complementary", { name: done?.name ?? "" })).toBeInTheDocument();
+    expect(store.getState().overlay).toBeNull();
+  });
 });
 
 describe("command bar and keyboard", () => {

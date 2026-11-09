@@ -101,3 +101,53 @@ async fn intervals_below_the_floor_are_raised_to_it() {
         started.elapsed()
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_reader_that_looks_late_still_gets_each_settled_download() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = Arc::new(
+        Library::open(Store::open_in_memory().unwrap())
+            .await
+            .unwrap(),
+    );
+    let stream = ProgressStream::spawn(
+        Arc::clone(&library),
+        StreamOptions {
+            interval: Duration::from_millis(100),
+            persist_every: 1,
+        },
+    );
+    let mut settled = stream.settled();
+    let first = library
+        .add(
+            lab.url("/gen/64K/a.bin?seed=1").parse().unwrap(),
+            dir.path(),
+        )
+        .await
+        .unwrap();
+    let second = library
+        .add(
+            lab.url("/gen/64K/b.bin?seed=2").parse().unwrap(),
+            dir.path(),
+        )
+        .await
+        .unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while [first, second]
+        .iter()
+        .any(|&id| library.get(id).unwrap().state != DownloadState::Done)
+    {
+        assert!(Instant::now() < deadline, "the downloads never finished");
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let mut seen = vec![settled.recv().await.unwrap(), settled.recv().await.unwrap()];
+    seen.sort();
+    let mut expected = vec![first, second];
+    expected.sort();
+    assert_eq!(seen, expected);
+    assert!(settled.try_recv().is_err());
+}
