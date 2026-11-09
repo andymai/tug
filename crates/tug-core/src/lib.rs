@@ -1,3 +1,4 @@
+mod category;
 mod library;
 mod origin;
 mod progress;
@@ -6,6 +7,7 @@ mod settings;
 mod store;
 mod transfer;
 
+pub use category::Category;
 pub use library::{Library, LibraryError, Tick};
 pub use origin::{Origin, OriginError};
 pub use progress::{

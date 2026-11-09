@@ -1,7 +1,21 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import type { ProgressBatch } from "./backend";
-import { createMockBackend } from "./mock";
+import type { Category, ProgressBatch } from "./backend";
+import { categoryOf, createMockBackend, EXTENSIONS } from "./mock";
+
+const CORE = readFileSync(join(import.meta.dirname, "..", "..", "..", "..", "crates", "tug-core", "src", "category.rs"), "utf8");
+const CORE_LISTS: readonly [string, Category][] = [
+  ["VIDEO", "video"],
+  ["AUDIO", "audio"],
+  ["IMAGE", "image"],
+  ["DOCUMENT", "document"],
+  ["ARCHIVE", "archive"],
+  ["PROGRAM", "program"],
+  ["DISK_IMAGE", "disk"],
+];
 
 const MB = 1 << 20;
 
@@ -99,6 +113,17 @@ describe("mock backend", () => {
     expect(await backend.search("example")).toEqual([1, 2]);
     expect(await backend.search("dora")).toEqual([]);
     expect(await backend.search(" ")).toEqual([]);
+  });
+
+  it("sorts names into the same types as tug-core", () => {
+    expect(EXTENSIONS.map(([category]) => category)).toEqual(CORE_LISTS.map(([, category]) => category));
+    for (const [constant, category] of CORE_LISTS) {
+      const list = new RegExp(`const ${constant}: &\\[&str\\] = &\\[([^\\]]*)\\];`).exec(CORE)?.[1] ?? "";
+      const extensions = [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+      expect(extensions.length, constant).toBeGreaterThan(0);
+      expect(EXTENSIONS.find(([of]) => of === category)?.[1], constant).toEqual(extensions);
+    }
+    expect(["Tug-0.23.0-x86_64.AppImage", "talk.MP4", "README", "archive."].map(categoryOf)).toEqual(["program", "video", "other", "other"]);
   });
 
   it("refuses what is not a download link, and unknown ids", async () => {

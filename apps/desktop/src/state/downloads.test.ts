@@ -37,6 +37,15 @@ describe("downloads store", () => {
     expect(visibleItems(store.getState()).map((d) => d.name)).toEqual(["fedora.iso", "blender.tar.xz", "talk.mp4"]);
   });
 
+  it("shows one type in a type view, and goes to All when an add lands outside it", async () => {
+    const { store } = await ready();
+    store.getState().setView("archive");
+    expect(visibleItems(store.getState()).map((d) => d.name)).toEqual(["blender.tar.xz", "fonts.zip"]);
+    expect(countFor(store.getState().items, "disk")).toBe(1);
+    await store.getState().addLinks(["https://example.org/new.iso"]);
+    expect(store.getState().view).toBe("all");
+  });
+
   it("puts the newest download first", async () => {
     const { backend, store } = await ready();
     await backend.add("https://example.org/new.img");

@@ -7,7 +7,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
-    Appearance, Batch, Download, DownloadId, DownloadState, Event, EventKind, Library,
+    Appearance, Batch, Category, Download, DownloadId, DownloadState, Event, EventKind, Library,
     LibraryError, Origin, Phase, Place, ProgressStream, Schedule, Settings, SlowHours, Store,
     StreamOptions, Update,
 };
@@ -70,6 +70,35 @@ impl From<DownloadState> for StateDto {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, rename = "Category")]
+pub enum CategoryDto {
+    Video,
+    Audio,
+    Image,
+    Document,
+    Archive,
+    Program,
+    Disk,
+    Other,
+}
+
+impl From<Category> for CategoryDto {
+    fn from(category: Category) -> Self {
+        match category {
+            Category::Video => Self::Video,
+            Category::Audio => Self::Audio,
+            Category::Image => Self::Image,
+            Category::Document => Self::Document,
+            Category::Archive => Self::Archive,
+            Category::Program => Self::Program,
+            Category::DiskImage => Self::Disk,
+            Category::Other => Self::Other,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, rename = "Download")]
@@ -78,6 +107,7 @@ pub struct DownloadDto {
     pub id: i64,
     pub url: String,
     pub name: String,
+    pub category: CategoryDto,
     pub dir: String,
     pub file: Option<String>,
     pub state: StateDto,
@@ -146,6 +176,7 @@ impl From<&Download> for DownloadDto {
             id: d.id.get(),
             url: d.url.to_string(),
             name: d.name(),
+            category: d.category().into(),
             dir: d.dir.to_string_lossy().into_owned(),
             file: d.file.as_ref().map(|f| f.to_string_lossy().into_owned()),
             state: d.state.into(),
@@ -1074,8 +1105,13 @@ mod tests {
             Some("/home/u/Downloads/report.pdf"),
         ));
         assert_eq!(named.name, "report.pdf");
+        assert_eq!(
+            (dto.category, named.category),
+            (CategoryDto::Disk, CategoryDto::Document)
+        );
         let bare = DownloadDto::from(&stored("https://example.org/", None));
         assert_eq!(bare.name, "example.org");
+        assert_eq!(bare.category, CategoryDto::Other);
     }
 
     #[test]

@@ -19,7 +19,8 @@ import {
   X,
 } from "lucide-react";
 
-import type { DownloadsStore, View } from "../state/downloads";
+import type { DownloadsStore, StateView } from "../state/downloads";
+import { CATEGORIES } from "./categories";
 import { focusRow } from "./dom";
 
 export interface Keys {
@@ -40,7 +41,7 @@ export interface Command {
   run: () => void;
 }
 
-const VIEW_COMMANDS: readonly { view: View; title: string; icon: LucideIcon; key: string }[] = [
+const VIEW_COMMANDS: readonly { view: StateView; title: string; icon: LucideIcon; key: string }[] = [
   { view: "all", title: "Show all downloads", icon: Layers, key: "1" },
   { view: "active", title: "Show active downloads", icon: ArrowDown, key: "2" },
   { view: "done", title: "Show finished downloads", icon: Check, key: "3" },
@@ -79,6 +80,17 @@ export function commands(store: DownloadsStore): Command[] {
         keys: { key, ctrl: true, label: ["Ctrl", key] },
         run: () => {
           state.setView(view);
+        },
+      }),
+    ),
+    ...CATEGORIES.filter((category) => state.items.some((item) => item.category === category.id)).map(
+      (category): Command => ({
+        id: `view-${category.id}`,
+        title: category.command,
+        group: "Views",
+        icon: category.icon,
+        run: () => {
+          state.setView(category.id);
         },
       }),
     ),

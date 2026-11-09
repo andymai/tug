@@ -5,24 +5,25 @@ import { useShallow } from "zustand/shallow";
 import markDark from "../../../../brand/svg/mark-dark.svg";
 import mark from "../../../../brand/svg/mark.svg";
 import { formatSpeed, sentence } from "../lib/format";
+import { CATEGORIES, isCategory } from "../lib/categories";
 import { openAt } from "../lib/schedule";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
-import { type View, visibleItems } from "../state/downloads";
+import { type StateView, type View, visibleItems } from "../state/downloads";
 import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
 import { WindowControls } from "./WindowControls";
 import { DownloadRow } from "./DownloadRow";
 
-const TITLES: Record<View, string> = {
+const TITLES: Record<StateView, string> = {
   all: "All downloads",
   active: "Active",
   done: "Done",
   failed: "Failed",
 };
 
-const EMPTY: Record<View, { title: string; body: string }> = {
+const EMPTY: Record<StateView, { title: string; body: string }> = {
   all: { title: "Nothing downloading", body: "Paste a link or drop a file here." },
   active: { title: "Nothing downloading", body: "Paste a link or drop a file here." },
   done: { title: "Nothing done yet", body: "Finished downloads show up here." },
@@ -102,8 +103,14 @@ function NoMatches() {
   );
 }
 
+const OF_A_TYPE = { title: "Nothing of this type", body: "Downloads of this type show up here." };
+
+function titleOf(view: View): string {
+  return isCategory(view) ? (CATEGORIES.find((category) => category.id === view)?.label ?? view) : TITLES[view];
+}
+
 function Empty({ view, first }: { view: View; first: boolean }) {
-  const copy = EMPTY[view];
+  const copy = isCategory(view) ? OF_A_TYPE : EMPTY[view];
   const theme = useTheme();
   return (
     <section aria-labelledby="empty-title" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
@@ -158,7 +165,7 @@ export function DownloadList() {
     <main className="@container/main flex min-w-0 flex-1 flex-col bg-surface">
       <header data-tauri-drag-region className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line px-4">
         <h1 id="list-title" data-tauri-drag-region tabIndex={-1} className="min-w-0 truncate text-title text-ink outline-none">
-          {TITLES[view]}
+          {titleOf(view)}
         </h1>
         <div className="flex min-w-0 items-center gap-4">
           <SearchField />
@@ -187,7 +194,7 @@ export function DownloadList() {
               <Empty view={view} first={total === 0} />
             )
           ) : (
-            <ul aria-label={TITLES[view]} className="flex-1 overflow-y-auto">
+            <ul aria-label={titleOf(view)} className="flex-1 overflow-y-auto">
               {items.map((download) => (
                 <DownloadRow key={download.id} download={download} selected={download.id === selected} />
               ))}
