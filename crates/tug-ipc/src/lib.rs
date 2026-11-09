@@ -22,6 +22,7 @@ const SOCKET: &str = "tug.sock";
 const TOKEN: &str = "token";
 const LOCK: &str = "lock";
 const MAX_REQUEST: u64 = 1 << 20;
+const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 #[derive(Debug, thiserror::Error)]
 pub enum IpcError {
@@ -142,7 +143,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn bind(endpoint: &Endpoint) -> Result<Self, IpcError> {
+    pub async fn bind(endpoint: &Endpoint) -> Result<Self, IpcError> {
         DirBuilder::new()
             .recursive(true)
             .mode(0o700)
@@ -161,8 +162,9 @@ impl Server {
             Err(TryLockError::Error(e)) => return Err(e.into()),
         }
         let socket = endpoint.socket();
-        if std::os::unix::net::UnixStream::connect(&socket).is_ok() {
-            return Err(IpcError::AlreadyRunning);
+        match tokio::time::timeout(PROBE_TIMEOUT, UnixStream::connect(&socket)).await {
+            Ok(Err(_)) => {}
+            Ok(Ok(_)) | Err(_) => return Err(IpcError::AlreadyRunning),
         }
         match std::fs::remove_file(&socket) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.into()),

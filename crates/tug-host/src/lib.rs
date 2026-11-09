@@ -64,15 +64,18 @@ pub struct SystemLauncher;
 
 impl Launcher for SystemLauncher {
     fn launch(&self) -> io::Result<()> {
-        let quiet = |program: &str, args: &[&str]| {
-            Process::new(program)
+        let quiet = |program: &str, args: &[&str]| -> io::Result<()> {
+            let mut child = Process::new(program)
                 .args(args)
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .process_group(0)
-                .spawn()
-                .map(drop)
+                .spawn()?;
+            std::thread::spawn(move || {
+                let _reaped = child.wait();
+            });
+            Ok(())
         };
         match quiet("tug", &[]) {
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
@@ -100,6 +103,19 @@ fn reply(id: Value, result: Result<Value, String>) -> Vec<u8> {
         Err(error) => json!({ "id": id, "ok": false, "error": error }),
     };
     serde_json::to_vec(&message).unwrap_or_default()
+}
+
+fn bounded(id: Value, result: Result<Value, String>) -> Vec<u8> {
+    let over = || Err(format!("the answer is over {MAX_REPLY} bytes"));
+    let bytes = reply(id.clone(), result);
+    if bytes.len() <= MAX_REPLY {
+        return bytes;
+    }
+    let bytes = reply(id, over());
+    if bytes.len() <= MAX_REPLY {
+        return bytes;
+    }
+    reply(Value::Null, over())
 }
 
 impl<L: Launcher> Host<L> {
@@ -171,22 +187,19 @@ impl<L: Launcher> Host<L> {
     }
 
     pub async fn answer(&self, body: &[u8]) -> Vec<u8> {
-        let message = match serde_json::from_slice::<Message>(body) {
-            Ok(message) => message,
+        match serde_json::from_slice::<Message>(body) {
+            Ok(message) => {
+                let result = self.result(message.command).await;
+                bounded(message.id, result)
+            }
             Err(e) => {
                 let id = serde_json::from_slice::<Value>(body)
                     .ok()
                     .and_then(|v| v.get("id").cloned())
                     .unwrap_or(Value::Null);
-                return reply(id, Err(format!("Tug can't read this message: {e}")));
+                bounded(id, Err(format!("Tug can't read this message: {e}")))
             }
-        };
-        let id = message.id.clone();
-        let bytes = reply(message.id, self.result(message.command).await);
-        if bytes.len() > MAX_REPLY {
-            return reply(id, Err(format!("the answer is over {MAX_REPLY} bytes")));
         }
-        bytes
     }
 
     pub fn run(

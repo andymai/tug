@@ -76,7 +76,7 @@ pub fn claim() -> Claim {
     let Ok(endpoint) = Endpoint::from_env() else {
         return Claim::Unavailable;
     };
-    match tauri::async_runtime::block_on(async { Server::bind(&endpoint) }) {
+    match tauri::async_runtime::block_on(Server::bind(&endpoint)) {
         Ok(server) => Claim::Owned(server),
         Err(IpcError::AlreadyRunning) => Claim::Taken,
         Err(_) => Claim::Unavailable,

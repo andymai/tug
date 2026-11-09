@@ -51,7 +51,7 @@ fn mode(path: &std::path::Path) -> u32 {
 #[tokio::test]
 async fn a_client_with_the_token_gets_answers() {
     let (_dir, endpoint) = endpoint();
-    let server = Server::bind(&endpoint).unwrap();
+    let server = Server::bind(&endpoint).await.unwrap();
     tokio::spawn(server.serve(Arc::new(Fake)));
 
     let mut client = Client::connect(&endpoint).await.unwrap();
@@ -75,7 +75,7 @@ async fn a_client_with_the_token_gets_answers() {
 #[tokio::test]
 async fn files_are_private_to_the_user() {
     let (_dir, endpoint) = endpoint();
-    let _server = Server::bind(&endpoint).unwrap();
+    let _server = Server::bind(&endpoint).await.unwrap();
     assert_eq!(mode(endpoint.socket().parent().unwrap()), 0o700);
     assert_eq!(mode(&endpoint.socket()), 0o600);
     assert_eq!(mode(&endpoint.token_path()), 0o600);
@@ -90,7 +90,7 @@ async fn files_are_private_to_the_user() {
 #[tokio::test]
 async fn a_wrong_token_or_a_bad_line_is_refused() {
     let (_dir, endpoint) = endpoint();
-    let server = Server::bind(&endpoint).unwrap();
+    let server = Server::bind(&endpoint).await.unwrap();
     tokio::spawn(server.serve(Arc::new(Fake)));
 
     let stream = tokio::net::UnixStream::connect(endpoint.socket())
@@ -112,9 +112,9 @@ async fn a_wrong_token_or_a_bad_line_is_refused() {
 #[tokio::test]
 async fn a_second_server_finds_the_first_and_a_stale_socket_is_replaced() {
     let (_dir, endpoint) = endpoint();
-    let first = Server::bind(&endpoint).unwrap();
+    let first = Server::bind(&endpoint).await.unwrap();
     assert!(matches!(
-        Server::bind(&endpoint),
+        Server::bind(&endpoint).await,
         Err(IpcError::AlreadyRunning)
     ));
     let old_token = std::fs::read_to_string(endpoint.token_path()).unwrap();
@@ -124,7 +124,7 @@ async fn a_second_server_finds_the_first_and_a_stale_socket_is_replaced() {
         endpoint.socket().exists(),
         "the socket file outlives its server"
     );
-    let server = Server::bind(&endpoint).unwrap();
+    let server = Server::bind(&endpoint).await.unwrap();
     tokio::spawn(server.serve(Arc::new(Fake)));
     assert_ne!(
         std::fs::read_to_string(endpoint.token_path()).unwrap(),
@@ -140,11 +140,11 @@ async fn a_live_socket_without_the_lock_still_counts_as_running() {
     std::fs::create_dir_all(endpoint.socket().parent().unwrap()).unwrap();
     let older = tokio::net::UnixListener::bind(endpoint.socket()).unwrap();
     assert!(matches!(
-        Server::bind(&endpoint),
+        Server::bind(&endpoint).await,
         Err(IpcError::AlreadyRunning)
     ));
     drop(older);
-    assert!(Server::bind(&endpoint).is_ok());
+    assert!(Server::bind(&endpoint).await.is_ok());
 }
 
 #[tokio::test]
@@ -156,11 +156,11 @@ async fn connecting_without_a_server_fails() {
 #[tokio::test]
 async fn a_losing_server_leaves_the_token_alone() {
     let (_dir, endpoint) = endpoint();
-    let server = Server::bind(&endpoint).unwrap();
+    let server = Server::bind(&endpoint).await.unwrap();
     tokio::spawn(server.serve(Arc::new(Fake)));
     let token = std::fs::read_to_string(endpoint.token_path()).unwrap();
     assert!(matches!(
-        Server::bind(&endpoint),
+        Server::bind(&endpoint).await,
         Err(IpcError::AlreadyRunning)
     ));
     assert_eq!(
@@ -174,7 +174,7 @@ async fn a_losing_server_leaves_the_token_alone() {
 #[tokio::test]
 async fn each_request_gets_its_own_size_limit() {
     let (_dir, endpoint) = endpoint();
-    let server = Server::bind(&endpoint).unwrap();
+    let server = Server::bind(&endpoint).await.unwrap();
     tokio::spawn(server.serve(Arc::new(Fake)));
 
     let mut client = Client::connect(&endpoint).await.unwrap();
