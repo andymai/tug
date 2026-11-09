@@ -1,0 +1,19 @@
+apps/desktop/src/components/DownloadTable.tsx
+  s_b321718d129a1e::t_28fc4d292bac35 107,109-110,114,116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "24c797e5a3ba4d4f5a8ffe4705ea53249f3bb7ab",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
