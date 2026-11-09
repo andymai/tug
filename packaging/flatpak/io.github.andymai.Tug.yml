@@ -1,0 +1,46 @@
+id: io.github.andymai.Tug
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node24
+command: tug
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=xdg-download
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.FileManager1
+modules:
+  - name: tug
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node24/bin
+      # Our own release bundle, not Flathub: the build fetches crates and npm
+      # packages instead of vendoring them.
+      build-args:
+        - --share=network
+      env:
+        CARGO_HOME: /run/build/tug/cargo
+        npm_config_cache: /run/build/tug/npm
+        npm_config_store_dir: /run/build/tug/pnpm-store
+        HUSKY: "0"
+    build-commands:
+      - npm install --prefix /run/build/tug/tools pnpm@11.28.8
+      - /run/build/tug/tools/node_modules/.bin/pnpm install --frozen-lockfile
+      - /run/build/tug/tools/node_modules/.bin/pnpm --filter @tug/desktop build
+      - cargo build --release --locked -p tug-desktop --features tauri/custom-protocol
+      - install -Dm755 target/release/tug /app/bin/tug
+      - scripts/install-data.sh /app
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - target
+          - node_modules
+          - apps/desktop/node_modules
+          - apps/desktop/dist

@@ -46,6 +46,8 @@ The tray, off the screen: with the dev server running, run `scripts/tray/check.s
 
 The AppImage: `.github/workflows/appimage.yml` builds it on ubuntu-22.04 for each release tag (release-please calls it) and on pull requests that touch packaging, then runs it off the screen before it uploads. To build one locally, run `pnpm --filter @tug/desktop build` on the host, then in the container run `./node_modules/.bin/tauri build --bundles appimage -c '{"build":{"beforeBuildCommand":""}}'` from `apps/desktop` (it compiles the release binary, then bundles it) with `PATH` limited to cargo, node and `/usr/bin`: linuxdeploy's GTK plugin takes linuxbrew's glib from `PATH` and fails.
 
+The Flatpak: `packaging/flatpak/io.github.andymai.Tug.yml` builds from source on the GNOME 51 runtime, which still ships `webkit2gtk-4.1`, with the Rust and Node SDK extensions and network during the build. That suits our own release bundle, but Flathub needs vendored sources. `.github/workflows/flatpak.yml` builds it in Flathub's builder image for each release tag and on pull requests that touch packaging. In the sandbox the tray registers under its unique bus name, because a Flatpak can't own `org.kde.StatusNotifierItem-*`.
+
 CI (`.github/workflows/ci.yml`) runs all of these behind the `CI Pass` gate. Commits and PR titles are conventional commits; release-please cuts releases from them.
 
 ## Engine tests

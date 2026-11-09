@@ -417,7 +417,8 @@ pub fn spawn<R: Runtime>(
             return;
         }
         let tray = TugTray::new(app.clone(), icons, Arc::clone(&library));
-        if let Ok(handle) = tray.spawn().await {
+        let sandboxed = Path::new("/.flatpak-info").exists();
+        if let Ok(handle) = tray.disable_dbus_name(sandboxed).spawn().await {
             app.state::<TrayState<R>>().set(handle);
             follow(app, library, batches);
         }
