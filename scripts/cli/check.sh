@@ -5,6 +5,9 @@ set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 work=$(mktemp -d)
 mkdir -m 700 "$work/runtime"
+# Tug's default folder comes from user-dirs.dirs; without one it is the real ~/Downloads.
+mkdir -p "$work/config" "$work/downloads"
+printf 'XDG_DOWNLOAD_DIR="%s"\n' "$work/downloads" > "$work/config/user-dirs.dirs"
 cd "$repo"
 RUSTFLAGS="" PKG_CONFIG=/usr/bin/pkg-config cargo build -p tug-desktop --quiet
 
@@ -16,9 +19,17 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     visible() { xdotool search --onlyvisible --name "^Tug$" 2>/dev/null | wc -l; }
     tug=./target/debug/tug
     dir="$XDG_RUNTIME_DIR/app/io.github.andymai.Tug.Devel"
+    binary=$(readlink -f "$tug")
+    ours() {
+      for p in /proc/[0-9]*; do
+        [ "$(readlink -f "$p/exe" 2>/dev/null)" = "$binary" ] || continue
+        tr "\0" "\n" < "$p/environ" 2>/dev/null | grep -qx "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" && echo "${p#/proc/}"
+      done
+      return 0
+    }
 
     /usr/bin/python3 scripts/tray/slow_server.py 8766 & server=$!
-    trap "kill \$(pidof tug) $server 2>/dev/null || true" EXIT
+    trap "kill \$(ours) $server 2>/dev/null || true" EXIT
 
     expect "tug add starts Tug and adds" "$($tug add http://127.0.0.1:8766/big.bin)" "Added big.bin"
     expect "socket folder" "$(stat -c %a "$dir")" 700
@@ -40,9 +51,9 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     status=0; timeout 10 $tug || status=$?
     expect "a second tug hands off and exits" "$status" 0
     expect "still one window" "$(visible)" 1
-    expect "still one Tug" "$(pidof tug | wc -w)" 1
+    expect "still one Tug" "$(ours | wc -l)" 1
 
-    kill -9 $(pidof tug)
+    kill -9 $(ours)
     sleep 1
     [ -S "$dir/tug.sock" ] || fail "the socket file should outlive a killed Tug"
     status=0; out=$($tug list 2>&1) || status=$?
@@ -51,5 +62,15 @@ env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS GDK_BACKEND=x11 GSETTINGS_BAC
     $tug > /dev/null 2>&1 &
     for _ in $(seq 1 40); do $tug list > /dev/null 2>&1 && break; sleep 0.5; done
     case "$($tug list)" in *" big.bin") echo "ok: a new Tug replaces the stale socket";; *) fail "after restart: $($tug list)";; esac
+
+    kill $(ours)
+    for _ in $(seq 1 20); do [ -z "$(ours)" ] && break; sleep 0.5; done
+    $tug > /dev/null 2>&1 &
+    $tug > /dev/null 2>&1 &
+    for _ in $(seq 1 40); do $tug list > /dev/null 2>&1 && break; sleep 0.5; done
+    sleep 6
+    expect "two launches at once leave one Tug" "$(ours | wc -l)" 1
+    case "$($tug list)" in *" big.bin") echo "ok: and it answers";; *) fail "after the race: $($tug list)";; esac
   '
-rm -rf "$work"
+# A Tug that is still stopping can write into $work for a moment.
+for _ in 1 2 3 4 5; do rm -rf "$work" 2>/dev/null && break; sleep 1; done

@@ -11,7 +11,7 @@ Design tokens: `design/tokens.json`. Brand sources: `brand/`.
 | `crates/tug-core` | The app layer: transfers, the library, queues, settings, SQLite persistence | `mdm-*` crates, std, crates.io |
 | `apps/desktop` | React 19 UI (Vite, Tailwind 4, TypeScript) | the design tokens |
 | `apps/desktop/src-tauri` | Tauri 2 shell, crate `tug-desktop`, binary `tug` | `tug-core`, never `mdm-*` |
-| `crates/tug-ipc` | The local socket: one Tug per session, `tug add` and `tug list`, the browser host. JSON lines over a Unix socket in `$XDG_RUNTIME_DIR/app/io.github.andymai.Tug/` (`…Tug.Devel/` for debug builds) with a 0600 token | std, serde, tokio |
+| `crates/tug-ipc` | The local socket: one Tug per session, `tug add` and `tug list`, the browser host. JSON lines over a Unix socket in `$XDG_RUNTIME_DIR/app/io.github.andymai.Tug/` (`…Tug.Devel/` for debug builds) with a 0600 token; a lock file decides which Tug owns it | std, serde, thiserror, tokio |
 | `crates/tug-host` (planned) | Browser native messaging host | `tug-ipc` |
 | `design/tokens.json` | The design system's tokens; `scripts/gen-tokens.py` writes `apps/desktop/src/styles/tokens.css` (CSS variables, Tailwind `@theme`, `.text-*` type styles) | nothing |
 | `brand/` | Mark, icons, wordmark: `build.py` draws every SVG, `export.sh` renders PNGs | nothing |

@@ -12,12 +12,23 @@ fn main() -> Result<ExitCode, tauri::Error> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match cli::parse(&args) {
         cli::Command::Open => {
-            if cli::hand_off() {
+            if cli::hand_off(false) {
                 return Ok(ExitCode::SUCCESS);
             }
         }
         command => return Ok(cli::run(command)),
     }
+    let server = match ipc::claim() {
+        ipc::Claim::Owned(server) => Some(server),
+        ipc::Claim::Taken => {
+            return Ok(if cli::hand_off(true) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            });
+        }
+        ipc::Claim::Unavailable => None,
+    };
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(tray::TrayState::<tauri::Wry>::default())
@@ -30,7 +41,9 @@ fn main() -> Result<ExitCode, tauri::Error> {
                 state.library(),
                 state.subscribe(),
             );
-            ipc::serve(app.handle(), state.library());
+            if let Some(server) = server {
+                ipc::serve(app.handle(), state.library(), server);
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
