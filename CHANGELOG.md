@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.2](https://github.com/andymai/tug/compare/v0.37.1...v0.37.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **desktop:** one helper keeps the newest panel answer, and one hook keeps newer edits ([#152](https://github.com/andymai/tug/issues/152)) ([47a5922](https://github.com/andymai/tug/commit/47a5922bc5b1163a3c5a42f22b36d059d2c39bae))
+
 ## [0.37.1](https://github.com/andymai/tug/compare/v0.37.0...v0.37.1) (2026-11-09)
 
 
