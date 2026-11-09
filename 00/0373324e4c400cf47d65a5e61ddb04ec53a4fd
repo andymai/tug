@@ -1,0 +1,32 @@
+.husky/pre-commit
+  s_b321718d129a1e::t_f99593175a0451 22
+apps/desktop/src/lib/covering.test.ts
+  s_b321718d129a1e::t_f99593175a0451 19-24
+apps/desktop/src/lib/covering.ts
+  s_b321718d129a1e::t_f99593175a0451 10-11,18,22
+.github/workflows/ci.yml
+  s_b321718d129a1e::t_f99593175a0451 111
+.gitignore
+  s_b321718d129a1e::t_f99593175a0451 7
+scripts/test_check_commands.py
+  s_b321718d129a1e::t_ecf7a1eb1cec9f 1-44,47-71
+  s_b321718d129a1e::t_987a42bedcb210 45-46
+scripts/check-commands.py
+  s_b321718d129a1e::t_987a42bedcb210 19-36,40-41,47,50-56,59,61,85-86,88-89,94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "000373324e4c400cf47d65a5e61ddb04ec53a4fd",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
