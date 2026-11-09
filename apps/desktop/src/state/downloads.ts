@@ -68,7 +68,7 @@ export interface DownloadsState {
   page: Page;
   adding: Adding;
   fresh: number[];
-  history: { id: number; events: DownloadEvent[] } | null;
+  history: { id: number; data: DownloadEvent[] } | null;
   inspection: { id: number; data: Inspection | null } | null;
   inspectorTab: InspectorTab;
   overlay: Overlay;
@@ -159,6 +159,9 @@ export type Overlay = "commands" | "shortcuts" | null;
 
 export type InspectorTab = "overview" | "connections" | "log" | "files" | "peers";
 
+type Slot = "history" | "inspection" | "torrent" | "headers";
+type SlotData<K extends Slot> = NonNullable<DownloadsState[K]>["data"];
+
 export type Page = "downloads" | "settings";
 
 export interface Adding {
@@ -175,14 +178,39 @@ export type DownloadsStore = ReturnType<typeof createDownloadsStore>;
 
 export function createDownloadsStore(backend: Backend) {
   return createStore<DownloadsState>()((set, get) => {
-    let historyRequest = 0;
     // Where a Shift-click or Shift+arrow range starts.
     let anchor: number | null = null;
     let disk: Promise<void> | null = null;
     let diskAsked = 0;
-    let inspectRequest = 0;
-    let torrentRequest = 0;
-    let headersRequest = 0;
+    const newest: Record<Slot, number> = { history: 0, inspection: 0, torrent: 0, headers: 0 };
+
+    // The newest answer for the download on screen. An older answer, or one for a
+    // download the panel no longer shows, goes nowhere, failures too; a removed
+    // download is quiet. Every panel load goes through here (ESLint refuses others).
+    const loadSlot = async <K extends Slot>(slot: K, id: number, ask: () => Promise<SlotData<K>>) => {
+      const request = ++newest[slot];
+      const current = () => request === newest[slot] && shownId(get()) === id;
+      try {
+        const data = await ask();
+        if (current()) set({ [slot]: { id, data } } as Pick<DownloadsState, K>);
+      } catch (error) {
+        const failure = BackendError.from(error);
+        if (current() && failure.kind !== "notFound") set({ notice: failure.message });
+      }
+    };
+    const newestSave: Record<Slot, number> = { history: 0, inspection: 0, torrent: 0, headers: 0 };
+    // A save's answer replaces the slot only if no later save started, and only for
+    // the download on screen; only then it outdates a load on its way, so another
+    // download's load goes on.
+    const saveSlot = async <K extends Slot>(slot: K, id: number, ask: () => Promise<SlotData<K>>) => {
+      const save = ++newestSave[slot];
+      const data = await ask();
+      if (save === newestSave[slot] && shownId(get()) === id) {
+        ++newest[slot];
+        set({ [slot]: { id, data } } as Pick<DownloadsState, K>);
+      }
+      return data;
+    };
 
     // One by one, then one reload, and one notice for what failed.
     const many = async (order: readonly Download[], verb: string, action: (id: number) => Promise<void>) => {
@@ -694,41 +722,15 @@ export function createDownloadsStore(backend: Backend) {
 
       showInFolder: (id) => act(() => backend.showInFolder(id)),
 
-      loadHistory: (id) =>
-        act(async () => {
-          const request = ++historyRequest;
-          const events = await backend.events(id);
-          if (request === historyRequest && shownId(get()) === id) set({ history: { id, events } });
-        }),
+      loadHistory: (id) => loadSlot("history", id, () => backend.events(id)),
 
-      inspect: async (id) => {
-        const request = ++inspectRequest;
-        try {
-          const data = await backend.inspect(id);
-          if (request === inspectRequest && shownId(get()) === id) set({ inspection: { id, data } });
-        } catch (error) {
-          const failure = BackendError.from(error);
-          // A download removed between two polls; its panel closes with it.
-          if (failure.kind !== "notFound") set({ notice: failure.message });
-        }
-      },
+      inspect: (id) => loadSlot("inspection", id, () => backend.inspect(id)),
 
-      loadTorrent: async (id) => {
-        const request = ++torrentRequest;
-        try {
-          const data = await backend.torrentView(id);
-          if (request === torrentRequest && shownId(get()) === id) set({ torrent: { id, data } });
-        } catch (error) {
-          const failure = BackendError.from(error);
-          if (failure.kind !== "notFound") set({ notice: failure.message });
-        }
-      },
+      loadTorrent: (id) => loadSlot("torrent", id, () => backend.torrentView(id)),
 
       chooseFiles: async (id, files) => {
         try {
-          const data = await backend.chooseFiles(id, files);
-          ++torrentRequest;
-          if (shownId(get()) === id) set({ torrent: { id, data } });
+          await saveSlot("torrent", id, () => backend.chooseFiles(id, files));
           await get().reload();
         } catch (error) {
           set({ notice: `couldn't choose the files: ${BackendError.from(error).message}` });
@@ -811,23 +813,11 @@ export function createDownloadsStore(backend: Backend) {
         }
       },
 
-      loadHeaders: async (id) => {
-        const request = ++headersRequest;
-        try {
-          const data = await backend.headers(id);
-          if (request === headersRequest) set({ headers: { id, data } });
-        } catch (error) {
-          const failure = BackendError.from(error);
-          if (failure.kind !== "notFound") set({ notice: failure.message });
-        }
-      },
+      loadHeaders: (id) => loadSlot("headers", id, () => backend.headers(id)),
 
       setHeaders: async (id, referrer, cookies, userAgent) => {
         try {
-          const data = await backend.setHeaders(id, referrer, cookies, userAgent);
-          // Only the shown download's; another's load stays as it was.
-          if (get().headers?.id === id) set({ headers: { id, data } });
-          return data;
+          return await saveSlot("headers", id, () => backend.setHeaders(id, referrer, cookies, userAgent));
         } catch (error) {
           set({ notice: `couldn't change the headers: ${BackendError.from(error).message}` });
           return null;

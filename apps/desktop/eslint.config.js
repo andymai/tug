@@ -26,4 +26,24 @@ export default defineConfig([
       },
     },
   },
+  {
+    // Outside `loadSlot` and `saveSlot`, a panel answer could land for a download no longer shown.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/backend/**", "**/*.test.*", "**/*.visual.*"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression[callee.object.name='backend'][callee.property.name=/^(events|inspect|headers|torrentView)$/]:not(CallExpression[callee.name='loadSlot'] > ArrowFunctionExpression > CallExpression)",
+          message: "Load a panel slot through loadSlot() in the store, which drops a late answer.",
+        },
+        {
+          selector:
+            "CallExpression:matches([callee.name='set'], [callee.property.name='setState']) ObjectExpression > Property[key.name=/^(history|inspection|torrent|headers)$/]",
+          message: "Write a panel slot through loadSlot() or saveSlot(), which check the download on screen.",
+        },
+      ],
+    },
+  },
 ]);

@@ -6,6 +6,7 @@ import { clock, minutesOf, sentence, shortDir } from "../lib/format";
 import { siteOf } from "../lib/sites";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
+import { useDraft } from "../state/draft";
 import { Button } from "./Button";
 import { WindowControls } from "./WindowControls";
 
@@ -128,23 +129,28 @@ function AppearanceChoice({ value, onChange }: { value: Appearance; onChange: (v
   );
 }
 
-function LimitRow({ label, description, bytes, onChange }: { label: string; description: string; bytes: number; onChange: (bytes: number) => void }) {
+function LimitRow({ label, description, bytes, onChange }: { label: string; description: string; bytes: number; onChange: (bytes: number) => Promise<boolean> }) {
   const fieldId = useId();
-  const [draft, setDraft] = useState(formatLimit(bytes));
+  const draft = useDraft(formatLimit(bytes));
   const [problem, setProblem] = useState<string | null>(null);
 
   const commit = () => {
-    if (draft === formatLimit(bytes)) {
+    if (draft.text === formatLimit(bytes)) {
       setProblem(null);
       return;
     }
-    const value = Number(draft.replace(",", "."));
+    const value = Number(draft.text.replace(",", "."));
     if (!Number.isFinite(value) || value <= 0) {
       setProblem("Enter a speed above zero.");
       return;
     }
     setProblem(null);
-    onChange(Math.round(value * MB));
+    const save = draft.commit();
+    const next = Math.round(value * MB);
+    void onChange(next).then((saved) => {
+      if (saved) save.saved(formatLimit(next));
+      else save.failed();
+    });
   };
 
   return (
@@ -157,10 +163,10 @@ function LimitRow({ label, description, bytes, onChange }: { label: string; desc
           <input
             id={fieldId}
             inputMode="decimal"
-            value={draft}
+            value={draft.text}
             aria-invalid={problem !== null}
             onChange={(event) => {
-              setDraft(event.target.value);
+              draft.edit(event.target.value);
             }}
             onBlur={commit}
             onKeyDown={(event) => {
@@ -175,7 +181,7 @@ function LimitRow({ label, description, bytes, onChange }: { label: string; desc
   );
 }
 
-function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>) => void }) {
+function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>) => Promise<boolean> }) {
   return (
     <>
       <Row
@@ -186,7 +192,7 @@ function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Part
             label="Limit download speed"
             checked={settings.speedLimit !== null}
             onChange={(on) => {
-              save({ speedLimit: on ? DEFAULT_LIMIT : null });
+              void save({ speedLimit: on ? DEFAULT_LIMIT : null });
             }}
           />
         }
@@ -196,9 +202,7 @@ function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Part
           label="Speed limit"
           description="Shared by every download."
           bytes={settings.speedLimit}
-          onChange={(speedLimit) => {
-            save({ speedLimit });
-          }}
+          onChange={(speedLimit) => save({ speedLimit })}
         />
       )}
     </>
@@ -343,7 +347,7 @@ function Hours({ schedule, save }: { schedule: Schedule | null; save: (patch: Pa
   );
 }
 
-function SlowerHours({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>) => void }) {
+function SlowerHours({ settings, save }: { settings: Settings; save: (patch: Partial<Settings>) => Promise<boolean> }) {
   const slow = settings.slowHours;
   return (
     <>
@@ -355,7 +359,7 @@ function SlowerHours({ settings, save }: { settings: Settings; save: (patch: Par
             label="Slower at set hours"
             checked={slow !== null}
             onChange={(on) => {
-              save({ slowHours: on ? { limit: SLOW_LIMIT, hours: WORKDAYS } : null });
+              void save({ slowHours: on ? { limit: SLOW_LIMIT, hours: WORKDAYS } : null });
             }}
           />
         }
@@ -366,15 +370,13 @@ function SlowerHours({ settings, save }: { settings: Settings; save: (patch: Par
             label="Slower limit"
             description="When both limits apply, the lower one holds."
             bytes={slow.limit}
-            onChange={(limit) => {
-              save({ slowHours: { ...slow, limit } });
-            }}
+            onChange={(limit) => save({ slowHours: { ...slow, limit } })}
           />
           <HoursRows
             schedule={slow.hours}
             names={{ hours: "Slower hours", until: "Slower until", days: "Slower days", during: "The lower limit holds from the first time until the second." }}
             onChange={(hours) => {
-              save({ slowHours: { ...slow, hours } });
+              void save({ slowHours: { ...slow, hours } });
             }}
           />
         </>
@@ -524,8 +526,8 @@ export function SettingsPage() {
               <h2 id="settings-speed" className="pb-1 text-label text-ink-muted">
                 Speed
               </h2>
-              <SpeedLimit settings={settings} save={save} />
-              <SlowerHours settings={settings} save={save} />
+              <SpeedLimit settings={settings} save={saveSettings} />
+              <SlowerHours settings={settings} save={saveSettings} />
             </section>
             <section aria-labelledby="settings-schedule">
               <h2 id="settings-schedule" className="pb-1 text-label text-ink-muted">

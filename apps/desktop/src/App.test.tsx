@@ -732,6 +732,43 @@ describe("detail panel", () => {
     expect(peers.getByText(/Sent to peers/)).toBeInTheDocument();
   });
 
+  it("saves the old referrer again when it comes back during a save", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const answers: (() => void)[] = [];
+    let slow = true;
+    // Tug takes saves in order and only the reply is late, as with Tauri's commands.
+    const shown = {
+      ...backend,
+      setHeaders: (...args: Parameters<typeof backend.setHeaders>) => {
+        const reply = backend.setHeaders(...args);
+        return slow
+          ? new Promise<Awaited<typeof reply>>((resolve) => {
+              answers.push(() => {
+                resolve(reply);
+              });
+            })
+          : reply;
+      },
+    };
+    const sent = vi.spyOn(shown, "setHeaders");
+    render(<App store={createDownloadsStore(shown)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }));
+    const headers = within(await screen.findByRole("region", { name: "Headers" }));
+    await user.type(headers.getByRole("textbox", { name: "Referrer" }), "https://x.example/{Enter}");
+    await user.clear(headers.getByRole("textbox", { name: "Referrer" }));
+    slow = false;
+    await user.type(headers.getByRole("textbox", { name: "Referrer" }), "{Enter}");
+    expect(sent, "back to empty while the first save waits: a second save").toHaveBeenCalledTimes(2);
+    expect(sent).toHaveBeenLastCalledWith(expect.any(Number), null, { kind: "keep" }, null);
+    await act(async () => {
+      answers.shift()?.();
+      await Promise.resolve();
+    });
+    expect(headers.getByRole("textbox", { name: "Referrer" }), "the first save's late answer is outdated").toHaveValue("");
+    expect((await backend.headers((await backend.list()).find((d) => d.name === "blender-5.1-linux-x64.tar.xz")?.id ?? -1)).referrer).toBeNull();
+  });
+
   it("closes with its button and with Escape", async () => {
     const { user } = open();
     const row = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
@@ -1595,6 +1632,38 @@ describe("settings page", () => {
     await user.click(screen.getByRole("button", { name: "More connections" }));
     expect(screen.getByRole("group", { name: "Connections" })).toHaveTextContent("10");
     expect((await backend.settings()).connections).toBe(10);
+  });
+
+  it("shows a speed limit that changes elsewhere while Settings is open", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    await backend.updateSettings({ ...(await backend.settings()), speedLimit: 2 * MB });
+    const store = createDownloadsStore(backend);
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    const field = screen.getByRole("textbox", { name: "Speed limit" });
+    expect(field).toHaveValue("2");
+    await act(() => store.getState().saveSettings({ speedLimit: 5 * MB }));
+    expect(field).toHaveValue("5");
+  });
+
+  it("keeps a typed speed limit when Tug can't save it, so Enter tries again", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    await backend.updateSettings({ ...(await backend.settings()), speedLimit: 10 * MB });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    vi.spyOn(backend, "updateSettings").mockRejectedValueOnce(new BackendError("storage", "the disk is full"));
+    const field = screen.getByRole("textbox", { name: "Speed limit" });
+    await user.clear(field);
+    await user.type(field, "20{Enter}");
+    expect(await screen.findByText("The disk is full")).toBeInTheDocument();
+    expect(field).toHaveValue("20");
+    expect((await backend.settings()).speedLimit).toBe(10 * MB);
+
+    await user.type(field, "{Enter}");
+    expect((await backend.settings()).speedLimit).toBe(20 * MB);
+    expect(field).toHaveValue("20");
   });
 
   it("limits speed with a switch and a field that refuses zero", async () => {

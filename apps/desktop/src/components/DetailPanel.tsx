@@ -19,6 +19,7 @@ import { limitText, type Parsed, parseConnections, parseLimit } from "../lib/opt
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
 import { canRename, chosen, modalOpen, single } from "../state/downloads";
+import { useDraft } from "../state/draft";
 import { Button } from "./Button";
 import { ConnectionsPanel, FilesPanel, HTTP_TABS, InspectorTabs, LogPanel, PeersPanel, tabIds, TORRENT_TABS, useInspection, useTorrentView } from "./Inspector";
 
@@ -48,7 +49,7 @@ function describeEvent(event: DownloadEvent): { text: string; bytes: string | nu
 }
 
 function History({ id, state, revision }: { id: number; state: Download["state"]; revision: string }) {
-  const history = useDownloads((s) => (s.history?.id === id ? s.history.events : null));
+  const history = useDownloads((s) => (s.history?.id === id ? s.history.data : null));
   const loadHistory = useDownloads((s) => s.loadHistory);
 
   useEffect(() => {
@@ -134,9 +135,14 @@ function NameEditor({ download }: { download: Download }) {
 // a referrer up) only if nobody typed in it since the save began.
 function HeaderFields({ download, headers }: { download: Download; headers: Headers }) {
   const setHeaders = useDownloads((s) => s.setHeaders);
-  const [referrer, setReferrer] = useState(headers.referrer ?? "");
-  const [userAgent, setUserAgent] = useState(headers.userAgent ?? "");
+  const referrerDraft = useDraft(headers.referrer ?? "");
+  const userAgentDraft = useDraft(headers.userAgent ?? "");
+  const referrer = referrerDraft.text;
+  const userAgent = userAgentDraft.text;
   const [cookie, setCookie] = useState({ text: "", replacing: !headers.hasCookies });
+  // While a save is on its way, `headers` is older than what Tug will hold, so
+  // text that matches it may still differ from the last save.
+  const [pending, setPending] = useState(0);
   const cookies = cookie.text;
   const replacing = cookie.replacing;
   const headingId = useId();
@@ -148,11 +154,19 @@ function HeaderFields({ download, headers }: { download: Download; headers: Head
   const commit = (change: CookiesChange = { kind: "keep" }) => {
     const sent = { referrer: plain(referrer), userAgent: plain(userAgent) };
     const same = sent.referrer === headers.referrer && sent.userAgent === headers.userAgent;
-    if (same && change.kind === "keep") return;
+    if (same && change.kind === "keep" && pending === 0) return;
+    const referrerSave = referrerDraft.commit();
+    const userAgentSave = userAgentDraft.commit();
+    setPending((n) => n + 1);
     void setHeaders(download.id, sent.referrer, change, sent.userAgent).then((saved) => {
-      if (saved === null) return;
-      setReferrer((now) => (plain(now) === sent.referrer ? (saved.referrer ?? "") : now));
-      setUserAgent((now) => (plain(now) === sent.userAgent ? (saved.userAgent ?? "") : now));
+      setPending((n) => n - 1);
+      if (saved === null) {
+        referrerSave.failed();
+        userAgentSave.failed();
+        return;
+      }
+      referrerSave.saved(saved.referrer ?? "");
+      userAgentSave.saved(saved.userAgent ?? "");
       if (change.kind === "clear") setCookie((now) => ({ ...now, replacing: true }));
       if (change.kind === "set") setCookie((now) => (now.text.trim() === change.value ? { text: "", replacing: false } : now));
     });
@@ -181,7 +195,7 @@ function HeaderFields({ download, headers }: { download: Download; headers: Head
           value={referrer}
           placeholder="None"
           onChange={(event) => {
-            setReferrer(event.target.value);
+            referrerDraft.edit(event.target.value);
           }}
           onBlur={() => {
             commit();
@@ -240,7 +254,7 @@ function HeaderFields({ download, headers }: { download: Download; headers: Head
           value={userAgent}
           placeholder="Tug's own"
           onChange={(event) => {
-            setUserAgent(event.target.value);
+            userAgentDraft.edit(event.target.value);
           }}
           onBlur={() => {
             commit();
@@ -275,16 +289,12 @@ const countText = (count: number | null) => (count === null ? "" : String(count)
 function OwnOptions({ download }: { download: Download }) {
   const tug = useDownloads((s) => s.settings?.connections ?? null);
   const setOptions = useDownloads((s) => s.setOptions);
-  const [connections, setConnections] = useState(countText(download.connections));
-  const [limit, setLimit] = useState(limitText(download.speedLimit));
-  const [stored, setStored] = useState({ connections: download.connections, speedLimit: download.speedLimit });
-  const [edited, setEdited] = useState({ connections: false, limit: false });
+  const connectionsDraft = useDraft(countText(download.connections));
+  const limitDraft = useDraft(limitText(download.speedLimit));
+  const connections = connectionsDraft.text;
+  const limit = limitDraft.text;
+  const [pending, setPending] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
-  if (stored.connections !== download.connections || stored.speedLimit !== download.speedLimit) {
-    if (stored.connections !== download.connections && !edited.connections) setConnections(countText(download.connections));
-    if (stored.speedLimit !== download.speedLimit && !edited.limit) setLimit(limitText(download.speedLimit));
-    setStored({ connections: download.connections, speedLimit: download.speedLimit });
-  }
   const headingId = useId();
   const connectionsId = useId();
   const limitId = useId();
@@ -297,9 +307,13 @@ function OwnOptions({ download }: { download: Download }) {
       return;
     }
     setProblem(null);
-    setEdited({ connections: false, limit: false });
-    if (own.value === download.connections && cap.value === download.speedLimit) return;
-    void setOptions(download.id, own.value, cap.value);
+    if (own.value === download.connections && cap.value === download.speedLimit && pending === 0) return;
+    const saves = [connectionsDraft.commit(), limitDraft.commit()];
+    setPending((n) => n + 1);
+    void setOptions(download.id, own.value, cap.value).then((saved) => {
+      setPending((n) => n - 1);
+      if (!saved) for (const save of saves) save.failed();
+    });
   };
   const field = "h-7 w-16 rounded-sm border border-control-border bg-surface px-2 text-right text-mono text-ink placeholder:text-ink-faint aria-invalid:border-state-error";
   const keys = (event: KeyEvent<HTMLInputElement>) => {
@@ -322,8 +336,7 @@ function OwnOptions({ download }: { download: Download }) {
           placeholder={tug === null ? "" : String(tug)}
           aria-invalid={problem !== null && !parseConnections(connections).ok}
           onChange={(event) => {
-            setConnections(event.target.value);
-            setEdited((now) => ({ ...now, connections: true }));
+            connectionsDraft.edit(event.target.value);
           }}
           onBlur={commit}
           onKeyDown={keys}
@@ -340,8 +353,7 @@ function OwnOptions({ download }: { download: Download }) {
             placeholder="None"
             aria-invalid={problem !== null && !parseLimit(limit).ok}
             onChange={(event) => {
-              setLimit(event.target.value);
-              setEdited((now) => ({ ...now, limit: true }));
+              limitDraft.edit(event.target.value);
             }}
             onBlur={commit}
             onKeyDown={keys}
