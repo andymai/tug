@@ -1,0 +1,23 @@
+crates/tug-core/src/torrent.rs
+  s_b321718d129a1e::t_2a7ffadc899b49 53-55,63
+crates/tug-core/src/transfer.rs
+  s_b321718d129a1e::t_2a7ffadc899b49 342,348,362
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_fc07748db6a12d 335,358-359,374-378
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9813922a48c8e757acdabe4765666ddd0834b66f",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
