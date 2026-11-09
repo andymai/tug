@@ -1,0 +1,45 @@
+apps/desktop/src/state/downloads.ts
+  s_b050dc8a593981::t_78570c2d8dafed 13,44-45,70-73,145-146,189-205,235,412-426
+  s_b050dc8a593981::t_92e7876c2c1c7d 427
+apps/desktop/src/components/DownloadList.tsx
+  s_b050dc8a593981::t_3bff61d096fce7 13,107,122
+  s_b050dc8a593981::t_ade79b135f42ad 42,108,111
+apps/desktop/src/backend/mock.ts
+  s_b050dc8a593981::t_2012e25f932dcc 23-24,76-82,308-335,356
+apps/desktop/src/App.tsx
+  s_b050dc8a593981::t_3bff61d096fce7 1,10,36,39-40,52-55
+  s_b050dc8a593981::t_922ab2d7b4baa2 56-57
+apps/desktop/src/backend/backend.ts
+  s_b050dc8a593981::t_2012e25f932dcc 24-34,55
+apps/desktop/src/components/WindowControls.tsx
+  s_b050dc8a593981::t_3bff61d096fce7 1-75
+apps/desktop/src/App.test.tsx
+  s_b050dc8a593981::t_7d0ee3bee6fdcd 450-490
+apps/desktop/src-tauri/capabilities/default.json
+  s_b050dc8a593981::t_2012e25f932dcc 5-15
+apps/desktop/src-tauri/tauri.conf.json
+  s_b050dc8a593981::t_2012e25f932dcc 20-21
+apps/desktop/src/backend/tauri.ts
+  s_b050dc8a593981::t_2012e25f932dcc 3,65-77
+apps/desktop/src/components/SettingsPage.tsx
+  s_b050dc8a593981::t_3bff61d096fce7 10,276-277,280
+apps/desktop/src/components/Sidebar.tsx
+  s_b050dc8a593981::t_7d0ee3bee6fdcd 32
+  s_b050dc8a593981::t_3bff61d096fce7 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4bae3cbe6ccf3ba5682e443a78387fe577a6d1ce",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
