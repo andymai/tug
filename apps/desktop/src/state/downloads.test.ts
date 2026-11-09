@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { BackendError, type DownloadEvent, type Inspection, type Settings } from "../backend/backend";
+import { BackendError, type DownloadEvent, type Headers, type Inspection, type Settings, type TorrentView } from "../backend/backend";
 import { createMockBackend } from "../backend/mock";
 import { countFor, createDownloadsStore, savedViewOf, visibleItems } from "./downloads";
 
@@ -713,6 +713,41 @@ describe("downloads store", () => {
     expect(watched.getState().removing).toBeNull();
     expect(watched.getState().marked).toEqual([]);
     expect(watched.getState().items.map((d) => d.name)).not.toContain("fonts.zip");
+  });
+
+  it("keeps a panel answer only for the download on screen, and a save leaves another's load", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    const headers: ((headers: Headers) => void)[] = [];
+    const views: ((view: TorrentView | null) => void)[] = [];
+    const store = createDownloadsStore({
+      ...backend,
+      headers: () =>
+        new Promise<Headers>((resolve) => {
+          headers.push(resolve);
+        }),
+      torrentView: () =>
+        new Promise<TorrentView | null>((resolve) => {
+          views.push(resolve);
+        }),
+      chooseFiles: () => Promise.resolve(null),
+    });
+    await store.getState().init();
+    const id = (name: string) => store.getState().items.find((d) => d.name === name)?.id ?? -1;
+    const [a, b] = [id("blender.tar.xz"), id("talk.mp4")];
+
+    store.getState().select(a);
+    const loadA = store.getState().loadHeaders(a);
+    store.getState().select(b);
+    headers[0]?.({ referrer: "https://a.example/", userAgent: null, hasCookies: false });
+    await loadA;
+    expect(store.getState().headers, "A is not on screen any more").toBeNull();
+
+    const loadB = store.getState().loadTorrent(b);
+    await store.getState().chooseFiles(a, [0]);
+    const view: TorrentView = { files: [], peers: [], uploaded: 0, peersLive: 0, peersSeen: 0 };
+    views[0]?.(view);
+    await loadB;
+    expect(store.getState().torrent, "a save for A leaves B's load").toEqual({ id: b, data: view });
   });
 
   it("steps through the visible downloads and stops at the ends", async () => {
