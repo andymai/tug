@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer, content};
 use tug_core::{
-    AddOptions, ConnectionStatus, Download, DownloadId, DownloadState, EventKind, Library,
+    AddOptions, ConnectionStatus, Cookies, Download, DownloadId, DownloadState, EventKind, Library,
     LibraryError, MINUTES_PER_DAY, Origin, Place, Schedule, Settings, Store,
 };
 
@@ -786,14 +786,33 @@ async fn new_headers_go_with_the_next_start_and_a_finished_download_takes_none()
     let url = lab.url("/gen/2M/headers.bin?seed=12").parse().unwrap();
     let id = library.add_paused(url, dir.path(), &old).unwrap();
 
-    let new = Origin::new(
-        Some("https://example.org/page"),
-        Some("session=xyz"),
-        Some("Mozilla/5.0 (X11; Linux x86_64) Test"),
-    )
-    .unwrap();
-    library.set_origin(id, &new).await.unwrap();
+    let new = library
+        .set_origin(
+            id,
+            Some("https://example.org/page"),
+            Cookies::Set("session=xyz"),
+            Some("Mozilla/5.0 (X11; Linux x86_64) Test"),
+        )
+        .unwrap();
     assert_eq!(library.origin(id).unwrap(), new);
+    assert_eq!(new.cookies(), Some("session=xyz"));
+    let kept = library
+        .set_origin(
+            id,
+            Some("https://example.org/page"),
+            Cookies::Keep,
+            Some("Mozilla/5.0 (X11; Linux x86_64) Test"),
+        )
+        .unwrap();
+    assert_eq!(
+        kept.cookies(),
+        Some("session=xyz"),
+        "Keep keeps the stored cookies"
+    );
+    assert!(matches!(
+        library.set_origin(id, Some("ftp://nope"), Cookies::Keep, None),
+        Err(LibraryError::Origin(_))
+    ));
     library.resume(id).await.unwrap();
     tick_until(&library, |l| state_of(l, id) == DownloadState::Done).await;
     let log = lab.log();
@@ -810,13 +829,15 @@ async fn new_headers_go_with_the_next_start_and_a_finished_download_takes_none()
         "a finished download keeps no origin"
     );
     assert!(matches!(
-        library.set_origin(id, &new).await,
+        library.set_origin(id, None, Cookies::Set("again=1"), None),
         Err(LibraryError::NoHeaders)
     ));
 
     let url = lab.url("/gen/1M/cleared.bin?seed=13").parse().unwrap();
     let other = library.add_paused(url, dir.path(), &old).unwrap();
-    library.set_origin(other, &Origin::default()).await.unwrap();
+    library
+        .set_origin(other, None, Cookies::Clear, None)
+        .unwrap();
     assert!(library.origin(other).unwrap().is_empty());
 }
 

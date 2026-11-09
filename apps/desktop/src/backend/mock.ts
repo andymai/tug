@@ -102,13 +102,34 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     const origin = origins.get(id);
     return { referrer: origin?.referrer ?? null, userAgent: origin?.userAgent ?? null, hasCookies: (origin?.cookies ?? null) !== null };
   };
-  const checkReferrer = (referrer: string | null) => {
-    if (referrer === null) return;
-    try {
-      if (!["http:", "https:"].includes(new URL(referrer).protocol)) throw new Error("scheme");
-    } catch {
-      throw new BackendError("invalid", "the referrer isn't a web address");
+  // As tug_core::Origin::new: trimmed, an http(s) referrer without its fragment
+  // or credentials, and values a header can carry.
+  const originOf = (referrer: string | null, cookies: string | null, userAgent: string | null) => {
+    const present = (value: string | null) => (value === null || value.trim() === "" ? null : value.trim());
+    const header = (value: string | null, message: string) => {
+      const plain = present(value);
+      if (plain !== null && !/^[\t\x20-\x7e]*$/.test(plain)) throw new BackendError("invalid", message);
+      return plain;
+    };
+    let page = present(referrer);
+    if (page !== null) {
+      let url: URL;
+      try {
+        url = new URL(page);
+      } catch {
+        throw new BackendError("invalid", "the referrer isn't a web address");
+      }
+      if (url.protocol !== "http:" && url.protocol !== "https:") throw new BackendError("invalid", "the referrer isn't a web address");
+      url.hash = "";
+      url.username = "";
+      url.password = "";
+      page = url.href;
     }
+    return {
+      referrer: page,
+      cookies: header(cookies, "the cookies can't be sent as a header"),
+      userAgent: header(userAgent, "the User-Agent can't be sent as a header"),
+    };
   };
   const log = (id: number, kind: DownloadEvent["kind"], atMs: number, bytes: number | null = null, detail: string | null = null) => {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
@@ -376,15 +397,13 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       attempt(() => {
         checkOwn(options?.connections ?? null, options?.speedLimit ?? null);
         const named = options?.name == null || url.trim().startsWith("magnet:") ? null : fileName(options.name);
+        const origin = options === undefined ? null : originOf(options.referrer, options.cookies, options.userAgent);
         if (dir !== undefined && !dir.startsWith("/")) {
           throw new BackendError("invalid", `the folder must be a full path, like /home/you/Downloads, not ${dir}`);
         }
         const download = addNow(url, dir);
         if (!url.trim().startsWith("magnet:")) {
-          checkReferrer(options?.referrer ?? null);
-          if (options !== undefined && (options.referrer ?? options.cookies ?? options.userAgent) !== null) {
-            origins.set(download.id, { referrer: options.referrer, cookies: options.cookies, userAgent: options.userAgent });
-          }
+          if (origin !== null && (origin.referrer ?? origin.cookies ?? origin.userAgent) !== null) origins.set(download.id, origin);
           download.connections = options?.connections ?? null;
           download.speedLimit = options?.speedLimit ?? null;
           if (named !== null) {
@@ -433,9 +452,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         if (download.state === "done" || download.url.startsWith("magnet:")) {
           throw new BackendError("invalid", "a finished download or a torrent sends no headers");
         }
-        checkReferrer(referrer);
         const kept = origins.get(id)?.cookies ?? null;
-        const next = { referrer, userAgent, cookies: cookies.kind === "keep" ? kept : cookies.kind === "clear" ? null : cookies.value };
+        const next = originOf(referrer, cookies.kind === "keep" ? kept : cookies.kind === "clear" ? null : cookies.value, userAgent);
         if (next.referrer === null && next.cookies === null && next.userAgent === null) origins.delete(id);
         else origins.set(id, next);
         return headersOf(id);

@@ -130,13 +130,15 @@ function NameEditor({ download }: { download: Download }) {
 }
 
 // The cookies never come back from Tug: the panel only says whether they go
-// along, and replaces or clears them.
+// along, and replaces or clears them. A field takes the saved value (Tug cleans
+// a referrer up) only if nobody typed in it since the save began.
 function HeaderFields({ download, headers }: { download: Download; headers: Headers }) {
   const setHeaders = useDownloads((s) => s.setHeaders);
   const [referrer, setReferrer] = useState(headers.referrer ?? "");
   const [userAgent, setUserAgent] = useState(headers.userAgent ?? "");
-  const [replacing, setReplacing] = useState(!headers.hasCookies);
-  const [cookies, setCookies] = useState("");
+  const [cookie, setCookie] = useState({ text: "", replacing: !headers.hasCookies });
+  const cookies = cookie.text;
+  const replacing = cookie.replacing;
   const headingId = useId();
   const referrerId = useId();
   const cookiesId = useId();
@@ -144,18 +146,20 @@ function HeaderFields({ download, headers }: { download: Download; headers: Head
   const plain = (text: string) => (text.trim() === "" ? null : text.trim());
 
   const commit = (change: CookiesChange = { kind: "keep" }) => {
-    const same = plain(referrer) === headers.referrer && plain(userAgent) === headers.userAgent;
+    const sent = { referrer: plain(referrer), userAgent: plain(userAgent) };
+    const same = sent.referrer === headers.referrer && sent.userAgent === headers.userAgent;
     if (same && change.kind === "keep") return;
-    void setHeaders(download.id, plain(referrer), change, plain(userAgent)).then((saved) => {
-      if (saved && change.kind !== "keep") {
-        setCookies("");
-        setReplacing(change.kind === "clear");
-      }
+    void setHeaders(download.id, sent.referrer, change, sent.userAgent).then((saved) => {
+      if (saved === null) return;
+      setReferrer((now) => (plain(now) === sent.referrer ? (saved.referrer ?? "") : now));
+      setUserAgent((now) => (plain(now) === sent.userAgent ? (saved.userAgent ?? "") : now));
+      if (change.kind === "clear") setCookie((now) => ({ ...now, replacing: true }));
+      if (change.kind === "set") setCookie((now) => (now.text.trim() === change.value ? { text: "", replacing: false } : now));
     });
   };
   const commitCookies = () => {
     if (cookies.trim() !== "") commit({ kind: "set", value: cookies.trim() });
-    else if (headers.hasCookies) setReplacing(false);
+    else if (headers.hasCookies) setCookie({ text: "", replacing: false });
   };
   const enter = (save: () => void) => (event: KeyEvent<HTMLInputElement>) => {
     if (event.key === "Enter") save();
@@ -198,7 +202,7 @@ function HeaderFields({ download, headers }: { download: Download; headers: Head
             value={cookies}
             placeholder="None"
             onChange={(event) => {
-              setCookies(event.target.value);
+              setCookie({ text: event.target.value, replacing: true });
             }}
             onBlur={commitCookies}
             onKeyDown={enter(commitCookies)}
@@ -211,7 +215,7 @@ function HeaderFields({ download, headers }: { download: Download; headers: Head
               size="sm"
               variant="quiet"
               onClick={() => {
-                setReplacing(true);
+                setCookie({ text: "", replacing: true });
               }}
             >
               Replace

@@ -609,6 +609,54 @@ describe("detail panel", () => {
     expect(await headers.findByLabelText("Cookies")).toHaveAttribute("type", "password");
   });
 
+  it("shows the referrer as Tug saved it, and keeps newer edits when saves answer late", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const answers: (() => void)[] = [];
+    let slow = false;
+    const shown = {
+      ...backend,
+      setHeaders: (...args: Parameters<typeof backend.setHeaders>) =>
+        slow
+          ? new Promise<Awaited<ReturnType<typeof backend.setHeaders>>>((resolve) => {
+              answers.push(() => {
+                resolve(backend.setHeaders(...args));
+              });
+            })
+          : backend.setHeaders(...args),
+    };
+    const sent = vi.spyOn(shown, "setHeaders");
+    render(<App store={createDownloadsStore(shown)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }));
+    let headers = within(await screen.findByRole("region", { name: "Headers" }));
+    await user.type(headers.getByRole("textbox", { name: "Referrer" }), "https://user:pw@example.org#top{Enter}");
+    expect(await headers.findByDisplayValue("https://example.org/")).toBeInTheDocument();
+    const calls = sent.mock.calls.length;
+    await user.click(headers.getByRole("textbox", { name: "User agent" }));
+    await user.click(headers.getByRole("textbox", { name: "Referrer" }));
+    expect(sent.mock.calls.length, "the saved value is the same, so no new save").toBe(calls);
+
+    slow = true;
+    await user.type(headers.getByLabelText("Cookies"), "a=1{Enter}");
+    await user.clear(headers.getByLabelText("Cookies"));
+    await user.type(headers.getByLabelText("Cookies"), "b=2");
+    await act(async () => {
+      answers.shift()?.();
+      await Promise.resolve();
+    });
+    expect(headers.getByLabelText("Cookies"), "the newer cookie text stays").toHaveValue("b=2");
+
+    await user.type(headers.getByRole("textbox", { name: "User agent" }), "Late/1{Enter}");
+    await user.click(screen.getByRole("row", { name: /^conference-talk-1080p\.mp4/ }));
+    headers = within(await screen.findByRole("region", { name: "Headers" }));
+    await act(async () => {
+      answers.shift()?.();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("region", { name: "Headers" }), "another download's late answer leaves this one").toBeInTheDocument();
+    expect(headers.getByRole("textbox", { name: "User agent" })).toHaveValue("");
+  });
+
   it("closes with its button and with Escape", async () => {
     const { user } = open();
     const row = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });

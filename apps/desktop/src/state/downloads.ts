@@ -139,7 +139,8 @@ export interface DownloadsState {
   rename: (id: number, name: string) => Promise<boolean>;
   headers: { id: number; data: Headers } | null;
   loadHeaders: (id: number) => Promise<void>;
-  setHeaders: (id: number, referrer: string | null, cookies: CookiesChange, userAgent: string | null) => Promise<boolean>;
+  // The saved headers, or null when the save failed.
+  setHeaders: (id: number, referrer: string | null, cookies: CookiesChange, userAgent: string | null) => Promise<Headers | null>;
   pickFolder: (from?: string) => Promise<string | null>;
   settleFresh: (id: number) => void;
   answerCapture: (id: number, answer: CaptureAnswer) => Promise<void>;
@@ -795,12 +796,12 @@ export function createDownloadsStore(backend: Backend) {
       setHeaders: async (id, referrer, cookies, userAgent) => {
         try {
           const data = await backend.setHeaders(id, referrer, cookies, userAgent);
-          ++headersRequest;
-          set({ headers: { id, data } });
-          return true;
+          // Only the shown download's; another's load stays as it was.
+          if (get().headers?.id === id) set({ headers: { id, data } });
+          return data;
         } catch (error) {
           set({ notice: `couldn't change the headers: ${BackendError.from(error).message}` });
-          return false;
+          return null;
         }
       },
 
