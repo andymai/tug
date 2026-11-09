@@ -61,6 +61,18 @@ describe("main window", () => {
     await capture(window, "narrow");
   });
 
+  it("scrolls a crowded sidebar and keeps Settings in reach", async () => {
+    await page.viewport(720, 480);
+    const names = ["talk.mp4", "album.flac", "scan.png", "report.pdf", "fonts.zip", "Tug.AppImage", "fedora.iso", "shard.parquet"];
+    const { window } = await open(names.map((name) => ({ url: `https://example.org/${name}`, state: "done" as const })));
+    const last = document.querySelector<HTMLElement>('nav[aria-labelledby="types-label"] li:last-child');
+    expect(last?.textContent).toBe("Other files1");
+    last?.scrollIntoView({ block: "end" });
+    const settings = [...document.querySelectorAll("aside button")].find((button) => button.textContent === "Settings");
+    expect(settings?.getBoundingClientRect().bottom).toBeLessThanOrEqual(480);
+    await capture(window, "crowded");
+  });
+
   it("opens on the empty state", async () => {
     const { window } = await open([]);
     await capture(window, "empty");

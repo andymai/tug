@@ -4,7 +4,6 @@ import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 
 import { type Command, commands, type Group, rank } from "../lib/commands";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
-import { inView } from "../state/downloads";
 import { Keys } from "./Kbd";
 
 type Entry = Omit<Command, "group"> & { group: Group | "Go to download" };
@@ -37,11 +36,7 @@ function Palette({ choose, labelId }: { choose: (run: () => void) => void; label
             group: "Go to download",
             icon: STATES[item.state].Icon,
             run: () => {
-              const state = store.getState();
-              if (!inView(state.view, item)) state.setView("all");
-              else state.setPage("downloads");
-              state.select(item.id);
-              state.requestFocus(item.id);
+              store.getState().reveal(item.id);
             },
           }),
         );
