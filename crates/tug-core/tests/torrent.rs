@@ -178,6 +178,42 @@ async fn a_finished_torrent_takes_its_empty_folder_along() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_tug_without_torrents_keeps_a_torrent_it_cant_delete() {
+    let tmp = tempfile::tempdir().unwrap();
+    let seeder = seeder(tmp.path(), vec![("kept.bin", bytes(50_000, 3))]).await;
+    let db = tmp.path().join("tug.db");
+    let got = tmp.path().join("got");
+    let id = {
+        let library = Library::open_with(
+            Store::open(&db).unwrap(),
+            Some(TorrentOptions {
+                local_only: true,
+                peers: seeder.torrents.listen_addr().into_iter().collect(),
+                ..TorrentOptions::new(tmp.path().join("leecher"))
+            }),
+        )
+        .await
+        .unwrap();
+        let id = library
+            .add_torrent(TorrentSource::File(seeder.torrent.clone()), &got)
+            .await
+            .unwrap();
+        tick_until(&library, id, DownloadState::Done).await;
+        id
+    };
+
+    let plain = Library::open(Store::open(&db).unwrap()).await.unwrap();
+    assert!(matches!(
+        plain.remove(id, true).await,
+        Err(LibraryError::NoTorrents)
+    ));
+    assert_eq!(plain.get(id).unwrap().state, DownloadState::Done);
+    assert!(got.join("kept.bin").exists());
+    plain.remove(id, false).await.unwrap();
+    assert!(got.join("kept.bin").exists());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn the_same_torrent_waits_in_the_list_once() {
     let tmp = tempfile::tempdir().unwrap();
     let seeder = seeder(tmp.path(), vec![("one.bin", bytes(64_000, 7))]).await;

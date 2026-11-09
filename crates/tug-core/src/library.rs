@@ -649,8 +649,17 @@ impl Library {
         torrent: Option<(String, Vec<u8>)>,
         delete_file: bool,
     ) -> Result<(), LibraryError> {
-        let (Some(swarm), Some((hash, bytes))) = (&self.swarm, torrent) else {
+        let Some((hash, bytes)) = torrent else {
             return Ok(());
+        };
+        // Without its session Tug can't tell a torrent's files, so it keeps the
+        // download rather than say they went.
+        let Some(swarm) = &self.swarm else {
+            return if delete_file {
+                Err(LibraryError::NoTorrents)
+            } else {
+                Ok(())
+            };
         };
         let session = swarm.session().await?;
         if session.has(&hash) {
