@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.0](https://github.com/andymai/tug/compare/v0.36.0...v0.37.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** choose a torrent's files, and see its peers, in the inspector ([#147](https://github.com/andymai/tug/issues/147)) ([9593a31](https://github.com/andymai/tug/commit/9593a314182ec81d192f82f0dfba3149485e2518))
+
 ## [0.36.0](https://github.com/andymai/tug/compare/v0.35.0...v0.36.0) (2026-11-09)
 
 
