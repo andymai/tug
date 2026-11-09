@@ -130,7 +130,8 @@ impl Settings {
             .iter()
             .find(|entry| {
                 hosts.iter().any(|host| {
-                    host.strip_suffix(entry.as_str())
+                    host.trim_end_matches('.')
+                        .strip_suffix(entry.as_str())
                         .is_some_and(|rest| rest.is_empty() || rest.ends_with('.'))
                 })
             })
@@ -262,6 +263,17 @@ mod tests {
             settings.excluded_site(
                 &link("https://cdn.other.net/a.iso"),
                 Some(&link("https://www.example.org/page"))
+            ),
+            Some("example.org")
+        );
+        assert_eq!(
+            settings.excluded_site(&link("https://example.org./a.iso"), None),
+            Some("example.org")
+        );
+        assert_eq!(
+            settings.excluded_site(
+                &link("https://cdn.other.net/a.iso"),
+                Some(&link("https://www.example.org./page"))
             ),
             Some("example.org")
         );

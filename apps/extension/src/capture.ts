@@ -10,6 +10,9 @@ export type Outcome = "tug" | "browser" | "skipped";
 // A form's download can't be fetched again without the form, so it stays in
 // the browser; a page request older than this is no longer that download's.
 export const FORM_MEMORY_MS = 120_000;
+// Chromium stops an idle worker, and with it this object, while a server can
+// still be making a form's report; session storage outlives the worker.
+const FORM_KEY = "form:";
 
 function ignore(): void {
   // A download the user already removed or that finished can't be canceled, erased or resumed.
@@ -28,22 +31,31 @@ export class Capture {
     this.#now = now;
   }
 
-  requested(request: PageRequest): void {
+  async requested(request: PageRequest): Promise<void> {
     if (request.method.toUpperCase() === "GET") return;
     const now = this.#now();
     for (const [url, at] of this.#forms) {
       if (now - at > FORM_MEMORY_MS) this.#forms.delete(url);
     }
     this.#forms.set(request.url, now);
+    const { session } = this.#api.storage;
+    const stored = await session.get(null).catch((): Record<string, unknown> => ({}));
+    const stale = Object.entries(stored)
+      .filter(([key, at]) => key.startsWith(FORM_KEY) && (typeof at !== "number" || now - at > FORM_MEMORY_MS))
+      .map(([key]) => key);
+    if (stale.length > 0) await session.remove(stale).catch(ignore);
+    await session.set({ [FORM_KEY + request.url]: now }).catch(ignore);
   }
 
-  #fromForm(url: string): boolean {
-    const at = this.#forms.get(url);
-    return at !== undefined && this.#now() - at <= FORM_MEMORY_MS;
+  async #fromForm(url: string): Promise<boolean> {
+    const key = FORM_KEY + url;
+    const stored = await this.#api.storage.session.get(key).catch((): Record<string, unknown> => ({}));
+    const at = this.#forms.get(url) ?? stored[key];
+    return typeof at === "number" && this.#now() - at <= FORM_MEMORY_MS;
   }
 
   async created(item: DownloadItem): Promise<Outcome> {
-    if (this.#handedBack.delete(item.url) || !worthTaking(item) || this.#fromForm(item.url)) return "skipped";
+    if (this.#handedBack.delete(item.url) || !worthTaking(item) || (await this.#fromForm(item.url))) return "skipped";
     const { downloads } = this.#api;
     try {
       await downloads.pause(item.id);

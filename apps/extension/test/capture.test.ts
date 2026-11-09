@@ -87,8 +87,8 @@ describe("capture", () => {
     const capture = start(fake.api, UA);
     expect(fake.requestFilters).toEqual([{ urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] }]);
     const own = new Capture(fake.api, UA, () => now);
-    own.requested({ url: ISO, method: "POST" });
-    own.requested({ url: "https://example.org/other.iso", method: "GET" });
+    await own.requested({ url: ISO, method: "POST" });
+    await own.requested({ url: "https://example.org/other.iso", method: "GET" });
 
     expect(await own.created(download())).toBe("skipped");
     expect(await own.created(download({ url: "https://example.org/other.iso" }))).toBe("tug");
@@ -96,7 +96,26 @@ describe("capture", () => {
     expect(await own.created(download())).toBe("tug");
 
     fake.request({ url: "https://example.org/report", method: "post" });
+    await vi.waitFor(() => {
+      expect(fake.session.has("form:https://example.org/report")).toBe(true);
+    });
     expect(await capture.created(download({ url: "https://example.org/report" }))).toBe("skipped");
+  });
+
+  it("remembers a form across a restart of the background worker, then forgets it", async () => {
+    let now = 5_000;
+    const fake = fakeBrowser();
+    const report = "https://example.org/report.pdf";
+    await new Capture(fake.api, UA, () => now).requested({ url: report, method: "POST" });
+
+    const restarted = new Capture(fake.api, UA, () => now);
+    expect(await restarted.created(download({ url: report }))).toBe("skipped");
+    expect(fake.calls).toEqual([]);
+
+    now += FORM_MEMORY_MS + 1;
+    await restarted.requested({ url: "https://example.org/other", method: "POST" });
+    expect([...fake.session.keys()]).toEqual(["form:https://example.org/other"]);
+    expect(await restarted.created(download({ url: report }))).toBe("tug");
   });
 
   it("takes a download whose size the browser doesn't know yet", async () => {

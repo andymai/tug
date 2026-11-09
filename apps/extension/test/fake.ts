@@ -7,6 +7,7 @@ export interface Fake {
   menus: unknown[];
   cookieQueries: unknown[];
   requestFilters: unknown[];
+  session: Map<string, unknown>;
   install(): void;
   request(request: PageRequest): void;
   create(item: DownloadItem): void;
@@ -17,6 +18,7 @@ export interface FakeOptions {
   reply?: (message: Record<string, unknown>) => Promise<unknown>;
   cookies?: Cookie[];
   pauseFails?: boolean;
+  session?: Map<string, unknown>;
 }
 
 export const ADDED = { ok: true, type: "added", added: [{ name: "a.iso" }], failed: [] };
@@ -31,6 +33,7 @@ export function fakeBrowser(options: FakeOptions = {}): Fake {
   const clicked: ((info: MenuClick, tab?: Tab) => void)[] = [];
   const requested: ((request: PageRequest) => void)[] = [];
   const requestFilters: unknown[] = [];
+  const session = options.session ?? new Map<string, unknown>();
   const done = (call: string) => {
     calls.push(call);
     return Promise.resolve();
@@ -62,6 +65,20 @@ export function fakeBrowser(options: FakeOptions = {}): Fake {
         return Promise.resolve(options.cookies ?? []);
       },
     },
+    storage: {
+      session: {
+        get: (keys) =>
+          Promise.resolve(Object.fromEntries([...session].filter(([key]) => keys === null || key === keys))),
+        set: (items) => {
+          for (const [key, value] of Object.entries(items)) session.set(key, value);
+          return Promise.resolve();
+        },
+        remove: (keys) => {
+          for (const key of keys) session.delete(key);
+          return Promise.resolve();
+        },
+      },
+    },
     webRequest: {
       onBeforeRequest: {
         addListener: (callback, filter) => {
@@ -82,6 +99,7 @@ export function fakeBrowser(options: FakeOptions = {}): Fake {
     menus,
     cookieQueries,
     requestFilters,
+    session,
     request: (request) => {
       for (const listener of requested) listener(request);
     },

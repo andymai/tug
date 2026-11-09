@@ -52,6 +52,13 @@ export interface Api {
   cookies: {
     getAll(details: { url: string; storeId?: string }): Promise<Cookie[]>;
   };
+  storage: {
+    session: {
+      get(keys: string | null): Promise<Record<string, unknown>>;
+      set(items: Record<string, unknown>): Promise<void>;
+      remove(keys: string[]): Promise<void>;
+    };
+  };
   webRequest: {
     onBeforeRequest: {
       addListener(callback: (request: PageRequest) => void, filter: { urls: string[]; types: string[] }): void;

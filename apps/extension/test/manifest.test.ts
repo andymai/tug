@@ -41,7 +41,7 @@ describe("manifests", () => {
       expect(built).toMatchObject({
         manifest_version: 3,
         version: "1.2.3",
-        permissions: ["contextMenus", "cookies", "downloads", "nativeMessaging", "webRequest"],
+        permissions: ["contextMenus", "cookies", "downloads", "nativeMessaging", "storage", "webRequest"],
         host_permissions: ["<all_urls>"],
       });
     }
