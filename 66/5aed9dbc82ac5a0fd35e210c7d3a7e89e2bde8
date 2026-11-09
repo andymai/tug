@@ -1,0 +1,53 @@
+crates/tug-ipc/src/lib.rs
+  s_b050dc8a593981::t_7b73af51d9e25d 14-20,49
+  s_b050dc8a593981::t_7fbf394370c156 95-104,121-126,130-134,144-147,211-213
+  s_b050dc8a593981::t_4a776988729ac4 1-13,21-48,50-94,105-120,127-129,135-143,148-210,214-235
+Cargo.toml
+  s_b050dc8a593981::t_7fbf394370c156 2,36
+scripts/cli/check.sh
+  s_b050dc8a593981::t_7b73af51d9e25d 1-55
+apps/desktop/src-tauri/src/ipc.rs
+  s_b050dc8a593981::t_ce01420f7c1068 1-82
+apps/desktop/src-tauri/src/format.rs
+  s_b050dc8a593981::t_ce01420f7c1068 1-40
+crates/tug-ipc/Cargo.toml
+  s_b050dc8a593981::t_7fbf394370c156 17,19
+  s_b050dc8a593981::t_4a776988729ac4 1-16,18,20-22
+apps/desktop/src-tauri/src/bridge.rs
+  s_b050dc8a593981::t_ce01420f7c1068 628
+crates/tug-ipc/tests/ipc.rs
+  s_b050dc8a593981::t_7fbf394370c156 1-2,4-12,15-36,38-141
+  s_b050dc8a593981::t_be907fee337088 3,13-14,37
+apps/desktop/src-tauri/src/cli.rs
+  s_b050dc8a593981::t_e2f6d41ed0d6e7 219-222,227-230
+  s_b050dc8a593981::t_aaa2f4d1001f67 1-218,223-226,231-232
+apps/desktop/src-tauri/src/main.rs
+  s_b050dc8a593981::t_aaa2f4d1001f67 2-4,7-8,11-20,33,58-59
+apps/desktop/src-tauri/Cargo.toml
+  s_b050dc8a593981::t_ce01420f7c1068 28
+  s_b050dc8a593981::t_aaa2f4d1001f67 22
+apps/desktop/src-tauri/src/tray.rs
+  s_b050dc8a593981::t_ce01420f7c1068 14-15
+scripts/tray/check.sh
+  s_b050dc8a593981::t_7b73af51d9e25d 7,13
+CLAUDE.md
+  s_b050dc8a593981::t_4fdfbe1bacc37d 14-15,46-47
+Cargo.lock
+  s_b050dc8a593981::t_b493680b75ee4f 5347,5351-5361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "665aed9dbc82ac5a0fd35e210c7d3a7e89e2bde8",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
