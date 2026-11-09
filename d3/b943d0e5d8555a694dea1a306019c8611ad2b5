@@ -1,0 +1,33 @@
+apps/desktop/src/lint.test.ts
+  s_b321718d129a1e::t_f474596a5e8445 2-6,8-39
+  s_b321718d129a1e::t_5e71c431e72b50 1,7
+apps/desktop/src/state/draft.test.ts
+  s_b321718d129a1e::t_ada56e52f14ed5 87-113
+apps/desktop/src/state/draft.ts
+  s_b321718d129a1e::t_a0e5a653275028 19-20,55
+apps/desktop/src/components/SettingsPage.tsx
+  s_b321718d129a1e::t_8468a7a468e26e 184,195,205,350,362,373,379,529-530
+  s_b321718d129a1e::t_a0e5a653275028 132,148-153
+apps/desktop/eslint.config.js
+  s_b321718d129a1e::t_f474596a5e8445 42-43
+apps/desktop/src/App.test.tsx
+  s_b321718d129a1e::t_ada56e52f14ed5 1650-1655,1657-1659,1661-1668
+  s_b321718d129a1e::t_eb83406ffa1acd 1656
+  s_b321718d129a1e::t_0b72cd238cf58e 1660
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d3b943d0e5d8555a694dea1a306019c8611ad2b5",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
