@@ -1,0 +1,42 @@
+apps/desktop/src-tauri/src/tray.rs
+  s_b321718d129a1e::t_549c2d589085df 319-320
+  s_b321718d129a1e::t_4782fa9c074d11 348,351-353
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_d9840027584687 370
+apps/desktop/src/state/downloads.test.ts
+  s_b321718d129a1e::t_700e083265a90e 73-77,79-82,137
+  s_b321718d129a1e::t_95bc593f0229a5 85-95
+  s_b321718d129a1e::t_50c96362b49e3a 83-84
+apps/desktop/src/backend/bindings/ProgressBatch.ts
+  s_b321718d129a1e::t_95bc593f0229a5 4
+crates/tug-core/tests/progress.rs
+  s_b321718d129a1e::t_edf8268683ddb0 7,154-186
+  s_b321718d129a1e::t_234a777774c9cc 187
+apps/desktop/src-tauri/src/bridge.rs
+  s_b321718d129a1e::t_d9840027584687 229-230,240,1045,1061
+crates/tug-core/src/progress.rs
+  s_b321718d129a1e::t_d9840027584687 32-35,98
+  s_b321718d129a1e::t_4782fa9c074d11 134-135,139,146
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_e607bc42df475f 105,254-256
+apps/desktop/src/backend/tauri.test.ts
+  s_b321718d129a1e::t_700e083265a90e 56-57
+apps/desktop/src/backend/mock.ts
+  s_b321718d129a1e::t_95bc593f0229a5 88,184-185,394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "97c339d5394d3ed9d7c2efe560fd3e8e73421a13",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
