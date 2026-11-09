@@ -38,6 +38,8 @@ apps/desktop/src/components/AddDialog.tsx
   s_b321718d129a1e::t_9372bf67d21f1f 46-51,236-275
 apps/desktop/src/components/DetailPanel.tsx
   s_b321718d129a1e::t_7880799cb311d1 5,131-263,538-543
+apps/desktop/src/backend/mock.test.ts
+  s_b321718d129a1e::t_6cf912ff84a476 222
 ---
 {
   "schema_version": "authorship/3.0.0",
