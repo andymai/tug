@@ -156,6 +156,37 @@ describe("downloads store", () => {
     expect(store.getState().search, "a search that shows it stays").toBe("talk");
   });
 
+  it("clears a search for a jump while the search's answer is on its way", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    const answers: ((ids: number[]) => void)[] = [];
+    const store = createDownloadsStore({
+      ...backend,
+      search: (query) =>
+        query === "talk"
+          ? backend.search(query)
+          : new Promise<number[]>((resolve) => {
+              answers.push(resolve);
+            }),
+    });
+    await store.getState().init();
+    const talk = store.getState().items.find((d) => d.name === "talk.mp4")?.id ?? -1;
+
+    store.getState().setSearch("fedora");
+    store.getState().reveal(talk);
+    answers[0]?.([1]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(store.getState()).toMatchObject({ search: "", matches: null });
+    expect(visibleItems(store.getState()).map((d) => d.id)).toContain(talk);
+
+    store.getState().setSearch("talk");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    store.getState().setSearch("fedora");
+    store.getState().reveal(talk);
+    answers[1]?.([1]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(store.getState().search, "an older answer that showed it doesn't count").toBe("");
+  });
+
   it("retries a failed download", async () => {
     const { store } = await ready();
     const failed = store.getState().items.find((d) => d.state === "failed");
