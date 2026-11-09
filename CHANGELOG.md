@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.0](https://github.com/andymai/tug/compare/v0.21.3...v0.22.0) (2026-11-09)
+
+
+### Features
+
+* **core:** run three downloads at once by default and queue the rest in order ([#100](https://github.com/andymai/tug/issues/100)) ([247a205](https://github.com/andymai/tug/commit/247a2050e39cce23b9abb6e5e555bef9ef16065a))
+* **desktop:** draw Tug's own title bar instead of the window manager's ([#97](https://github.com/andymai/tug/issues/97)) ([5171ea1](https://github.com/andymai/tug/commit/5171ea1a25d6aa85330ee13880825094465bf987))
+
 ## [0.21.3](https://github.com/andymai/tug/compare/v0.21.2...v0.21.3) (2026-11-09)
 
 
