@@ -37,10 +37,17 @@ const EDGES = 48;
 export function fit(columns: readonly Column[], width: number | null): Column[] {
   let shown = [...columns];
   if (width === null) return shown;
+  const used = () => shown.reduce((sum, column) => sum + (column.px ?? 0), EDGES);
   for (const id of DROP_ORDER) {
-    const used = shown.reduce((sum, column) => sum + (column.px ?? 0), EDGES);
-    if (width - used >= NAME_ROOM) break;
+    if (width - used() >= NAME_ROOM) break;
     shown = shown.filter((column) => column.id !== id);
+  }
+  // A column that always shows can still be set wide; here it shows at its usual width.
+  if (width - used() < NAME_ROOM) {
+    shown = shown.map((column) => {
+      const usual = COLUMNS.find((c) => c.id === column.id)?.px;
+      return usual === undefined || column.px === undefined ? column : { ...column, px: Math.min(column.px, usual) };
+    });
   }
   return shown;
 }
@@ -82,7 +89,7 @@ export function columnsOf(settings: (Pick<Settings, "columns"> & Partial<Pick<Se
 export function widest(columns: readonly Column[], id: ColumnId, width: number | null): number {
   if (width === null) return MAX_WIDTH;
   const others = columns.reduce((sum, column) => sum + (column.id === id ? 0 : (column.px ?? 0)), EDGES);
-  return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width - others - NAME_ROOM));
+  return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.floor(width - others - NAME_ROOM)));
 }
 
 export function sortOf(settings: Pick<Settings, "sort"> | null): Sort {

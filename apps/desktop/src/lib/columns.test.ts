@@ -30,6 +30,15 @@ describe("columns", () => {
     expect(widest(sized, "size", 1000), "a wide Source leaves Size its least").toBe(MIN_WIDTH);
     expect(widest(columnsOf(null), "size", 1200)).toBe(1200 - 48 - 160 - (112 + 144 + 96 + 64 + 56 + 176));
     expect(widest(columnsOf(null), "size", null)).toBe(MAX_WIDTH);
+    expect(Number.isInteger(widest(columnsOf(null), "size", 1200.5)), "a fractional window still gives whole pixels").toBe(true);
+  });
+
+  it("shows a wide column that always shows at its usual width when the name has no room", () => {
+    const wide = columnsOf({ columns: [], widths: { status: MAX_WIDTH } });
+    expect(fit(wide, 2000).find((column) => column.id === "status")?.px).toBe(MAX_WIDTH);
+    const narrow = fit(wide, 480);
+    expect(ids(narrow)).toEqual(["name", "status"]);
+    expect(narrow.find((column) => column.id === "status")?.px).toBe(112);
   });
 
   it("sorts a column down first when it holds numbers, and flips on a second click", () => {
