@@ -594,6 +594,44 @@ async fn removing_with_delete_clears_the_partial_files() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_running_download_that_fails_to_go_stays_paused_with_its_inspection() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(Store::open_in_memory().unwrap())
+        .await
+        .unwrap();
+
+    let url = lab
+        .url("/gen/64M/stuck.bin?seed=6&rate=256K")
+        .parse()
+        .unwrap();
+    let id = library.add(url, dir.path()).await.unwrap();
+    received_at_least(&library, id, 1 << 20).await;
+    // A folder at the finished file's path can't be deleted as a file.
+    let file = library.get(id).unwrap().file.unwrap();
+    std::fs::create_dir(&file).unwrap();
+
+    assert!(matches!(
+        library.remove(id, true).await,
+        Err(LibraryError::Delete { .. })
+    ));
+    assert_eq!(state_of(&library, id), DownloadState::Paused);
+    assert!(library.inspect(id).await.unwrap().is_some());
+
+    std::fs::remove_dir(&file).unwrap();
+    library.remove(id, true).await.unwrap();
+    assert_eq!(
+        std::fs::read_dir(dir.path()).unwrap().count(),
+        0,
+        "files left behind"
+    );
+    assert!(matches!(
+        library.inspect(id).await,
+        Err(LibraryError::Unknown(_))
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_missing_file_fails_with_the_reason() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();
