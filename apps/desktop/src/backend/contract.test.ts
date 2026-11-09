@@ -60,12 +60,14 @@ describe("the mock keeps Tug's contract", () => {
 
   it.each(settingsCases.map((entry) => [JSON.stringify(entry.patch).slice(0, 80), entry] as const))("settings %s", async (_, { patch, outcome }) => {
     const backend = createMockBackend();
-    const next = { ...(await backend.settings()), ...(patch as Partial<Settings>) };
+    const before = await backend.settings();
+    const next = { ...before, ...(patch as Partial<Settings>) };
     expect(
       await settle(async () => {
         await backend.updateSettings(next);
         return backend.settings();
       }),
     ).toEqual(outcome);
+    if ("error" in outcome) expect(await backend.settings(), "a refused update changes nothing").toEqual(before);
   });
 });

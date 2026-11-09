@@ -1,4 +1,5 @@
 import { nameOf, SCHEMES } from "../lib/links";
+import { byCodePoint, quoted, trimmed } from "../lib/rust";
 import { openAt } from "../lib/schedule";
 import { siteOf } from "../lib/sites";
 import {
@@ -60,26 +61,6 @@ function attempt<T>(action: () => T): Promise<T> {
   } catch (error) {
     return Promise.reject(BackendError.from(error));
   }
-}
-
-// Rust's trim takes White_Space; JavaScript's also takes U+FEFF and leaves U+0085.
-function trimmed(text: string): string {
-  return text.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
-}
-
-const ESCAPES: Readonly<Record<string, string>> = { "\0": "\\0", "\t": "\\t", "\r": "\\r", "\n": "\\n", '"': '\\"', "\\": "\\\\" };
-
-// Tug's messages quote a value with Rust's {:?}, which differs from JSON's quotes.
-function quoted(text: string): string {
-  let out = "";
-  for (const char of text) {
-    const escape = ESCAPES[char];
-    if (escape !== undefined) out += escape;
-    else if (char !== " " && /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}\p{Zs}\p{Grapheme_Extend}]/u.test(char)) {
-      out += `\\u{${(char.codePointAt(0) ?? 0).toString(16)}}`;
-    } else out += char;
-  }
-  return `"${out}"`;
 }
 
 function words(text: string): string[] {
@@ -165,7 +146,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   // As tug_core::Origin::new: trimmed, an http(s) referrer without its fragment
   // or credentials, and values a header can carry.
   const originOf = (referrer: string | null, cookies: string | null, userAgent: string | null) => {
-    const present = (value: string | null) => (value === null || trimmed(value) === "" ? null : trimmed(value));
+    const present = (value: string | null) => {
+      const plain = value === null ? "" : trimmed(value);
+      return plain === "" ? null : plain;
+    };
     // As http's HeaderValue: no control characters but tab; other bytes past ASCII are fine.
     const header = (value: string | null, message: string) => {
       const plain = present(value);
@@ -224,7 +208,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   const addNow = (link: string, dir?: string): Download => {
     let url: URL;
     try {
-      url = new URL(link.trim());
+      url = new URL(trimmed(link));
     } catch {
       throw new BackendError("invalid", `${link} is not a link`);
     }
@@ -458,13 +442,13 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     add: (url, dir, options) =>
       attempt(() => {
         checkOwn(options?.connections ?? null, options?.speedLimit ?? null);
-        const named = options?.name == null || url.trim().startsWith("magnet:") ? null : fileName(options.name);
+        const named = options?.name == null || trimmed(url).startsWith("magnet:") ? null : fileName(options.name);
         const origin = options === undefined ? null : originOf(options.referrer, options.cookies, options.userAgent);
         if (dir !== undefined && !dir.startsWith("/")) {
           throw new BackendError("invalid", `the folder must be a full path, like /home/you/Downloads, not ${dir}`);
         }
         const download = addNow(url, dir);
-        if (!url.trim().startsWith("magnet:")) {
+        if (!trimmed(url).startsWith("magnet:")) {
           if (origin !== null && (origin.referrer ?? origin.cookies ?? origin.userAgent) !== null) origins.set(download.id, origin);
           download.connections = options?.connections ?? null;
           download.speedLimit = options?.speedLimit ?? null;
@@ -608,7 +592,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           if (!column(name) || next.columns.indexOf(name) !== at) throw invalid(`${quoted(name)} isn't a column`);
         }
         if (next.sort !== null && !column(next.sort.replace(/^-/, ""))) throw invalid(`${quoted(next.sort)} isn't a sort`);
-        const widths = Object.keys(next.widths).sort();
+        const widths = Object.keys(next.widths).sort(byCodePoint);
         if (widths.length > 24) throw invalid(`${quoted(widths.join(" "))} isn't a column`);
         for (const name of widths) {
           const px = next.widths[name] ?? 0;

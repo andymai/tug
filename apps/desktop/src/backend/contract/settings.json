@@ -75,6 +75,14 @@
   },
   {
     "outcome": {
+      "error": "a speed limit must be above zero"
+    },
+    "patch": {
+      "speedLimit": 0
+    }
+  },
+  {
+    "outcome": {
       "error": "downloads at once must be between 1 and 16, not 0"
     },
     "patch": {
@@ -232,7 +240,8 @@
         "excludedSites": [
           "example.org",
           "bank.example",
-          "mail.example.net"
+          "mail.example.net",
+          "a.example"
         ],
         "maxActive": 3,
         "savedViews": [],
@@ -247,7 +256,8 @@
       "excludedSites": [
         "example.org",
         "*.bank.example",
-        "https://Mail.Example.net/inbox"
+        "https://Mail.Example.net/inbox",
+        "a.example"
       ]
     }
   },
@@ -415,6 +425,17 @@
     "patch": {
       "widths": {
         "Size": 120
+      }
+    }
+  },
+  {
+    "outcome": {
+      "error": "\"Ａ\" isn't a column"
+    },
+    "patch": {
+      "widths": {
+        "Ａ": 100,
+        "😀": 100
       }
     }
   },

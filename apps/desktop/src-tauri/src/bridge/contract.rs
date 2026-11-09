@@ -118,6 +118,7 @@ fn patches() -> Vec<Value> {
         json!({ "connections": 33 }),
         json!({ "maxActive": 0 }),
         json!({ "maxActive": 17 }),
+        json!({ "speedLimit": 0 }),
         json!({ "speedLimit": 0, "maxActive": 0 }),
         json!({ "schedule": hours }),
         json!({ "schedule": { "days": 0, "start": 60, "stop": 120 } }),
@@ -129,7 +130,7 @@ fn patches() -> Vec<Value> {
         json!({ "slowHours": { "limit": 1, "hours": { "days": 127, "start": 9, "stop": 9 } } }),
         json!({ "downloadDir": "Downloads" }),
         json!({ "downloadDir": "Downloads", "excludedSites": ["exa mple"] }),
-        json!({ "excludedSites": ["example.org", "*.bank.example", "https://Mail.Example.net/inbox"] }),
+        json!({ "excludedSites": ["example.org", "*.bank.example", "https://Mail.Example.net/inbox", "a.example\u{85}"] }),
         json!({ "excludedSites": ["Example.org", "example.org"] }),
         json!({ "excludedSites": ["exa mple"] }),
         json!({ "columns": ["size", "speed"], "sort": "-size" }),
@@ -141,6 +142,8 @@ fn patches() -> Vec<Value> {
         json!({ "widths": { "size": 120 } }),
         json!({ "widths": { "size": 12 } }),
         json!({ "widths": { "Size": 120 } }),
+        // Rust walks the keys in UTF-8 order, JavaScript sorts them in UTF-16 order.
+        json!({ "widths": { "\u{1f600}": 100, "\u{ff21}": 100 } }),
         json!({ "widths": widths }),
         json!({ "savedViews": [view("Linux", "all", "fedora iso")] }),
         json!({ "savedViews": [view(" ", "all", "x")] }),
@@ -152,45 +155,40 @@ fn patches() -> Vec<Value> {
     ]
 }
 
-fn settings() -> Vec<Value> {
-    // The mock's own defaults, as a plain browser starts with them.
-    let base = json!({
-        "downloadDir": "/home/you/Downloads", "connections": 8, "speedLimit": null,
-        "appearance": "system", "excludedSites": [], "confirmCaptures": true, "maxActive": 3,
-        "schedule": null, "slowHours": null, "savedViews": [], "columns": [], "sort": null,
-        "widths": {},
-    });
-    let current = Settings {
+async fn settings() -> Vec<Value> {
+    let base = Settings {
         download_dir: PathBuf::from("/home/you/Downloads"),
         ..Settings::default()
     };
-    patches()
-        .into_iter()
-        .map(|patch| {
-            let mut merged = base.clone();
-            if let (Some(into), Some(from)) = (merged.as_object_mut(), patch.as_object()) {
-                into.extend(from.clone());
-            }
-            let dto: SettingsDto = serde_json::from_value(merged).unwrap();
-            let next = dto.apply(&current);
-            let checked = next
-                .validate()
-                .map(|()| serde_json::to_value(SettingsDto::from(&next)).unwrap())
-                .map_err(|e| e.to_string());
-            json!({ "patch": patch, "outcome": outcome(checked) })
-        })
-        .collect()
+    let mut cases = Vec::new();
+    for patch in patches() {
+        let library = Library::open(Store::open_in_memory().unwrap())
+            .await
+            .unwrap();
+        library.update_settings(base.clone()).unwrap();
+        let mut merged = serde_json::to_value(SettingsDto::from(&base)).unwrap();
+        if let (Some(into), Some(from)) = (merged.as_object_mut(), patch.as_object()) {
+            into.extend(from.clone());
+        }
+        let checked = save_settings(&library, serde_json::from_value(merged).unwrap())
+            .map(|()| {
+                serde_json::to_value(SettingsDto::from(&library.settings().unwrap())).unwrap()
+            })
+            .map_err(|e| e.message);
+        cases.push(json!({ "patch": patch, "outcome": outcome(checked) }));
+    }
+    cases
 }
 
-#[test]
-fn cases_are_current() {
+#[tokio::test]
+async fn cases_are_current() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/backend/contract");
     std::fs::create_dir_all(&dir).unwrap();
     for (name, cases) in [
         ("headers.json", headers()),
         ("names.json", names()),
         ("own.json", own()),
-        ("settings.json", settings()),
+        ("settings.json", settings().await),
     ] {
         let text = serde_json::to_string_pretty(&cases).unwrap() + "\n";
         let path = dir.join(name);

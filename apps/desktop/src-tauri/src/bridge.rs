@@ -1237,8 +1237,12 @@ pub fn update_settings(
     state: tauri::State<'_, AppState>,
     settings: SettingsDto,
 ) -> Result<(), CommandError> {
-    let current = state.library.settings()?;
-    Ok(state.library.update_settings(settings.apply(&current))?)
+    save_settings(&state.library, settings)
+}
+
+fn save_settings(library: &Library, settings: SettingsDto) -> Result<(), CommandError> {
+    let current = library.settings()?;
+    Ok(library.update_settings(settings.apply(&current))?)
 }
 
 #[tauri::command(async)]
