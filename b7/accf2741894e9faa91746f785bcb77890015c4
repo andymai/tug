@@ -1,0 +1,28 @@
+apps/desktop/src-tauri/src/launcher.rs
+  s_b050dc8a593981::t_bf2550ee2c59f3 1-116
+scripts/notify/check.sh
+  s_b050dc8a593981::t_ed5e438ed0bfa7 70,76,85
+  s_b050dc8a593981::t_674a555839f2c1 35,39,69,71-75,77-84,86
+scripts/notify/launcher.py
+  s_b050dc8a593981::t_674a555839f2c1 1-17
+apps/desktop/src-tauri/src/main.rs
+  s_b050dc8a593981::t_bf2550ee2c59f3 6,48
+CLAUDE.md
+  s_b050dc8a593981::t_41d96f83d9c4d1 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7accf2741894e9faa91746f785bcb77890015c4",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
