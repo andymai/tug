@@ -1,0 +1,39 @@
+crates/tug-host/src/lib.rs
+  s_b050dc8a593981::t_670e91c276accd 1-58,60-204
+  s_b050dc8a593981::t_2b1a8b9a7349b8 59
+crates/tug-host/tests/host.rs
+  s_b050dc8a593981::t_2f4773f45cffb1 1-231
+scripts/host/talk.py
+  s_b050dc8a593981::t_7e9ff85ca853c8 1-12
+scripts/ipc/check.sh
+  s_b050dc8a593981::t_7e9ff85ca853c8 1-75,78-85,88-90
+  s_b050dc8a593981::t_645b7c2b2609f4 76-77,86-87
+crates/tug-host/Cargo.toml
+  s_b050dc8a593981::t_2f4773f45cffb1 22
+  s_b050dc8a593981::t_670e91c276accd 1-21,23-25
+Cargo.toml
+  s_b050dc8a593981::t_670e91c276accd 2
+crates/tug-host/src/main.rs
+  s_b050dc8a593981::t_670e91c276accd 1-27,30-36
+  s_b050dc8a593981::t_e1e99af999a33c 28-29
+CLAUDE.md
+  s_b050dc8a593981::t_7e9ff85ca853c8 15,46
+Cargo.lock
+  s_b050dc8a593981::t_01bd781ae79053 5351-5361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d71ac75ba2b05b1c1692be4eaeb24dcae878e074",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
