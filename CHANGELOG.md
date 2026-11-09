@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.1](https://github.com/andymai/tug/compare/v0.37.0...v0.37.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **desktop:** commands that wait leave the window's thread, and checks keep it so ([#150](https://github.com/andymai/tug/issues/150)) ([625c3da](https://github.com/andymai/tug/commit/625c3dae8455203f812c3e4ad606f4c32b77f891))
+
 ## [0.37.0](https://github.com/andymai/tug/compare/v0.36.0...v0.37.0) (2026-11-09)
 
 
