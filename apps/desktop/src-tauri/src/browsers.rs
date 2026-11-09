@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::fmt;
 use std::fs::{self, OpenOptions, Permissions};
 use std::io::{self, Write};
@@ -171,8 +172,63 @@ fn settle(host: &Path, image: &Path, dir: &Path) -> Result<PathBuf, String> {
     Ok(settled)
 }
 
+// An AppImage's launcher puts its own libraries and plugins first in these;
+// a host program then loads them and fails (flatpak: a glib symbol lookup error).
+const LAUNCHER_PATHS: &[&str] = &[
+    "LD_LIBRARY_PATH",
+    "PATH",
+    "XDG_DATA_DIRS",
+    "PERLLIB",
+    "PYTHONPATH",
+    "PYTHONHOME",
+    "QT_PLUGIN_PATH",
+    "GST_PLUGIN_SYSTEM_PATH",
+    "GST_PLUGIN_SYSTEM_PATH_1_0",
+    "GSETTINGS_SCHEMA_DIR",
+    "GIO_MODULE_DIR",
+    "GI_TYPELIB_PATH",
+    "GTK_PATH",
+    "GTK_DATA_PREFIX",
+    "GTK_EXE_PREFIX",
+    "GTK_IM_MODULE_FILE",
+    "GDK_PIXBUF_MODULE_FILE",
+];
+
+pub fn host_env(
+    lookup: impl Fn(&str) -> Option<OsString>,
+) -> Vec<(&'static str, Option<OsString>)> {
+    let (Some(appdir), Some(_)) = (lookup("APPDIR"), lookup("APPIMAGE")) else {
+        return Vec::new();
+    };
+    let appdir = PathBuf::from(appdir);
+    LAUNCHER_PATHS
+        .iter()
+        .filter_map(|&name| {
+            let value = lookup(name)?;
+            let kept: Vec<PathBuf> = std::env::split_paths(&value)
+                .filter(|entry| !entry.as_os_str().is_empty() && !entry.starts_with(&appdir))
+                .collect();
+            let next = (!kept.is_empty())
+                .then(|| std::env::join_paths(kept).ok())
+                .flatten();
+            (next.as_ref() != Some(&value)).then_some((name, next))
+        })
+        .collect()
+}
+
+pub fn host_command(program: &str) -> Command {
+    let mut command = Command::new(program);
+    for (name, value) in host_env(|name| std::env::var_os(name)) {
+        match value {
+            Some(value) => command.env(name, value),
+            None => command.env_remove(name),
+        };
+    }
+    command
+}
+
 pub fn flatpak_permission(app: &str) -> Option<bool> {
-    let output = Command::new("flatpak")
+    let output = host_command("flatpak")
         .args(["info", "--show-permissions", app])
         .stdin(Stdio::null())
         .stderr(Stdio::null())
@@ -574,6 +630,39 @@ mod tests {
             .output()
             .unwrap();
         assert_eq!(String::from_utf8(started.stdout).unwrap(), "add,a b,");
+    }
+
+    #[test]
+    fn host_programs_lose_what_an_appimage_launcher_added() {
+        let env = |name: &str| -> Option<OsString> {
+            match name {
+                "APPDIR" => Some("/tmp/.mount_TugX".into()),
+                "APPIMAGE" => Some("/home/u/Applications/Tug.AppImage".into()),
+                "LD_LIBRARY_PATH" => {
+                    Some("/tmp/.mount_TugX/usr/lib/:/tmp/.mount_TugX/lib/:".into())
+                }
+                "PATH" => Some("/tmp/.mount_TugX/usr/bin/:/usr/local/bin:/usr/bin".into()),
+                "XDG_DATA_DIRS" => Some("/tmp/.mount_TugX/usr/share:/usr/share".into()),
+                "GIO_MODULE_DIR" => Some("/tmp/.mount_TugX//usr/lib/gio/modules".into()),
+                "PYTHONPATH" => Some("/home/u/py".into()),
+                _ => None,
+            }
+        };
+        let mut changes = host_env(env);
+        changes.sort();
+        assert_eq!(
+            changes,
+            vec![
+                ("GIO_MODULE_DIR", None),
+                ("LD_LIBRARY_PATH", None),
+                ("PATH", Some("/usr/local/bin:/usr/bin".into())),
+                ("XDG_DATA_DIRS", Some("/usr/share".into())),
+            ]
+        );
+        assert_eq!(
+            host_env(|name| (name == "PATH").then(|| "/usr/bin".into())),
+            Vec::new()
+        );
     }
 
     #[test]
