@@ -1162,6 +1162,8 @@ mod tests {
             added: UNIX_EPOCH + Duration::from_millis(1_762_600_000_123),
             finished: None,
             position: 1,
+            connections: None,
+            speed_limit: None,
         }
     }
 

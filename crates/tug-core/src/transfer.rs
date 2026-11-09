@@ -70,6 +70,8 @@ impl Progress {
 #[derive(Debug, Clone)]
 pub struct TransferOptions {
     pub connections: u32,
+    // This download's own limit, under the shared one.
+    pub speed_limit: Option<u64>,
     pub limiter: Option<Arc<Limiter>>,
     pub origin: Origin,
 }
@@ -78,6 +80,7 @@ impl TransferOptions {
     pub fn new(connections: u32) -> Self {
         Self {
             connections,
+            speed_limit: None,
             limiter: None,
             origin: Origin::default(),
         }
@@ -204,6 +207,12 @@ impl Transfer {
         }
     }
 
+    pub fn set_speed_limit(&self, rate: Option<u64>) {
+        if let Work::Http(download) = &self.work {
+            download.set_speed_limit(rate);
+        }
+    }
+
     pub fn stop(&self) {
         match &self.work {
             Work::Http(download) => download.cancel(),
@@ -264,6 +273,7 @@ fn engine_options(options: &TransferOptions) -> Options {
     Options {
         max_connections: options.connections,
         user_agent: options.origin.user_agent().unwrap_or(USER_AGENT).to_owned(),
+        speed_limit: options.speed_limit,
         global: options.limiter.clone(),
         ..Options::default()
     }
