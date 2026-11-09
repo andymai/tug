@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.0](https://github.com/andymai/tug/compare/v0.29.0...v0.30.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** a status bar with total speed, a speed graph, the limit in force and free space ([#127](https://github.com/andymai/tug/issues/127)) ([37836ae](https://github.com/andymai/tug/commit/37836aeee80fb46738e4476b48383006092a0514))
+
 ## [0.29.0](https://github.com/andymai/tug/compare/v0.28.0...v0.29.0) (2026-11-09)
 
 
