@@ -665,9 +665,18 @@ impl Library {
         let meta = session
             .metadata(&mdm_torrent::Source::File(bytes), LIST_WAIT, None)
             .await?;
+        // mdm-torrent refuses unsafe names before it lists them; deleting stays
+        // inside the download folder whatever a list says.
         let folder = meta.folder_in(&download.dir);
+        if !folder.starts_with(&download.dir) {
+            return Ok(());
+        }
+        let plain = |path: &Path| {
+            path.components()
+                .all(|part| matches!(part, std::path::Component::Normal(_)))
+        };
         let mut folders = Vec::new();
-        for file in meta.files.iter().filter(|f| !f.padding) {
+        for file in meta.files.iter().filter(|f| !f.padding && plain(&f.path)) {
             let path = folder.join(&file.path);
             match std::fs::remove_file(&path) {
                 Err(e) if e.kind() != io::ErrorKind::NotFound => {
