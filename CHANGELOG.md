@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/andymai/tug/compare/v0.16.1...v0.17.0) (2026-11-09)
+
+
+### Features
+
+* **core:** carry a link's referrer, cookies and User-Agent from the browser to the engine ([#75](https://github.com/andymai/tug/issues/75)) ([f03d8b2](https://github.com/andymai/tug/commit/f03d8b2c212d30a89361663a1e3d06fd8e4ec5ed))
+
 ## [0.16.1](https://github.com/andymai/tug/compare/v0.16.0...v0.16.1) (2026-11-09)
 
 
