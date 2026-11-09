@@ -19,6 +19,7 @@ export interface FakeOptions {
   cookies?: Cookie[];
   pauseFails?: boolean;
   session?: Map<string, unknown>;
+  sessionReadDelaysMs?: number[];
 }
 
 export const ADDED = { ok: true, type: "added", added: [{ name: "a.iso" }], failed: [] };
@@ -67,8 +68,15 @@ export function fakeBrowser(options: FakeOptions = {}): Fake {
     },
     storage: {
       session: {
-        get: (keys) =>
-          Promise.resolve(Object.fromEntries([...session].filter(([key]) => keys === null || key === keys))),
+        get: (keys) => {
+          const snapshot = Object.fromEntries([...session].filter(([key]) => keys === null || key === keys));
+          const delay = options.sessionReadDelaysMs?.shift() ?? 0;
+          return new Promise((resolve) => {
+            setTimeout(() => {
+              resolve(snapshot);
+            }, delay);
+          });
+        },
         set: (items) => {
           for (const [key, value] of Object.entries(items)) session.set(key, value);
           return Promise.resolve();

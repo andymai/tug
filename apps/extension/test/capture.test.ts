@@ -118,6 +118,22 @@ describe("capture", () => {
     expect(await restarted.created(download({ url: report }))).toBe("tug");
   });
 
+  it("keeps a fresh form marker when two form requests overlap at the expiry", async () => {
+    let now = 1_000;
+    const fake = fakeBrowser({ sessionReadDelaysMs: [0, 0, 20] });
+    const report = "https://example.org/report";
+    const capture = new Capture(fake.api, UA, () => now);
+    await capture.requested({ url: report, method: "POST" });
+    now += FORM_MEMORY_MS + 1;
+
+    await Promise.all([
+      capture.requested({ url: report, method: "POST" }),
+      capture.requested({ url: "https://example.org/other", method: "POST" }),
+    ]);
+    expect(fake.session.get(`form:${report}`)).toBe(now);
+    expect(await new Capture(fake.api, UA, () => now).created(download({ url: report }))).toBe("skipped");
+  });
+
   it("takes a download whose size the browser doesn't know yet", async () => {
     const fake = fakeBrowser();
     expect(await new Capture(fake.api, UA).created(download({ totalBytes: -1 }))).toBe("tug");
