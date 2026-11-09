@@ -641,9 +641,12 @@ pub async fn add(
         None => library.settings()?.download_dir,
     };
     let id = if url.scheme() == "magnet" {
-        library
-            .add_torrent(TorrentSource::Magnet(url.to_string()), &dir)
-            .await?
+        let source = TorrentSource::Magnet(url.to_string());
+        if paused {
+            library.add_torrent_paused(source, &dir).await?
+        } else {
+            library.add_torrent(source, &dir).await?
+        }
     } else if paused {
         library.add_paused(url, &dir, origin)?
     } else {
@@ -1293,5 +1296,20 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(twice.kind, ErrorKind::Invalid, "{}", twice.message);
+
+        let captured = add(
+            &torrents,
+            "magnet:?xt=urn:btih:1123456789abcdef0123456789abcdef01234567",
+            Some("/tmp"),
+            &Origin::default(),
+            true,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            captured.state,
+            StateDto::Paused,
+            "a capture waits for its answer"
+        );
     }
 }
