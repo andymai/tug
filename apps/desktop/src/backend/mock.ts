@@ -1,4 +1,5 @@
 import { nameOf, SCHEMES } from "../lib/links";
+import { openAt } from "../lib/schedule";
 import { siteOf } from "../lib/sites";
 import {
   type Backend,
@@ -68,7 +69,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
   };
   const listeners = new Set<(batch: ProgressBatch) => void>();
-  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3 };
+  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null };
   let scheme = options.colorScheme ?? null;
   const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
   const noticeListeners = new Set<(message: string) => void>();
@@ -127,6 +128,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
 
   // Like Tug, a place that frees up goes to the next queued download; the seed keeps its states.
   const fill = () => {
+    if (settings.schedule !== null && !openAt(settings.schedule, new Date(now()))) return;
     let running = [...downloads.values()].filter((d) => d.state === "downloading").length;
     for (const download of queue()) {
       if (running >= settings.maxActive) return;
@@ -287,6 +289,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         if (next.speedLimit === 0) throw new BackendError("invalid", "a speed limit must be above zero");
         if (next.maxActive < 1 || next.maxActive > 16) {
           throw new BackendError("invalid", `downloads at once must be between 1 and 16, not ${String(next.maxActive)}`);
+        }
+        if (next.schedule !== null) {
+          const { days, start, stop } = next.schedule;
+          if (days < 1 || days > 0b111_1111) throw new BackendError("invalid", "a schedule needs at least one day");
+          if (start >= 1440 || stop >= 1440) throw new BackendError("invalid", `${String(Math.max(start, stop))} minutes is past the end of a day`);
+          if (start === stop) throw new BackendError("invalid", "a schedule must start and stop at different times");
         }
         for (const [at, site] of next.excludedSites.entries()) {
           if (siteOf(site) !== site) throw new BackendError("invalid", `${JSON.stringify(site)} isn't a site, like example.org`);

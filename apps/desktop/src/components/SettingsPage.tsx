@@ -1,8 +1,8 @@
 import { CircleAlert, FolderOpen, Globe, Minus, Plus, X } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from "react";
 
-import type { Appearance, Settings } from "../backend/backend";
-import { sentence, shortDir } from "../lib/format";
+import type { Appearance, Schedule, Settings } from "../backend/backend";
+import { clock, minutesOf, sentence, shortDir } from "../lib/format";
 import { siteOf } from "../lib/sites";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
@@ -195,6 +195,125 @@ function SpeedLimit({ settings, save }: { settings: Settings; save: (patch: Part
   );
 }
 
+const EVERY_DAY = 0b111_1111;
+const NIGHTS: Schedule = { days: EVERY_DAY, start: 60, stop: 7 * 60 };
+const DAYS = [
+  { name: "Monday", letter: "M" },
+  { name: "Tuesday", letter: "T" },
+  { name: "Wednesday", letter: "W" },
+  { name: "Thursday", letter: "T" },
+  { name: "Friday", letter: "F" },
+  { name: "Saturday", letter: "S" },
+  { name: "Sunday", letter: "S" },
+] as const;
+
+function Hours({ schedule, save }: { schedule: Schedule | null; save: (patch: Partial<Settings>) => void }) {
+  const startId = useId();
+  const [drafts, setDrafts] = useState({ start: clock((schedule ?? NIGHTS).start), stop: clock((schedule ?? NIGHTS).stop) });
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const commit = (which: "start" | "stop") => {
+    if (schedule === null) return;
+    const value = minutesOf(drafts[which]);
+    if (value === null) {
+      setProblem("Enter a time like 23:00.");
+      return;
+    }
+    const next = { ...schedule, [which]: value };
+    if (next.start === next.stop) {
+      setProblem("Pick two different times.");
+      return;
+    }
+    setProblem(null);
+    setDrafts((current) => ({ ...current, [which]: clock(value) }));
+    if (value !== schedule[which]) save({ schedule: next });
+  };
+
+  const field = (which: "start" | "stop", label: string, id?: string) => (
+    <input
+      id={id}
+      aria-label={id === undefined ? label : undefined}
+      inputMode="numeric"
+      value={drafts[which]}
+      aria-invalid={problem !== null}
+      onChange={(event) => {
+        setDrafts((current) => ({ ...current, [which]: event.target.value }));
+      }}
+      onBlur={() => {
+        commit(which);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") commit(which);
+      }}
+      className="h-[30px] w-16 rounded-sm border border-control-border bg-surface px-2 text-center text-mono text-ink aria-invalid:border-state-error"
+    />
+  );
+
+  return (
+    <>
+      <Row
+        label="Download at set times"
+        description="Outside these hours, downloads wait in the queue."
+        control={
+          <Switch
+            label="Download at set times"
+            checked={schedule !== null}
+            onChange={(on) => {
+              setDrafts({ start: clock(NIGHTS.start), stop: clock(NIGHTS.stop) });
+              setProblem(null);
+              save({ schedule: on ? NIGHTS : null });
+            }}
+          />
+        }
+      />
+      {schedule !== null && (
+        <>
+          <Row
+            label="Hours"
+            labelFor={startId}
+            description={problem ?? (schedule.stop < schedule.start ? "These hours go on past midnight." : "Downloads run from the first time until the second.")}
+            control={
+              <>
+                {field("start", "From", startId)}
+                <span className="text-small text-ink-muted">to</span>
+                {field("stop", "Until")}
+              </>
+            }
+          />
+          <Row
+            label="Days"
+            description="The days on which the hours start."
+            control={
+              <div role="group" aria-label="Days" className="flex gap-0.5 rounded-sm border border-control-border bg-surface p-0.5">
+                {DAYS.map((day, index) => {
+                  const bit = 1 << index;
+                  const on = (schedule.days & bit) !== 0;
+                  return (
+                    <button
+                      key={day.name}
+                      type="button"
+                      aria-pressed={on}
+                      aria-label={day.name}
+                      title={day.name}
+                      disabled={on && schedule.days === bit}
+                      onClick={() => {
+                        save({ schedule: { ...schedule, days: schedule.days ^ bit } });
+                      }}
+                      className="h-6 w-7 rounded-xs text-small font-medium text-ink-muted transition-colors duration-(--duration-fast) ease-(--ease-out) hover:text-ink aria-pressed:bg-selection aria-pressed:text-ink"
+                    >
+                      {day.letter}
+                    </button>
+                  );
+                })}
+              </div>
+            }
+          />
+        </>
+      )}
+    </>
+  );
+}
+
 function ExcludedSites({ sites, save }: { sites: readonly string[]; save: (patch: Partial<Settings>) => void }) {
   const fieldId = useId();
   const [draft, setDraft] = useState("");
@@ -337,6 +456,12 @@ export function SettingsPage() {
                 Speed
               </h2>
               <SpeedLimit settings={settings} save={save} />
+            </section>
+            <section aria-labelledby="settings-schedule">
+              <h2 id="settings-schedule" className="pb-1 text-label text-ink-muted">
+                Schedule
+              </h2>
+              <Hours schedule={settings.schedule} save={save} />
             </section>
             <section aria-labelledby="settings-browsers">
               <h2 id="settings-browsers" className="pb-1 text-label text-ink-muted">

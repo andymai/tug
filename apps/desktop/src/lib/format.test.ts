@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clock,
   formatBytes,
   formatDate,
   formatDuration,
   formatLeft,
   formatPercent,
   formatSpeed,
+  minutesOf,
   percentOf,
   sentence,
   shortDir,
@@ -76,5 +78,16 @@ describe("percent", () => {
     expect(percentOf(50, 200)).toBe(25);
     expect(percentOf(10, null)).toBe(0);
     expect(percentOf(300, 200)).toBe(100);
+  });
+});
+
+describe("times of day", () => {
+  it("writes minutes after midnight as a 24-hour clock", () => {
+    expect([0, 65, 23 * 60 + 59].map(clock)).toEqual(["00:00", "01:05", "23:59"]);
+  });
+
+  it("reads a typed time, and refuses what isn't one", () => {
+    expect(["7:00", "07:00", " 23.30 ", "0:05"].map(minutesOf)).toEqual([420, 420, 1410, 5]);
+    for (const text of ["", "7", "24:00", "12:60", "7:5", "noon"]) expect(minutesOf(text), text).toBeNull();
   });
 });

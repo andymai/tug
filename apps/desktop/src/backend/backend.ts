@@ -21,6 +21,7 @@ export type { Phase } from "./bindings/Phase";
 export type { Place } from "./bindings/Place";
 export type { ProgressBatch } from "./bindings/ProgressBatch";
 export type { ProgressUpdate } from "./bindings/ProgressUpdate";
+export type { Schedule } from "./bindings/Schedule";
 export type { Settings } from "./bindings/Settings";
 
 export type ResizeEdge = "North" | "South" | "East" | "West" | "NorthEast" | "NorthWest" | "SouthEast" | "SouthWest";

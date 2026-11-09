@@ -534,6 +534,53 @@ describe("queue", () => {
   });
 });
 
+describe("schedule", () => {
+  it("sets the hours and the days on which downloads run", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("switch", { name: "Download at set times" }));
+    expect((await backend.settings()).schedule).toEqual({ days: 0b111_1111, start: 60, stop: 420 });
+
+    const from = screen.getByRole("textbox", { name: "Hours" });
+    await user.clear(from);
+    await user.type(from, "23:00{Enter}");
+    expect((await backend.settings()).schedule?.start).toBe(23 * 60);
+    expect(screen.getByText("These hours go on past midnight.")).toBeInTheDocument();
+
+    const until = screen.getByRole("textbox", { name: "Until" });
+    await user.clear(until);
+    await user.type(until, "23:00{Enter}");
+    expect(screen.getByText("Pick two different times.")).toBeInTheDocument();
+    expect((await backend.settings()).schedule?.stop).toBe(420);
+    await user.clear(until);
+    await user.type(until, "noon{Enter}");
+    expect(screen.getByText("Enter a time like 23:00.")).toBeInTheDocument();
+
+    const days = within(screen.getByRole("group", { name: "Days" }));
+    for (const day of ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]) {
+      await user.click(days.getByRole("button", { name: day }));
+    }
+    expect((await backend.settings()).schedule?.days).toBe(0b100_0000);
+    expect(days.getByRole("button", { name: "Sunday" })).toBeDisabled();
+
+    await user.click(screen.getByRole("switch", { name: "Download at set times" }));
+    expect((await backend.settings()).schedule).toBeNull();
+  });
+
+  it("says why queued downloads wait outside the scheduled hours", async () => {
+    const backend = createMockBackend({ seed: [{ url: "https://example.org/night.iso", state: "queued" }] });
+    const now = new Date();
+    const minute = now.getHours() * 60 + now.getMinutes();
+    const later = (by: number) => (minute + by) % 1440;
+    await backend.updateSettings({ ...(await backend.settings()), schedule: { days: 0b111_1111, start: later(120), stop: later(180) } });
+    render(<App store={createDownloadsStore(backend)} />);
+    expect(await screen.findByText("Outside the scheduled hours")).toBeInTheDocument();
+    expect((await backend.list())[0]?.state).toBe("queued");
+  });
+});
+
 describe("command bar and keyboard", () => {
   it("opens on Ctrl+K and runs the chosen command", async () => {
     const { user } = open();
