@@ -159,7 +159,6 @@ export type Overlay = "commands" | "shortcuts" | null;
 
 export type InspectorTab = "overview" | "connections" | "log" | "files" | "peers";
 
-// The panel's slots for one download's data, each `{ id, data }` or null.
 type Slot = "history" | "inspection" | "torrent" | "headers";
 type SlotData<K extends Slot> = NonNullable<DownloadsState[K]>["data"];
 
@@ -183,28 +182,34 @@ export function createDownloadsStore(backend: Backend) {
     let anchor: number | null = null;
     let disk: Promise<void> | null = null;
     let diskAsked = 0;
-    // The newest request for each panel slot; see `load`.
     const newest: Record<Slot, number> = { history: 0, inspection: 0, torrent: 0, headers: 0 };
 
     // The newest answer for the download on screen. An older answer, or one for a
-    // download the panel no longer shows, goes nowhere; a removed download is quiet.
-    // Every panel load goes through here (ESLint refuses a direct backend call).
-    const load = async <K extends Slot>(slot: K, id: number, fetch: () => Promise<SlotData<K>>) => {
+    // download the panel no longer shows, goes nowhere, failures too; a removed
+    // download is quiet. Every panel load goes through here (ESLint refuses others).
+    const loadSlot = async <K extends Slot>(slot: K, id: number, ask: () => Promise<SlotData<K>>) => {
       const request = ++newest[slot];
+      const current = () => request === newest[slot] && shownId(get()) === id;
       try {
-        const data = await fetch();
-        if (request === newest[slot] && shownId(get()) === id) set({ [slot]: { id, data } } as Pick<DownloadsState, K>);
+        const data = await ask();
+        if (current()) set({ [slot]: { id, data } } as Pick<DownloadsState, K>);
       } catch (error) {
         const failure = BackendError.from(error);
-        if (failure.kind !== "notFound") set({ notice: failure.message });
+        if (current() && failure.kind !== "notFound") set({ notice: failure.message });
       }
     };
-    // A save's answer replaces the slot only for the download on screen, and only
-    // then outdates a load on its way; another download's load goes on.
-    const keep = <K extends Slot>(slot: K, id: number, data: SlotData<K>) => {
-      if (shownId(get()) !== id) return;
-      ++newest[slot];
-      set({ [slot]: { id, data } } as Pick<DownloadsState, K>);
+    const newestSave: Record<Slot, number> = { history: 0, inspection: 0, torrent: 0, headers: 0 };
+    // A save's answer replaces the slot only if no later save started, and only for
+    // the download on screen; only then it outdates a load on its way, so another
+    // download's load goes on.
+    const saveSlot = async <K extends Slot>(slot: K, id: number, ask: () => Promise<SlotData<K>>) => {
+      const save = ++newestSave[slot];
+      const data = await ask();
+      if (save === newestSave[slot] && shownId(get()) === id) {
+        ++newest[slot];
+        set({ [slot]: { id, data } } as Pick<DownloadsState, K>);
+      }
+      return data;
     };
 
     // One by one, then one reload, and one notice for what failed.
@@ -717,15 +722,15 @@ export function createDownloadsStore(backend: Backend) {
 
       showInFolder: (id) => act(() => backend.showInFolder(id)),
 
-      loadHistory: (id) => load("history", id, () => backend.events(id)),
+      loadHistory: (id) => loadSlot("history", id, () => backend.events(id)),
 
-      inspect: (id) => load("inspection", id, () => backend.inspect(id)),
+      inspect: (id) => loadSlot("inspection", id, () => backend.inspect(id)),
 
-      loadTorrent: (id) => load("torrent", id, () => backend.torrentView(id)),
+      loadTorrent: (id) => loadSlot("torrent", id, () => backend.torrentView(id)),
 
       chooseFiles: async (id, files) => {
         try {
-          keep("torrent", id, await backend.chooseFiles(id, files));
+          await saveSlot("torrent", id, () => backend.chooseFiles(id, files));
           await get().reload();
         } catch (error) {
           set({ notice: `couldn't choose the files: ${BackendError.from(error).message}` });
@@ -808,13 +813,11 @@ export function createDownloadsStore(backend: Backend) {
         }
       },
 
-      loadHeaders: (id) => load("headers", id, () => backend.headers(id)),
+      loadHeaders: (id) => loadSlot("headers", id, () => backend.headers(id)),
 
       setHeaders: async (id, referrer, cookies, userAgent) => {
         try {
-          const data = await backend.setHeaders(id, referrer, cookies, userAgent);
-          keep("headers", id, data);
-          return data;
+          return await saveSlot("headers", id, () => backend.setHeaders(id, referrer, cookies, userAgent));
         } catch (error) {
           set({ notice: `couldn't change the headers: ${BackendError.from(error).message}` });
           return null;

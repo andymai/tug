@@ -27,16 +27,20 @@ export default defineConfig([
     },
   },
   {
-    // A panel load outside `load` would keep a late answer for a download no longer shown.
-    files: ["src/state/**/*.ts", "src/components/**/*.tsx"],
-    ignores: ["**/*.test.*"],
+    // Outside `loadSlot` and `saveSlot`, a panel answer could land for a download no longer shown.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/backend/**", "**/*.test.*", "**/*.visual.*"],
     rules: {
       "no-restricted-syntax": [
         "error",
         {
           selector:
-            "CallExpression[callee.object.name='backend'][callee.property.name=/^(events|inspect|headers|torrentView)$/]:not(CallExpression[callee.name='load'] CallExpression)",
-          message: "Load a panel slot through load() in the store, which drops a late answer.",
+            "CallExpression[callee.object.name='backend'][callee.property.name=/^(events|inspect|headers|torrentView)$/]:not(CallExpression[callee.name='loadSlot'] > ArrowFunctionExpression > CallExpression)",
+          message: "Load a panel slot through loadSlot() in the store, which drops a late answer.",
+        },
+        {
+          selector: "CallExpression[callee.name='set'] > ObjectExpression > Property[key.name=/^(history|inspection|torrent|headers)$/]",
+          message: "Write a panel slot through loadSlot() or saveSlot(), which check the download on screen.",
         },
       ],
     },

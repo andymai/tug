@@ -1,7 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { useDraft } from "./draft";
+import { type Save, useDraft } from "./draft";
+
+const idle: Save = { saved: () => undefined, failed: () => undefined };
 
 describe("useDraft", () => {
   it("follows the saved value until the person types, and again after a save", () => {
@@ -20,32 +22,66 @@ describe("useDraft", () => {
     expect(result.current.text, "after a save it follows again").toBe("typed, cleaned");
   });
 
-  it("takes a save's answer only if nobody typed since the save started", () => {
+  it("takes a save's answer unless the person typed something else since it started", () => {
     const { result } = renderHook(() => useDraft("https://example.org/"));
+    let save = idle;
     act(() => {
       result.current.edit("https://example.org");
     });
-    let answer: (text: string) => void = () => undefined;
     act(() => {
-      answer = result.current.commit();
+      save = result.current.commit();
     });
     act(() => {
-      answer("https://example.org/");
+      save.saved("https://example.org/");
     });
     expect(result.current.text).toBe("https://example.org/");
 
     act(() => {
       result.current.edit("https://example.net");
-    });
-    act(() => {
-      answer = result.current.commit();
+      save = result.current.commit();
     });
     act(() => {
       result.current.edit("https://example.net/page");
-    });
-    act(() => {
-      answer("https://example.net/");
+      save.saved("https://example.net/");
     });
     expect(result.current.text, "a late answer leaves the newer text").toBe("https://example.net/page");
+
+    act(() => {
+      save = result.current.commit();
+      result.current.edit("https://example.net/pag");
+      result.current.edit("https://example.net/page");
+    });
+    act(() => {
+      save.saved("https://example.net/page/");
+    });
+    expect(result.current.text, "typed back to what it sent: the answer still lands").toBe("https://example.net/page/");
+  });
+
+  it("keeps the typed text after a failed save, and drops an older save's answer", () => {
+    const { result, rerender } = renderHook(({ saved }) => useDraft(saved), { initialProps: { saved: "old" } });
+    let first = idle;
+    let second = idle;
+    act(() => {
+      result.current.edit("mine");
+      first = result.current.commit();
+    });
+    act(() => {
+      first.failed();
+    });
+    rerender({ saved: "from elsewhere" });
+    expect(result.current.text, "an unsaved edit stays").toBe("mine");
+
+    act(() => {
+      first = result.current.commit();
+      second = result.current.commit();
+    });
+    act(() => {
+      first.saved("first answer");
+    });
+    expect(result.current.text, "the older save's answer is outdated").toBe("mine");
+    act(() => {
+      second.saved("second answer");
+    });
+    expect(result.current.text).toBe("second answer");
   });
 });

@@ -6,6 +6,7 @@ import { clock, minutesOf, sentence, shortDir } from "../lib/format";
 import { siteOf } from "../lib/sites";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
+import { useDraft } from "../state/draft";
 import { Button } from "./Button";
 import { WindowControls } from "./WindowControls";
 
@@ -130,20 +131,21 @@ function AppearanceChoice({ value, onChange }: { value: Appearance; onChange: (v
 
 function LimitRow({ label, description, bytes, onChange }: { label: string; description: string; bytes: number; onChange: (bytes: number) => void }) {
   const fieldId = useId();
-  const [draft, setDraft] = useState(formatLimit(bytes));
+  const draft = useDraft(formatLimit(bytes));
   const [problem, setProblem] = useState<string | null>(null);
 
   const commit = () => {
-    if (draft === formatLimit(bytes)) {
+    if (draft.text === formatLimit(bytes)) {
       setProblem(null);
       return;
     }
-    const value = Number(draft.replace(",", "."));
+    const value = Number(draft.text.replace(",", "."));
     if (!Number.isFinite(value) || value <= 0) {
       setProblem("Enter a speed above zero.");
       return;
     }
     setProblem(null);
+    draft.commit();
     onChange(Math.round(value * MB));
   };
 
@@ -157,10 +159,10 @@ function LimitRow({ label, description, bytes, onChange }: { label: string; desc
           <input
             id={fieldId}
             inputMode="decimal"
-            value={draft}
+            value={draft.text}
             aria-invalid={problem !== null}
             onChange={(event) => {
-              setDraft(event.target.value);
+              draft.edit(event.target.value);
             }}
             onBlur={commit}
             onKeyDown={(event) => {

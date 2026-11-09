@@ -140,6 +140,9 @@ function HeaderFields({ download, headers }: { download: Download; headers: Head
   const referrer = referrerDraft.text;
   const userAgent = userAgentDraft.text;
   const [cookie, setCookie] = useState({ text: "", replacing: !headers.hasCookies });
+  // While a save is on its way, `headers` is older than what Tug will hold, so
+  // text that matches it may still differ from the last save.
+  const [pending, setPending] = useState(0);
   const cookies = cookie.text;
   const replacing = cookie.replacing;
   const headingId = useId();
@@ -151,13 +154,19 @@ function HeaderFields({ download, headers }: { download: Download; headers: Head
   const commit = (change: CookiesChange = { kind: "keep" }) => {
     const sent = { referrer: plain(referrer), userAgent: plain(userAgent) };
     const same = sent.referrer === headers.referrer && sent.userAgent === headers.userAgent;
-    if (same && change.kind === "keep") return;
-    const referrerSaved = referrerDraft.commit();
-    const userAgentSaved = userAgentDraft.commit();
+    if (same && change.kind === "keep" && pending === 0) return;
+    const referrerSave = referrerDraft.commit();
+    const userAgentSave = userAgentDraft.commit();
+    setPending((n) => n + 1);
     void setHeaders(download.id, sent.referrer, change, sent.userAgent).then((saved) => {
-      if (saved === null) return;
-      referrerSaved(saved.referrer ?? "");
-      userAgentSaved(saved.userAgent ?? "");
+      setPending((n) => n - 1);
+      if (saved === null) {
+        referrerSave.failed();
+        userAgentSave.failed();
+        return;
+      }
+      referrerSave.saved(saved.referrer ?? "");
+      userAgentSave.saved(saved.userAgent ?? "");
       if (change.kind === "clear") setCookie((now) => ({ ...now, replacing: true }));
       if (change.kind === "set") setCookie((now) => (now.text.trim() === change.value ? { text: "", replacing: false } : now));
     });
@@ -284,6 +293,7 @@ function OwnOptions({ download }: { download: Download }) {
   const limitDraft = useDraft(limitText(download.speedLimit));
   const connections = connectionsDraft.text;
   const limit = limitDraft.text;
+  const [pending, setPending] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
   const headingId = useId();
   const connectionsId = useId();
@@ -297,10 +307,13 @@ function OwnOptions({ download }: { download: Download }) {
       return;
     }
     setProblem(null);
-    connectionsDraft.commit();
-    limitDraft.commit();
-    if (own.value === download.connections && cap.value === download.speedLimit) return;
-    void setOptions(download.id, own.value, cap.value);
+    if (own.value === download.connections && cap.value === download.speedLimit && pending === 0) return;
+    const saves = [connectionsDraft.commit(), limitDraft.commit()];
+    setPending((n) => n + 1);
+    void setOptions(download.id, own.value, cap.value).then((saved) => {
+      setPending((n) => n - 1);
+      if (!saved) for (const save of saves) save.failed();
+    });
   };
   const field = "h-7 w-16 rounded-sm border border-control-border bg-surface px-2 text-right text-mono text-ink placeholder:text-ink-faint aria-invalid:border-state-error";
   const keys = (event: KeyEvent<HTMLInputElement>) => {
