@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.24.0](https://github.com/andymai/tug/compare/v0.23.0...v0.24.0) (2026-11-09)
+
+
+### Features
+
+* **core:** search downloads by the words in their name or link ([#109](https://github.com/andymai/tug/issues/109)) ([d0a3b28](https://github.com/andymai/tug/commit/d0a3b28382b77d340f097b8936ade8ce46e95f8b))
+
+
+### Bug Fixes
+
+* **core:** keep a pause or resume made while the hours stop a download ([#108](https://github.com/andymai/tug/issues/108)) ([346896b](https://github.com/andymai/tug/commit/346896b095f1ad07197e9962a2416ee6c8c965d5))
+* **core:** pause all and resume all reach a download that the hours stop ([#111](https://github.com/andymai/tug/issues/111)) ([ed89e45](https://github.com/andymai/tug/commit/ed89e451cabae7031ab244e3f6956823967e9a42))
+
 ## [0.23.0](https://github.com/andymai/tug/compare/v0.22.1...v0.23.0) (2026-11-09)
 
 
