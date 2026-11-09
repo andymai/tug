@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer};
-use tug_core::{DownloadState, Library, ProgressStream, Store, StreamOptions};
+use tug_core::{DownloadState, Library, Origin, ProgressStream, Store, StreamOptions};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn the_stream_reports_smoothed_progress_and_the_settled_download() {
@@ -150,4 +150,38 @@ async fn a_reader_that_looks_late_still_gets_each_settled_download() {
     expected.sort();
     assert_eq!(seen, expected);
     assert!(settled.try_recv().is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_revision_counts_changes_also_from_batches_a_reader_skipped() {
+    let dir = tempfile::tempdir().unwrap();
+    let library = Arc::new(
+        Library::open(Store::open_in_memory().unwrap())
+            .await
+            .unwrap(),
+    );
+    let stream = ProgressStream::spawn(Arc::clone(&library), StreamOptions::default());
+    let mut batches = stream.subscribe();
+    for name in ["a", "b"] {
+        let url = format!("https://example.org/{name}.iso").parse().unwrap();
+        library
+            .add_paused(url, dir.path(), &Origin::default())
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+
+    batches.borrow_and_update();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while batches.borrow().revision < 2 {
+        assert!(
+            Instant::now() < deadline,
+            "the revision stayed at {}",
+            batches.borrow().revision
+        );
+        tokio::time::timeout(Duration::from_secs(1), batches.changed())
+            .await
+            .unwrap()
+            .unwrap();
+    }
+    assert!(batches.borrow().seq > 2, "the reader skipped batches");
 }

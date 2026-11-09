@@ -367,6 +367,7 @@ impl Library {
                 let reason = e.to_string();
                 let store = self.store()?;
                 store.set_state(id, DownloadState::Failed, Some(&reason), now)?;
+                self.news().settled.push(id);
                 store.add_event(
                     id,
                     &event(
@@ -377,7 +378,6 @@ impl Library {
                     ),
                 )?;
                 drop(store);
-                self.news().settled.push(id);
             }
         }
         Ok(())

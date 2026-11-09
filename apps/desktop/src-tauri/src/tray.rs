@@ -316,8 +316,8 @@ pub struct Gate {
 }
 
 impl Gate {
-    pub fn due(&mut self, now: Instant, settled: bool) -> bool {
-        let due = settled
+    pub fn due(&mut self, now: Instant, news: bool) -> bool {
+        let due = news
             || self
                 .checked
                 .is_none_or(|at| now.duration_since(at) >= PUBLISH_EVERY);
@@ -345,12 +345,12 @@ fn follow<R: Runtime>(
     tauri::async_runtime::spawn(async move {
         let mut published: Option<Summary> = None;
         let mut gate = Gate::default();
+        let mut revision = 0;
         while batches.changed().await.is_ok() {
             let batch = Arc::clone(&batches.borrow_and_update());
-            if !gate.due(
-                Instant::now(),
-                !batch.settled.is_empty() || !batch.changed.is_empty(),
-            ) {
+            let news = batch.revision != revision;
+            revision = batch.revision;
+            if !gate.due(Instant::now(), news) {
                 continue;
             }
             let summary = Summary::from_batch(&batch, paused(&library));

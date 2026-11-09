@@ -70,12 +70,29 @@ describe("downloads store", () => {
     const update = (of: number) => ({ id: of, phase: "downloading" as const, received: MB, total: null, speed: MB, leftMs: null, connections: 1 });
     const before = lists;
 
-    store.getState().applyBatch({ seq: 1, updates: [update(id("downloading"))], settled: [], changed: [], error: null });
-    expect(lists).toBe(before);
-    store.getState().applyBatch({ seq: 2, updates: [update(id("queued"))], settled: [], changed: [], error: null });
+    const batch = (seq: number, of: string, revision: number) => ({ seq, updates: [update(id(of))], settled: [], revision, error: null });
+
+    store.getState().applyBatch(batch(1, "downloading", 4));
+    expect(lists, "the first batch brings a revision to compare").toBe(before + 1);
+    store.getState().applyBatch(batch(2, "downloading", 4));
     expect(lists).toBe(before + 1);
-    store.getState().applyBatch({ seq: 3, updates: [], settled: [], changed: [id("paused")], error: null });
-    expect(lists).toBe(before + 2);
+    store.getState().applyBatch(batch(3, "queued", 4));
+    expect(lists, "a waiting download started").toBe(before + 2);
+    store.getState().applyBatch(batch(4, "downloading", 6));
+    expect(lists, "something changed, also in a batch the window never saw").toBe(before + 3);
+  });
+
+  it("shows a browser download that waits in the queue after the next tick", async () => {
+    const { backend, store } = await ready();
+    await backend.updateSettings({ ...(await backend.settings()), confirmCaptures: false, maxActive: 1 });
+    backend.tick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await backend.capture("https://example.org/later.iso");
+    expect(store.getState().items.some((d) => d.name === "later.iso")).toBe(false);
+
+    backend.tick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(store.getState().items.find((d) => d.name === "later.iso")?.state).toBe("queued");
   });
 
   it("retries a failed download", async () => {
@@ -117,7 +134,7 @@ describe("downloads store", () => {
   it("keeps a batch's warning through the reload that a settled download starts", async () => {
     const { store } = await ready();
     const done = store.getState().items.find((d) => d.state === "done");
-    store.getState().applyBatch({ seq: 9, updates: [], settled: [done?.id ?? -1], changed: [], error: "couldn't save progress" });
+    store.getState().applyBatch({ seq: 9, updates: [], settled: [done?.id ?? -1], revision: 1, error: "couldn't save progress" });
     await store.getState().reload();
     expect(store.getState().notice).toBe("couldn't save progress");
     store.getState().dismissNotice();
