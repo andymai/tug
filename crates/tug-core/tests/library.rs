@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer, content};
 use tug_core::{
-    Download, DownloadId, DownloadState, EventKind, Library, LibraryError, MINUTES_PER_DAY, Origin,
-    Place, Schedule, Settings, Store,
+    ConnectionStatus, Download, DownloadId, DownloadState, EventKind, Library, LibraryError,
+    MINUTES_PER_DAY, Origin, Place, Schedule, Settings, Store,
 };
 
 fn assert_intact(path: &Path, seed: u64, len: usize) {
@@ -119,6 +119,60 @@ async fn a_paused_download_resumes_to_an_intact_file() {
     let events = library.events(id).unwrap();
     assert_eq!(events[2].bytes, Some(paused.received));
     assert_eq!(events[3].bytes, Some(paused.received));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_download_shows_its_segments_connections_server_and_log_and_keeps_them_when_paused() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(Store::open_in_memory().unwrap())
+        .await
+        .unwrap();
+
+    let url = lab
+        .url("/gen/8M/fedora.iso?seed=5&rate=2M")
+        .parse()
+        .unwrap();
+    let id = library.add(url, dir.path()).await.unwrap();
+    received_at_least(&library, id, 1 << 20).await;
+
+    let seen = library.inspect(id).await.unwrap().unwrap();
+    let segments = &seen.segments;
+    assert_eq!(segments.first().map(|s| s.start), Some(0), "{segments:?}");
+    assert_eq!(
+        segments.last().map(|s| s.end),
+        Some(8 << 20),
+        "{segments:?}"
+    );
+    assert!(
+        segments.windows(2).all(|w| w[0].end == w[1].start),
+        "{segments:?}"
+    );
+    let on_disk: u64 = segments.iter().map(|s| s.cursor - s.start).sum();
+    assert!(on_disk > 0, "{segments:?}");
+    assert!(
+        seen.connections
+            .iter()
+            .any(|c| c.status == ConnectionStatus::Receiving && c.received > 0),
+        "{:?}",
+        seen.connections
+    );
+    let server = seen.server.unwrap();
+    assert!(server.ip.is_some_and(|ip| ip.is_loopback()), "{server:?}");
+    assert!(!server.proxied && server.cdn.is_none(), "{server:?}");
+    assert!(!seen.log.is_empty());
+    assert!(seen.log.windows(2).all(|w| w[0].seq < w[1].seq));
+
+    library.pause(id).await.unwrap();
+    let kept = library.inspect(id).await.unwrap().unwrap();
+    assert_eq!(kept.segments.last().map(|s| s.end), Some(8 << 20));
+    assert!(kept.log.len() >= seen.log.len(), "{:?}", kept.log);
+
+    library.remove(id, true).await.unwrap();
+    assert!(matches!(
+        library.inspect(id).await,
+        Err(LibraryError::Unknown(_))
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread")]

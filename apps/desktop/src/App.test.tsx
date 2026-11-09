@@ -300,6 +300,82 @@ describe("detail panel", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Failed" })).toHaveFocus();
   });
 
+  it("shows a running download's segments, connections and server, and keeps them fresh", async () => {
+    const { backend, user } = open();
+    const inspect = vi.spyOn(backend, "inspect");
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    const panel = within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" }));
+    await user.click(panel.getByRole("tab", { name: "Connections" }));
+    expect(panel.getByRole("tab", { name: "Connections" })).toHaveAttribute("aria-selected", "true");
+
+    const tab = within(panel.getByRole("tabpanel", { name: "Connections" }));
+    const segments = within(await tab.findByRole("region", { name: "Segments" }));
+    expect(segments.getByRole("img")).toHaveAccessibleName(/^8 segments, .* on disk$/);
+    const table = within(tab.getByRole("table", { name: "Connections" }));
+    const rows = table.getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(8);
+    expect(within(rows[0] as HTMLElement).getByText("Receiving")).toBeInTheDocument();
+    expect(within(rows[2] as HTMLElement).getByText("Retrying")).toHaveAttribute("title", "The server closed the connection");
+    const server = within(tab.getByRole("region", { name: "Server" }));
+    expect(server.getByText("203.0.113.24")).toBeInTheDocument();
+    expect(server.getByText("38 ms")).toBeInTheDocument();
+    expect(server.getByText("Fastly")).toBeInTheDocument();
+
+    const calls = inspect.mock.calls.length;
+    await vi.waitFor(() => {
+      expect(inspect.mock.calls.length).toBeGreaterThan(calls);
+    }, { timeout: 2000 });
+  });
+
+  it("keeps a stopped download's map without its connections, and explains a waiting one", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^conference-talk-1080p\.mp4/ }));
+    let panel = within(screen.getByRole("complementary", { name: "conference-talk-1080p.mp4" }));
+    await user.click(panel.getByRole("tab", { name: "Connections" }));
+    expect(await panel.findByRole("region", { name: "Segments" })).toBeInTheDocument();
+    expect(panel.queryByRole("table", { name: "Connections" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }));
+    panel = within(screen.getByRole("complementary", { name: "blender-5.1-linux-x64.tar.xz" }));
+    expect(panel.getByRole("tab", { name: "Connections" })).toHaveAttribute("aria-selected", "true");
+    expect(await panel.findByText("Tug shows the segments and connections while a download runs, and keeps them until Tug quits.")).toBeInTheDocument();
+  });
+
+  it("shows the engine's log and copies it", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^dataset-shard-07\.parquet/ }));
+    const panel = within(screen.getByRole("complementary", { name: "dataset-shard-07.parquet" }));
+    await user.click(panel.getByRole("tab", { name: "Log" }));
+    const log = within(panel.getByRole("tabpanel", { name: "Log" }));
+    const lines = (await log.findAllByRole("listitem")).map((item) => item.textContent);
+    expect(lines[0]).toMatch(/Connected to mirror\.example\.org \(203\.0\.113\.24\)/);
+    expect(lines.at(-1)).toMatch(/Connection 1: couldn't reach mirror\.example\.org$/);
+
+    await user.click(log.getByRole("button", { name: "Copy log" }));
+    expect(log.getByRole("button", { name: "Copied" })).toBeInTheDocument();
+    const copied = (await navigator.clipboard.readText()).split("\n");
+    expect(copied).toHaveLength(lines.length);
+    expect(copied.at(-1)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z Connection 1: couldn't reach mirror\.example\.org$/);
+  });
+
+  it("moves between its tabs with the arrow keys, Home and End", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    const panel = within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" }));
+    panel.getByRole("tab", { name: "Overview" }).focus();
+    await user.keyboard("{ArrowRight}");
+    expect(panel.getByRole("tab", { name: "Connections" })).toHaveFocus();
+    expect(panel.getByRole("tab", { name: "Connections" })).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{End}");
+    expect(panel.getByRole("tab", { name: "Log" })).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(panel.getByRole("tab", { name: "Overview" })).toHaveFocus();
+    await user.keyboard("{ArrowLeft}{Home}");
+    expect(panel.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+    expect(panel.getAllByRole("tab").filter((tab) => tab.tabIndex === 0)).toHaveLength(1);
+    expect(screen.getByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("closes with its button and with Escape", async () => {
     const { user } = open();
     const row = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });

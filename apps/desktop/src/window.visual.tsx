@@ -178,6 +178,28 @@ describe("main window", () => {
     await capture(window, "detail");
   });
 
+  it("shows a running download's segments, connections and server", async () => {
+    const { store, window } = await showcase("fedora-kde-44-x86_64.iso");
+    act(() => {
+      store.getState().setInspectorTab("connections");
+    });
+    await vi.waitFor(() => {
+      expect(document.querySelector('[role="tabpanel"] table')).not.toBeNull();
+    });
+    await capture(window, "detail-connections");
+  });
+
+  it("keeps a failed download's engine log", async () => {
+    const { store, window } = await showcase("dataset-shard-07.parquet");
+    act(() => {
+      store.getState().setInspectorTab("log");
+    });
+    await vi.waitFor(() => {
+      expect(document.querySelector('[role="tabpanel"] li')).not.toBeNull();
+    });
+    await capture(window, "detail-log");
+  });
+
   it("offers Start next for a download that waits in the queue", async () => {
     const { window } = await showcase("blender-5.1-linux-x64.tar.xz");
     await capture(window, "detail-queued");

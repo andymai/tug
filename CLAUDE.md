@@ -19,7 +19,7 @@ Design tokens: `design/tokens.json`. Brand sources: `brand/`.
 
 ## Rules
 
-- Only `crates/tug-core` reaches MDM's crates. It maps the engine's types (`Snapshot`, `State`) into Tug's own (`Progress`, `Phase`) so engine changes stop at one module. `scripts/check-deps.py` enforces this.
+- Only `crates/tug-core` reaches MDM's crates. It maps the engine's types (`Snapshot`, `State`) into Tug's own (`Progress`, `Phase`, `Inspection`) so engine changes stop at one place. `scripts/check-deps.py` enforces this.
 - MDM's crates are declared once, in the root `[workspace.dependencies]`, at one git rev. Move the rev on purpose, in its own PR, after the engine tests pass; `check-deps.py` fails a split or stale pin.
 - A browser's referrer, cookies and User-Agent (`tug_core::Origin`) go with every request of a download, on start and on resume. Only the `origins` table keeps them, and only until the download finishes. `tug.db` and its WAL files are 0600, and `Origin`'s `Debug` hides the cookies.
 - `unsafe_code` is forbidden. `unwrap`, `expect`, `panic`, `todo`, `dbg!` and printing are denied outside tests.

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { DownloadEvent, Settings } from "../backend/backend";
+import { BackendError, type DownloadEvent, type Inspection, type Settings } from "../backend/backend";
 import { createMockBackend } from "../backend/mock";
 import { countFor, createDownloadsStore, savedViewOf, visibleItems } from "./downloads";
 
@@ -572,6 +572,42 @@ describe("downloads store", () => {
     await first;
     expect(store.getState().diskFree).toBe(200);
     expect(answers).toHaveLength(2);
+  });
+
+  it("keeps the newest inspection of the selected download, quiet when it went", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    const answers: { resolve: (seen: Inspection | null) => void; reject: (error: unknown) => void }[] = [];
+    const store = createDownloadsStore({
+      ...backend,
+      inspect: () =>
+        new Promise<Inspection | null>((resolve, reject) => {
+          answers.push({ resolve, reject });
+        }),
+    });
+    const seen = (text: string): Inspection => ({ segments: [], connections: [], server: null, log: [{ seq: 1, atMs: 0, text }] });
+    store.getState().select(1);
+    const older = store.getState().inspect(1);
+    const newer = store.getState().inspect(1);
+    answers[1]?.resolve(seen("newer"));
+    await newer;
+    answers[0]?.resolve(seen("older"));
+    await older;
+    expect(store.getState().inspection?.data?.log[0]?.text).toBe("newer");
+
+    store.getState().select(2);
+    const other = store.getState().inspect(1);
+    answers[2]?.resolve(seen("not shown"));
+    await other;
+    expect(store.getState().inspection?.data?.log[0]?.text).toBe("newer");
+
+    const gone = store.getState().inspect(2);
+    answers[3]?.reject(new BackendError("notFound", "there is no download 2"));
+    await gone;
+    expect(store.getState().notice).toBeNull();
+    const broken = store.getState().inspect(2);
+    answers[4]?.reject(new BackendError("internal", "the run lock is poisoned"));
+    await broken;
+    expect(store.getState().notice).toBe("the run lock is poisoned");
   });
 
   it("steps through the visible downloads and stops at the ends", async () => {

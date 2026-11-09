@@ -4,6 +4,7 @@ import type { CommandError } from "./bindings/CommandError";
 import type { ErrorKind } from "./bindings/ErrorKind";
 import type { Download } from "./bindings/Download";
 import type { DownloadEvent } from "./bindings/DownloadEvent";
+import type { Inspection } from "./bindings/Inspection";
 import type { Place } from "./bindings/Place";
 import type { ProgressBatch } from "./bindings/ProgressBatch";
 import type { Settings } from "./bindings/Settings";
@@ -16,14 +17,20 @@ export type { Download } from "./bindings/Download";
 export type { DownloadEvent } from "./bindings/DownloadEvent";
 export type { EventKind } from "./bindings/EventKind";
 export type { Category } from "./bindings/Category";
+export type { Connection } from "./bindings/Connection";
+export type { ConnectionStatus } from "./bindings/ConnectionStatus";
 export type { DownloadState } from "./bindings/DownloadState";
 export type { ErrorKind } from "./bindings/ErrorKind";
+export type { Inspection } from "./bindings/Inspection";
+export type { LogLine } from "./bindings/LogLine";
 export type { Phase } from "./bindings/Phase";
 export type { Place } from "./bindings/Place";
 export type { ProgressBatch } from "./bindings/ProgressBatch";
 export type { ProgressUpdate } from "./bindings/ProgressUpdate";
 export type { SavedView } from "./bindings/SavedView";
 export type { Schedule } from "./bindings/Schedule";
+export type { Segment } from "./bindings/Segment";
+export type { Server } from "./bindings/Server";
 export type { Settings } from "./bindings/Settings";
 
 export type ResizeEdge = "North" | "South" | "East" | "West" | "NorthEast" | "NorthWest" | "SouthEast" | "SouthWest";
@@ -49,6 +56,8 @@ export interface Backend {
   openFile(id: number): Promise<void>;
   showInFolder(id: number): Promise<void>;
   events(id: number): Promise<DownloadEvent[]>;
+  // A running download's segments, connections, server and engine log, or the last ones in this session.
+  inspect(id: number): Promise<Inspection | null>;
   settings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   chooseDownloadFolder(): Promise<Settings | null>;

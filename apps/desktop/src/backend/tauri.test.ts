@@ -27,6 +27,7 @@ describe("tauri backend", () => {
     await tauriBackend.openFile(3);
     await tauriBackend.showInFolder(3);
     await tauriBackend.events(3);
+    await tauriBackend.inspect(3);
     await tauriBackend.settings();
     const settings = { downloadDir: "/d", connections: 8, speedLimit: null, appearance: "system" as const, excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null, slowHours: null, savedViews: [], columns: [], sort: null };
     await tauriBackend.updateSettings(settings);
@@ -45,6 +46,7 @@ describe("tauri backend", () => {
       ["open_file", { id: 3 }],
       ["show_in_folder", { id: 3 }],
       ["download_events", { id: 3 }],
+      ["inspect_download", { id: 3 }],
       ["get_settings", undefined],
       ["update_settings", { settings }],
       ["choose_download_folder", undefined],

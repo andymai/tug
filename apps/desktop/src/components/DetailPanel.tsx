@@ -18,6 +18,7 @@ import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
 import { modalOpen } from "../state/downloads";
 import { Button } from "./Button";
+import { ConnectionsPanel, InspectorTabs, LogPanel, tabIds, useInspection } from "./Inspector";
 
 interface Fact {
   label: string;
@@ -97,8 +98,12 @@ function Panel({ download }: { download: Download }) {
   const showInFolder = useDownloads((s) => s.showInFolder);
   const notify = useDownloads((s) => s.notify);
   const store = useDownloadsStore();
+  const tab = useDownloads((s) => s.inspectorTab);
+  const setTab = useDownloads((s) => s.setInspectorTab);
+  const seen = useInspection(download, tab !== "overview");
   const [copied, setCopied] = useState(false);
   const titleId = useId();
+  const tabBase = useId();
   const panel = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -190,14 +195,14 @@ function Panel({ download }: { download: Download }) {
         <p className="px-4 pt-1 text-small text-ink">{sentence(download.error)}</p>
       )}
       {(download.state === "downloading" || download.state === "paused") && (
-        <div aria-hidden="true" className="mx-4 mt-3 h-1 overflow-hidden rounded-full bg-line">
+        <div aria-hidden="true" className="mx-4 mt-3 h-1 shrink-0 overflow-hidden rounded-full bg-line">
           <div
             className={`h-full rounded-full transition-[width] duration-100 ease-linear ${download.state === "paused" ? "bg-ink-faint" : "bg-accent"}`}
             style={{ width: `${String(percentOf(received, total))}%` }}
           />
         </div>
       )}
-      <div className="flex flex-wrap gap-2 border-b border-line px-4 pt-3 pb-4">
+      <div className="flex flex-wrap gap-2 px-4 pt-3 pb-3">
         {download.state === "done" && (
           <Button icon={ExternalLink} onClick={() => void openFile(download.id)}>
             Open
@@ -230,21 +235,30 @@ function Panel({ download }: { download: Download }) {
           {copied ? "Copied" : "Copy link"}
         </Button>
       </div>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 px-4 py-4 text-small">
-        {facts.map((fact) => (
-          <div key={fact.label} className="contents">
-            <dt className="text-ink-muted">{fact.label}</dt>
-            <dd title={fact.title} className={`truncate text-ink ${fact.mono ? "text-mono" : ""}`}>
-              {fact.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <History
-        id={download.id}
-        state={download.state}
-        revision={`${String(download.finishedMs)}:${download.error ?? ""}`}
-      />
+      <InspectorTabs base={tabBase} tab={tab} onChange={setTab} />
+      <div role="tabpanel" id={tabIds(tabBase, tab).panel} aria-labelledby={tabIds(tabBase, tab).tab}>
+        {tab === "overview" && (
+          <>
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 px-4 py-4 text-small">
+              {facts.map((fact) => (
+                <div key={fact.label} className="contents">
+                  <dt className="text-ink-muted">{fact.label}</dt>
+                  <dd title={fact.title} className={`truncate text-ink ${fact.mono ? "text-mono" : ""}`}>
+                    {fact.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <History
+              id={download.id}
+              state={download.state}
+              revision={`${String(download.finishedMs)}:${download.error ?? ""}`}
+            />
+          </>
+        )}
+        {tab === "connections" && <ConnectionsPanel download={download} seen={seen} />}
+        {tab === "log" && <LogPanel seen={seen} />}
+      </div>
     </aside>
   );
 }
