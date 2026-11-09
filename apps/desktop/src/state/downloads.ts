@@ -169,6 +169,7 @@ export function createDownloadsStore(backend: Backend) {
                 const state = get();
                 const item = state.items.find((download) => download.id === id);
                 if (item === undefined) return;
+                if (state.overlay !== null) state.setOverlay(null);
                 if (!inView(state.view, item)) state.setView("all");
                 else state.setPage("downloads");
                 state.select(id);

@@ -44,7 +44,7 @@ fn main() -> Result<ExitCode, tauri::Error> {
                 state.library(),
                 state.subscribe(),
             );
-            notify::spawn(app.handle(), state.library(), state.subscribe());
+            notify::spawn(app.handle(), state.library(), state.settled());
             launcher::spawn(state.subscribe());
             if let Some(server) = server {
                 ipc::serve(app.handle(), state.library(), server);

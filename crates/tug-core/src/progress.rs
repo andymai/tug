@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use tokio::sync::watch;
+use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 use tokio::time::MissedTickBehavior;
 
@@ -47,20 +47,30 @@ impl Default for StreamOptions {
     }
 }
 
+// The watch keeps only the newest batch, so a reader that waits on something
+// else can miss one; settled downloads also go out here, each to every reader.
+const SETTLED_BACKLOG: usize = 256;
+
 pub struct ProgressStream {
     rx: watch::Receiver<Arc<Batch>>,
+    settled: broadcast::Sender<DownloadId>,
     task: JoinHandle<()>,
 }
 
 impl ProgressStream {
     pub fn spawn(library: Arc<Library>, options: StreamOptions) -> Self {
         let (tx, rx) = watch::channel(Arc::new(Batch::default()));
-        let task = tokio::spawn(run(library, options, tx));
-        Self { rx, task }
+        let (settled, _) = broadcast::channel(SETTLED_BACKLOG);
+        let task = tokio::spawn(run(library, options, tx, settled.clone()));
+        Self { rx, settled, task }
     }
 
     pub fn subscribe(&self) -> watch::Receiver<Arc<Batch>> {
         self.rx.clone()
+    }
+
+    pub fn settled(&self) -> broadcast::Receiver<DownloadId> {
+        self.settled.subscribe()
     }
 }
 
@@ -70,7 +80,12 @@ impl Drop for ProgressStream {
     }
 }
 
-async fn run(library: Arc<Library>, options: StreamOptions, tx: watch::Sender<Arc<Batch>>) {
+async fn run(
+    library: Arc<Library>,
+    options: StreamOptions,
+    tx: watch::Sender<Arc<Batch>>,
+    settled: broadcast::Sender<DownloadId>,
+) {
     let mut ticker = tokio::time::interval(options.interval.max(MIN_INTERVAL));
     ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
     let persist_every = u64::from(options.persist_every.max(1));
@@ -124,6 +139,9 @@ async fn run(library: Arc<Library>, options: StreamOptions, tx: watch::Sender<Ar
                 ..Batch::default()
             },
         };
+        for &id in &batch.settled {
+            let _readers = settled.send(id);
+        }
         tx.send_replace(Arc::new(batch));
     }
 }

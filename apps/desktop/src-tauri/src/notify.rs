@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
-use tokio::sync::watch;
-use tug_core::{Batch, Download, DownloadId, DownloadState, Library};
+use tokio::sync::broadcast;
+use tug_core::{Download, DownloadId, DownloadState, Library};
 use url::Url;
 use zbus::zvariant::Value;
 
@@ -168,7 +168,7 @@ fn recall(shown: &Shown, notification: u32) -> Option<DownloadId> {
 pub fn spawn<R: Runtime>(
     app: &AppHandle<R>,
     library: Arc<Library>,
-    mut batches: watch::Receiver<Arc<Batch>>,
+    mut settled: broadcast::Receiver<DownloadId>,
 ) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -195,15 +195,17 @@ pub fn spawn<R: Runtime>(
                 }
             });
         }
-        while batches.changed().await.is_ok() {
-            let settled = batches.borrow_and_update().settled.clone();
-            for id in settled {
-                let Some(notice) = library.get(id).ok().as_ref().and_then(notice) else {
-                    continue;
-                };
-                if let Ok(notification) = send(&proxy, &notice).await {
-                    remember(&shown, notification, id);
-                }
+        loop {
+            let id = match settled.recv().await {
+                Ok(id) => id,
+                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Closed) => break,
+            };
+            let Some(notice) = library.get(id).ok().as_ref().and_then(notice) else {
+                continue;
+            };
+            if let Ok(notification) = send(&proxy, &notice).await {
+                remember(&shown, notification, id);
             }
         }
     });
