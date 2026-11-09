@@ -50,6 +50,9 @@ impl TorrentSource {
 pub struct Swarm {
     pub options: TorrentOptions,
     session: OnceCell<Torrents>,
+    // A transfer holds it from reading a torrent finished to taking it out of the
+    // session, and a file choice holds it too, so no choice lands in between.
+    pub changes: tokio::sync::Mutex<()>,
 }
 
 impl Swarm {
@@ -57,6 +60,7 @@ impl Swarm {
         Self {
             options,
             session: OnceCell::new(),
+            changes: tokio::sync::Mutex::new(()),
         }
     }
 

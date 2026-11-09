@@ -332,6 +332,7 @@ impl Library {
         let swarm = self.swarm.as_ref().ok_or(LibraryError::NoTorrents)?;
         let (hash, bytes) = self.store()?.torrent(id)?.ok_or(LibraryError::NoFileList)?;
         let session = swarm.session().await?;
+        let changes = swarm.changes.lock().await;
         // A running transfer outside the session is still adding the torrent, with
         // the choice it began with, or has finished it: a new choice would be lost.
         if running.contains_key(&id) && !session.has(&hash) {
@@ -354,9 +355,8 @@ impl Library {
             return Err(LibraryError::BadFiles);
         }
         let all = entries.iter().filter(|e| !e.padding).count() == chosen.len();
-        self.store()?
-            .set_torrent_files(id, (!all).then_some(chosen.as_slice()))?;
-        // The list and the window show the chosen files' size at once, paused too.
+        // The session takes it first, so a refusal there leaves the saved choice
+        // as it was. The list and the window show the chosen files' size at once.
         let (received, total) = if session.has(&hash) {
             session
                 .choose(&hash, &chosen.iter().copied().collect())
@@ -371,7 +371,11 @@ impl Library {
                 .sum();
             (download.received.min(total), total)
         };
-        self.store()?.set_progress(id, received, Some(total))?;
+        let store = self.store()?;
+        store.set_torrent_files(id, (!all).then_some(chosen.as_slice()))?;
+        store.set_progress(id, received, Some(total))?;
+        drop(store);
+        drop(changes);
         drop(running);
         self.changed(id);
         Ok(())

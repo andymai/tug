@@ -339,11 +339,13 @@ async fn run_torrent(
         }
         loop {
             session.set_download_limit(limiter.get());
+            let changes = swarm.changes.lock().await;
             let stats = session.stats(&hash)?;
             set(torrent_progress(&stats, &file));
             match stats.phase {
                 mdm_torrent::Phase::Finished => {
                     session.remove(&hash, false).await?;
+                    drop(changes);
                     return Ok(Finished {
                         path: file,
                         size: stats.total,
@@ -357,6 +359,7 @@ async fn run_torrent(
                 }
                 _ => {}
             }
+            drop(changes);
             tokio::select! {
                 () = tokio::time::sleep(POLL) => {}
                 () = stop_asked(&mut stopped) => {
