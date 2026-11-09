@@ -106,6 +106,11 @@ describe("main window", () => {
     await capture(window, "detail");
   });
 
+  it("offers Start next for a download that waits in the queue", async () => {
+    const { window } = await showcase("blender-5.1-linux-x64.tar.xz");
+    await capture(window, "detail-queued");
+  });
+
   it("floats the details over the list at the minimum width", async () => {
     await page.viewport(720, 480);
     const { window } = await showcase("noto-fonts-2026.11.zip");

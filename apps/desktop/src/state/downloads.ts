@@ -56,6 +56,7 @@ export interface DownloadsState {
   requestFocus: (id: number | null) => void;
   pause: (id: number) => Promise<void>;
   resume: (id: number) => Promise<void>;
+  startNext: (id: number) => Promise<void>;
   openFile: (id: number) => Promise<void>;
   showInFolder: (id: number) => Promise<void>;
   loadHistory: (id: number) => Promise<void>;
@@ -248,8 +249,8 @@ export function createDownloadsStore(backend: Backend) {
       applyBatch: (batch) => {
         const live = Object.fromEntries(batch.updates.map((update) => [update.id, update]));
         set(batch.error === null ? { live } : { live, notice: batch.error });
-        const known = new Set(get().items.map((item) => item.id));
-        if (batch.settled.length > 0 || batch.updates.some((update) => !known.has(update.id))) {
+        const states = new Map(get().items.map((item) => [item.id, item.state]));
+        if (batch.settled.length > 0 || batch.updates.some((update) => states.get(update.id) !== "downloading")) {
           void get().reload();
         }
       },
@@ -330,6 +331,12 @@ export function createDownloadsStore(backend: Backend) {
       resume: (id) =>
         act(async () => {
           await backend.resume(id);
+          await get().reload();
+        }),
+
+      startNext: (id) =>
+        act(async () => {
+          await backend.place(id, "first");
           await get().reload();
         }),
 

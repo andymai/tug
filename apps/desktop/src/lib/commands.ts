@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Keyboard,
   Layers,
+  ListStart,
   Settings,
   type LucideIcon,
   Pause,
@@ -76,7 +77,10 @@ export function commands(store: DownloadsStore): Command[] {
   if (selected) {
     const { id } = selected;
     const toggle = { key: "p", label: ["P"] };
-    if (selected.state === "downloading") {
+    if (selected.state === "queued") {
+      list.push({ id: "start-next", title: "Start next", group: "Selected download", icon: ListStart, run: () => void state.startNext(id) });
+    }
+    if (selected.state === "downloading" || selected.state === "queued") {
       list.push({ id: "pause", title: "Pause", group: "Selected download", icon: Pause, keys: toggle, run: () => void state.pause(id) });
     }
     if (selected.state === "paused") {

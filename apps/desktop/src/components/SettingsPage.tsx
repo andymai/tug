@@ -316,6 +316,21 @@ export function SettingsPage() {
                   />
                 }
               />
+              <Row
+                label="Downloads at once"
+                description="Others wait in the queue and start in order."
+                control={
+                  <Stepper
+                    label="Downloads"
+                    value={settings.maxActive}
+                    min={1}
+                    max={16}
+                    onChange={(maxActive) => {
+                      save({ maxActive });
+                    }}
+                  />
+                }
+              />
             </section>
             <section aria-labelledby="settings-speed">
               <h2 id="settings-speed" className="pb-1 text-label text-ink-muted">

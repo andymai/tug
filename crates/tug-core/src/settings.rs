@@ -9,6 +9,8 @@ use url::Url;
 use crate::store::{Store, StoreError};
 
 pub const DEFAULT_CONNECTIONS: u32 = 8;
+pub const DEFAULT_MAX_ACTIVE: u32 = 3;
+pub const MAX_ACTIVE: u32 = 16;
 
 const DOWNLOAD_DIR: &str = "download_dir";
 const CONNECTIONS: &str = "connections";
@@ -16,6 +18,7 @@ const SPEED_LIMIT: &str = "speed_limit";
 const APPEARANCE: &str = "appearance";
 const EXCLUDED_SITES: &str = "excluded_sites";
 const CONFIRM_CAPTURES: &str = "confirm_captures";
+const MAX_ACTIVE_KEY: &str = "max_active";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Appearance {
@@ -56,10 +59,13 @@ pub struct Settings {
     pub appearance: Appearance,
     pub excluded_sites: Vec<String>,
     pub confirm_captures: bool,
+    pub max_active: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SettingsError {
+    #[error("downloads at once must be between 1 and {MAX_ACTIVE}, not {0}")]
+    MaxActive(u32),
     #[error("connections must be between 1 and {MAX_CONNECTIONS}, not {0}")]
     Connections(u32),
     #[error("a speed limit must be above zero")]
@@ -97,6 +103,7 @@ impl Default for Settings {
             appearance: Appearance::System,
             excluded_sites: Vec::new(),
             confirm_captures: true,
+            max_active: DEFAULT_MAX_ACTIVE,
         }
     }
 }
@@ -105,6 +112,9 @@ impl Settings {
     pub fn validate(&self) -> Result<(), SettingsError> {
         if !(1..=MAX_CONNECTIONS).contains(&self.connections) {
             return Err(SettingsError::Connections(self.connections));
+        }
+        if !(1..=MAX_ACTIVE).contains(&self.max_active) {
+            return Err(SettingsError::MaxActive(self.max_active));
         }
         if self.speed_limit == Some(0) {
             return Err(SettingsError::ZeroSpeedLimit);
@@ -173,6 +183,11 @@ impl Settings {
             .setting(CONFIRM_CAPTURES)?
             .and_then(|v| v.parse().ok())
             .unwrap_or(defaults.confirm_captures);
+        let max_active = store
+            .setting(MAX_ACTIVE_KEY)?
+            .and_then(|v| v.parse().ok())
+            .filter(|n| (1..=MAX_ACTIVE).contains(n))
+            .unwrap_or(defaults.max_active);
         Ok(Self {
             download_dir,
             connections,
@@ -180,6 +195,7 @@ impl Settings {
             appearance,
             excluded_sites,
             confirm_captures,
+            max_active,
         })
     }
 
@@ -199,6 +215,7 @@ impl Settings {
             store.set_setting(EXCLUDED_SITES, &self.excluded_sites.join("\n"))?;
         }
         store.set_setting(CONFIRM_CAPTURES, &self.confirm_captures.to_string())?;
+        store.set_setting(MAX_ACTIVE_KEY, &self.max_active.to_string())?;
         Ok(())
     }
 }
@@ -221,6 +238,7 @@ mod tests {
             appearance: Appearance::System,
             excluded_sites: Vec::new(),
             confirm_captures: true,
+            max_active: 3,
         }
     }
 
@@ -302,6 +320,26 @@ mod tests {
     }
 
     #[test]
+    fn downloads_at_once_stay_between_one_and_the_maximum() {
+        for max_active in [0, MAX_ACTIVE + 1] {
+            assert_eq!(
+                Settings {
+                    max_active,
+                    ..valid()
+                }
+                .validate(),
+                Err(SettingsError::MaxActive(max_active))
+            );
+        }
+        let store = Store::open_in_memory().unwrap();
+        store.set_setting(MAX_ACTIVE_KEY, "99").unwrap();
+        assert_eq!(
+            Settings::load(&store).unwrap().max_active,
+            DEFAULT_MAX_ACTIVE
+        );
+    }
+
+    #[test]
     fn excluded_sites_must_be_clean_and_once() {
         assert_eq!(
             sites(&["Example.org"]).validate(),
@@ -352,6 +390,7 @@ mod tests {
             appearance: Appearance::Dark,
             excluded_sites: vec!["example.org".into(), "mail.example.net".into()],
             confirm_captures: false,
+            max_active: 3,
         };
         settings.save(&store).unwrap();
         assert_eq!(Settings::load(&store).unwrap(), settings);

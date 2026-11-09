@@ -5,7 +5,8 @@ use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer, content};
 use tug_core::{
-    Download, DownloadId, DownloadState, EventKind, Library, LibraryError, Origin, Store,
+    Download, DownloadId, DownloadState, EventKind, Library, LibraryError, Origin, Place, Settings,
+    Store,
 };
 
 fn assert_intact(path: &Path, seed: u64, len: usize) {
@@ -261,6 +262,145 @@ async fn only_a_paused_download_goes_when_removed_if_paused() {
         library.resume(waiting).await,
         Err(LibraryError::Unknown(_))
     ));
+}
+
+async fn limited(max_active: u32) -> Library {
+    let library = Library::open(Store::open_in_memory().unwrap())
+        .await
+        .unwrap();
+    library
+        .update_settings(Settings {
+            max_active,
+            ..library.settings().unwrap()
+        })
+        .unwrap();
+    library
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_queue_starts_downloads_in_order_up_to_the_limit() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = limited(1).await;
+    let link = |name: &str, seed: u32| {
+        lab.url(&format!("/gen/2M/{name}?seed={seed}&rate=4M"))
+            .parse()
+            .unwrap()
+    };
+    let a = library.add(link("a.bin", 51), dir.path()).await.unwrap();
+    let b = library.add(link("b.bin", 52), dir.path()).await.unwrap();
+    let c = library.add(link("c.bin", 53), dir.path()).await.unwrap();
+    assert_eq!(
+        [a, b, c].map(|id| state_of(&library, id)),
+        [
+            DownloadState::Downloading,
+            DownloadState::Queued,
+            DownloadState::Queued
+        ]
+    );
+
+    assert!(library.place(c, Place::First).unwrap());
+    library.pause(a).await.unwrap();
+    assert_eq!(state_of(&library, c), DownloadState::Downloading);
+    assert_eq!(state_of(&library, b), DownloadState::Queued);
+
+    library.resume(a).await.unwrap();
+    assert_eq!(
+        state_of(&library, a),
+        DownloadState::Queued,
+        "the limit holds"
+    );
+    tick_until(&library, |l| state_of(l, c) == DownloadState::Done).await;
+    tick_until(&library, |l| state_of(l, a) != DownloadState::Queued).await;
+    assert_eq!(
+        state_of(&library, b),
+        DownloadState::Queued,
+        "a keeps its place ahead of b"
+    );
+    tick_until(&library, |l| {
+        [a, b]
+            .iter()
+            .all(|&id| state_of(l, id) == DownloadState::Done)
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_raised_limit_starts_the_waiting_on_the_next_tick_and_a_paused_wait_leaves_the_queue() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = limited(1).await;
+    let link = |name: &str| {
+        lab.url(&format!("/gen/4M/{name}?seed=61&rate=1M"))
+            .parse()
+            .unwrap()
+    };
+    let a = library.add(link("a.bin"), dir.path()).await.unwrap();
+    let b = library.add(link("b.bin"), dir.path()).await.unwrap();
+    let c = library.add(link("c.bin"), dir.path()).await.unwrap();
+
+    library.pause(c).await.unwrap();
+    assert_eq!(state_of(&library, c), DownloadState::Paused);
+    assert_eq!(
+        kinds(&library, c),
+        vec![EventKind::Added, EventKind::Paused]
+    );
+
+    library
+        .update_settings(Settings {
+            max_active: 3,
+            ..library.settings().unwrap()
+        })
+        .unwrap();
+    library.tick().await.unwrap();
+    assert_eq!(
+        [a, b, c].map(|id| state_of(&library, id)),
+        [
+            DownloadState::Downloading,
+            DownloadState::Downloading,
+            DownloadState::Paused
+        ]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn pause_all_holds_the_queue_too_and_resume_all_refills_it_in_order() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = limited(1).await;
+    let link = |name: &str| {
+        lab.url(&format!("/gen/4M/{name}?seed=71&rate=1M"))
+            .parse()
+            .unwrap()
+    };
+    let a = library.add(link("a.bin"), dir.path()).await.unwrap();
+    let b = library.add(link("b.bin"), dir.path()).await.unwrap();
+    let c = library.add(link("c.bin"), dir.path()).await.unwrap();
+    received_at_least(&library, a, 256 << 10).await;
+
+    library.pause_all().await.unwrap();
+    library.tick().await.unwrap();
+    assert_eq!(
+        [a, b, c].map(|id| state_of(&library, id)),
+        [DownloadState::Paused; 3],
+        "nothing took the freed place"
+    );
+    assert_eq!(
+        kinds(&library, b),
+        vec![EventKind::Added, EventKind::Paused]
+    );
+
+    let mut queued = library.resume_all().await.unwrap();
+    queued.sort();
+    assert_eq!(queued, vec![a, b, c]);
+    assert_eq!(
+        [a, b, c].map(|id| state_of(&library, id)),
+        [
+            DownloadState::Downloading,
+            DownloadState::Queued,
+            DownloadState::Queued
+        ]
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -488,6 +488,37 @@ describe("window title bar", () => {
   });
 });
 
+describe("queue", () => {
+  it("sets how many downloads run at once", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    expect(within(screen.getByRole("group", { name: "Downloads" })).getByText("3")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More downloads" }));
+    expect((await backend.settings()).maxActive).toBe(4);
+    await user.click(screen.getByRole("button", { name: "Fewer downloads" }));
+    await user.click(screen.getByRole("button", { name: "Fewer downloads" }));
+    expect((await backend.settings()).maxActive).toBe(2);
+  });
+
+  it("moves a waiting download to the front, or pauses it", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    const queued = (await backend.list()).find((d) => d.state === "queued");
+    expect(queued).toBeDefined();
+    await user.click(await screen.findByRole("button", { name: new RegExp(`^${queued?.name ?? ""}`) }));
+    const panel = within(screen.getByRole("complementary", { name: queued?.name ?? "" }));
+
+    await user.click(panel.getByRole("button", { name: "Start next" }));
+    expect(backend.placed).toEqual([`${String(queued?.id)} first`]);
+    await user.click(panel.getByRole("button", { name: "Pause" }));
+    expect((await backend.list()).find((d) => d.id === queued?.id)?.state).toBe("paused");
+    expect(panel.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+  });
+});
+
 describe("command bar and keyboard", () => {
   it("opens on Ctrl+K and runs the chosen command", async () => {
     const { user } = open();

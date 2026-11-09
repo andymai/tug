@@ -53,7 +53,20 @@ const MIGRATIONS: &[&str] = &[
         user_agent  TEXT
     );
 ",
+    r"
+    ALTER TABLE downloads ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+    UPDATE downloads SET position = id;
+    CREATE INDEX downloads_queue ON downloads (state, position);
+",
 ];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Place {
+    First,
+    Last,
+    Up,
+    Down,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -248,7 +261,8 @@ impl Store {
     ) -> Result<DownloadId, StoreError> {
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(
-            "INSERT INTO downloads (url, dir, state, added_ms) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO downloads (url, dir, state, added_ms, position)
+             VALUES (?1, ?2, ?3, ?4, (SELECT IFNULL(MAX(position), 0) + 1 FROM downloads))",
             params![
                 new.url.as_str(),
                 new.dir.as_os_str().as_bytes(),
@@ -313,6 +327,67 @@ impl Store {
         let mut stmt = self.conn.prepare(&format!("{SELECT} ORDER BY id"))?;
         let rows = stmt.query_map([], read_row)?;
         rows.map(|row| row?).collect()
+    }
+
+    pub fn queued(&self) -> Result<Vec<DownloadId>, StoreError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id FROM downloads WHERE state = 'queued' ORDER BY position, id")?;
+        let ids = stmt.query_map([], |row| row.get(0))?;
+        Ok(ids
+            .collect::<rusqlite::Result<Vec<i64>>>()?
+            .into_iter()
+            .map(DownloadId)
+            .collect())
+    }
+
+    pub fn place(&self, id: DownloadId, place: Place) -> Result<bool, StoreError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let position: Option<i64> = tx
+            .query_row(
+                "SELECT position FROM downloads WHERE id = ?1 AND state = 'queued'",
+                [id.0],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(position) = position else {
+            return Ok(false);
+        };
+        match place {
+            Place::First | Place::Last => {
+                let edge = if place == Place::First {
+                    "SELECT IFNULL(MIN(position), 0) - 1 FROM downloads"
+                } else {
+                    "SELECT IFNULL(MAX(position), 0) + 1 FROM downloads"
+                };
+                tx.execute(
+                    &format!("UPDATE downloads SET position = ({edge}) WHERE id = ?1"),
+                    [id.0],
+                )?;
+            }
+            Place::Up | Place::Down => {
+                let neighbor = if place == Place::Up {
+                    "SELECT id, position FROM downloads WHERE state = 'queued' AND position < ?1 ORDER BY position DESC LIMIT 1"
+                } else {
+                    "SELECT id, position FROM downloads WHERE state = 'queued' AND position > ?1 ORDER BY position LIMIT 1"
+                };
+                let swap: Option<(i64, i64)> = tx
+                    .query_row(neighbor, [position], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .optional()?;
+                if let Some((other, other_position)) = swap {
+                    tx.execute(
+                        "UPDATE downloads SET position = ?2 WHERE id = ?1",
+                        params![id.0, other_position],
+                    )?;
+                    tx.execute(
+                        "UPDATE downloads SET position = ?2 WHERE id = ?1",
+                        params![other, position],
+                    )?;
+                }
+            }
+        }
+        tx.commit()?;
+        Ok(true)
     }
 
     pub fn set_state(
@@ -562,7 +637,7 @@ mod tests {
     #[test]
     fn migrates_a_fresh_database_to_the_latest_schema() {
         let store = Store::open_in_memory().unwrap();
-        assert_eq!(store.schema_version().unwrap(), 3);
+        assert_eq!(store.schema_version().unwrap(), 4);
         assert!(store.list().unwrap().is_empty());
     }
 
@@ -575,7 +650,7 @@ mod tests {
             .insert(&new("https://example.org/a.iso", "/home/u/Downloads"))
             .unwrap();
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 3);
+        assert_eq!(store.schema_version().unwrap(), 4);
         assert_eq!(
             store.get(id).unwrap().unwrap().url.as_str(),
             "https://example.org/a.iso"
@@ -635,7 +710,7 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 3);
+        assert_eq!(store.schema_version().unwrap(), 4);
         let id = store
             .insert(&new("https://example.org/a.iso", "/d"))
             .unwrap();
@@ -730,6 +805,51 @@ mod tests {
             .unwrap();
         assert_eq!(store.get(id).unwrap().unwrap().state, DownloadState::Paused);
         assert_eq!(store.origin(id).unwrap(), origin);
+    }
+
+    #[test]
+    fn the_queue_keeps_its_order_and_moves_a_waiting_download() {
+        let store = Store::open_in_memory().unwrap();
+        let ids: Vec<DownloadId> = ["a", "b", "c", "d"]
+            .iter()
+            .map(|n| {
+                store
+                    .insert(&new(&format!("https://example.org/{n}.iso"), "/d"))
+                    .unwrap()
+            })
+            .collect();
+        let (a, b, c, d) = (ids[0], ids[1], ids[2], ids[3]);
+        assert_eq!(store.queued().unwrap(), vec![a, b, c, d]);
+
+        assert!(store.place(d, Place::First).unwrap());
+        assert_eq!(store.queued().unwrap(), vec![d, a, b, c]);
+        assert!(store.place(d, Place::Last).unwrap());
+        assert_eq!(store.queued().unwrap(), vec![a, b, c, d]);
+        assert!(store.place(c, Place::Up).unwrap());
+        assert_eq!(store.queued().unwrap(), vec![a, c, b, d]);
+        assert!(store.place(a, Place::Down).unwrap());
+        assert_eq!(store.queued().unwrap(), vec![c, a, b, d]);
+        assert!(store.place(c, Place::Up).unwrap());
+        assert_eq!(
+            store.queued().unwrap(),
+            vec![c, a, b, d],
+            "the first can't go further up"
+        );
+
+        store
+            .set_state(b, DownloadState::Paused, None, SystemTime::now())
+            .unwrap();
+        assert_eq!(store.queued().unwrap(), vec![c, a, d]);
+        assert!(
+            !store.place(b, Place::First).unwrap(),
+            "only a waiting download has a place"
+        );
+        assert!(store.place(d, Place::Up).unwrap());
+        assert_eq!(
+            store.queued().unwrap(),
+            vec![c, d, a],
+            "a paused download is no neighbor"
+        );
     }
 
     #[test]

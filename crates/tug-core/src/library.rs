@@ -12,7 +12,7 @@ use url::Url;
 use crate::origin::Origin;
 use crate::settings::{Settings, SettingsError};
 use crate::store::{
-    Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Store, StoreError,
+    Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Place, Store, StoreError,
 };
 use crate::transfer::{Finished, Phase, Progress, Transfer, TransferOptions};
 
@@ -60,15 +60,16 @@ impl Library {
             store: Mutex::new(store),
             running: tokio::sync::Mutex::default(),
         };
-        let interrupted: Vec<Download> = library
-            .store()?
-            .list()?
-            .into_iter()
-            .filter(|d| matches!(d.state, DownloadState::Queued | DownloadState::Downloading))
-            .collect();
-        for download in &interrupted {
-            library.launch(download).await?;
+        {
+            let store = library.store()?;
+            let now = SystemTime::now();
+            for download in store.list()? {
+                if download.state == DownloadState::Downloading {
+                    store.set_state(download.id, DownloadState::Queued, None, now)?;
+                }
+            }
         }
+        library.pump().await?;
         Ok(library)
     }
 
@@ -83,8 +84,7 @@ impl Library {
         origin: &Origin,
     ) -> Result<DownloadId, LibraryError> {
         let id = self.insert(url, dir, origin, false)?;
-        let download = self.get(id)?;
-        self.launch(&download).await?;
+        self.pump().await?;
         Ok(id)
     }
 
@@ -156,14 +156,62 @@ impl Library {
         Ok(self.store()?.events(id)?)
     }
 
+    // A waiting download is held under the run lock, so a tick can't start it
+    // between the check and the write.
     pub async fn pause(&self, id: DownloadId) -> Result<(), LibraryError> {
-        self.get(id)?;
-        let Some(running) = self.running.lock().await.remove(&id) else {
+        let mut running = self.running.lock().await;
+        let download = self.get(id)?;
+        let Some(entry) = running.remove(&id) else {
+            if download.state == DownloadState::Queued {
+                self.hold(&download)?;
+            }
+            drop(running);
             return Ok(());
         };
-        running.transfer.stop();
-        self.settle(id, running.transfer, DownloadState::Paused)
-            .await
+        drop(running);
+        entry.transfer.stop();
+        self.settle(id, entry.transfer, DownloadState::Paused)
+            .await?;
+        self.pump().await
+    }
+
+    pub async fn pause_all(&self) -> Result<(), LibraryError> {
+        let mut running = self.running.lock().await;
+        let held = self.hold_queue();
+        let stopped: Vec<(DownloadId, Running)> = running.drain().collect();
+        drop(running);
+        for (_, entry) in &stopped {
+            entry.transfer.stop();
+        }
+        let mut first = held.err();
+        for (id, entry) in stopped {
+            if let Err(e) = self.settle(id, entry.transfer, DownloadState::Paused).await {
+                first.get_or_insert(e);
+            }
+        }
+        first.map_or(Ok(()), Err)
+    }
+
+    pub async fn resume_all(&self) -> Result<Vec<DownloadId>, LibraryError> {
+        let mut running = self.running.lock().await;
+        let now = SystemTime::now();
+        let mut queued = Vec::new();
+        let store = self.store()?;
+        for download in store.list()? {
+            if download.state == DownloadState::Paused {
+                store.set_state(download.id, DownloadState::Queued, None, now)?;
+                queued.push(download.id);
+            }
+        }
+        drop(store);
+        let filled = self.fill(&mut running);
+        drop(running);
+        filled.map(|()| queued)
+    }
+
+    pub fn place(&self, id: DownloadId, place: Place) -> Result<bool, LibraryError> {
+        self.get(id)?;
+        Ok(self.store()?.place(id, place)?)
     }
 
     pub async fn resume(&self, id: DownloadId) -> Result<(), LibraryError> {
@@ -172,14 +220,25 @@ impl Library {
         if download.state == DownloadState::Done || running.contains_key(&id) {
             return Ok(());
         }
-        let launched = self.launch_into(&download, &mut running);
+        if download.state != DownloadState::Queued {
+            self.store()?
+                .set_state(id, DownloadState::Queued, None, SystemTime::now())?;
+        }
+        let filled = self.fill(&mut running);
         drop(running);
-        launched
+        filled
     }
 
     pub async fn remove(&self, id: DownloadId, delete_file: bool) -> Result<(), LibraryError> {
+        let mut running = self.running.lock().await;
         let download = self.get(id)?;
-        let stopped = self.running.lock().await.remove(&id);
+        let stopped = running.remove(&id);
+        // Held first, so a tick can't start a waiting download while its files go.
+        if stopped.is_none() && download.state == DownloadState::Queued {
+            self.store()?
+                .set_state(id, DownloadState::Paused, None, SystemTime::now())?;
+        }
+        drop(running);
         if let Some(running) = stopped {
             running.transfer.stop();
             let _stopped = running.transfer.finish().await;
@@ -188,7 +247,7 @@ impl Library {
             delete_files(&download)?;
         }
         self.store()?.remove(id)?;
-        Ok(())
+        self.pump().await
     }
 
     // Under the same lock as resume, so nothing can start the download between
@@ -236,6 +295,10 @@ impl Library {
             }
             settled.push(id);
         }
+        // Also picks up a raised limit and a download that a failed start left behind.
+        if let Err(e) = self.pump().await {
+            error.get_or_insert_with(|| e.to_string());
+        }
         Ok(Tick {
             live,
             settled,
@@ -252,11 +315,66 @@ impl Library {
         Ok(())
     }
 
-    async fn launch(&self, download: &Download) -> Result<(), LibraryError> {
+    async fn pump(&self) -> Result<(), LibraryError> {
         let mut running = self.running.lock().await;
-        let launched = self.launch_into(download, &mut running);
+        let filled = self.fill(&mut running);
         drop(running);
-        launched
+        filled
+    }
+
+    // Starts waiting downloads in queue order while fewer than the limit run.
+    // A download that can't start fails on its own and doesn't hold up the rest.
+    fn fill(&self, running: &mut HashMap<DownloadId, Running>) -> Result<(), LibraryError> {
+        let limit = usize::try_from(self.settings()?.max_active).unwrap_or(usize::MAX);
+        if running.len() >= limit {
+            return Ok(());
+        }
+        let waiting = self.store()?.queued()?;
+        for id in waiting {
+            if running.len() >= limit {
+                break;
+            }
+            if running.contains_key(&id) {
+                continue;
+            }
+            let download = self.get(id)?;
+            if let Err(e) = self.launch_into(&download, running) {
+                let now = SystemTime::now();
+                let reason = e.to_string();
+                let store = self.store()?;
+                store.set_state(id, DownloadState::Failed, Some(&reason), now)?;
+                store.add_event(
+                    id,
+                    &event(
+                        EventKind::Failed,
+                        now,
+                        Some(download.received),
+                        Some(reason),
+                    ),
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    fn hold(&self, download: &Download) -> Result<(), LibraryError> {
+        let now = SystemTime::now();
+        let store = self.store()?;
+        store.set_state(download.id, DownloadState::Paused, None, now)?;
+        store.add_event(
+            download.id,
+            &event(EventKind::Paused, now, Some(download.received), None),
+        )?;
+        drop(store);
+        Ok(())
+    }
+
+    fn hold_queue(&self) -> Result<(), LibraryError> {
+        let waiting = self.store()?.queued()?;
+        for id in waiting {
+            self.hold(&self.get(id)?)?;
+        }
+        Ok(())
     }
 
     fn launch_into(
