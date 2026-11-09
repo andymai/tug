@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.26.0](https://github.com/andymai/tug/compare/v0.25.1...v0.26.0) (2026-11-09)
+
+
+### Features
+
+* **desktop:** save a search as a view in the sidebar ([#116](https://github.com/andymai/tug/issues/116)) ([ef2f225](https://github.com/andymai/tug/commit/ef2f225b105530da03a43bfeafe0216d755eccb9))
+
+
+### Bug Fixes
+
+* **desktop:** a saved search counts as saved however its spaces are typed ([#119](https://github.com/andymai/tug/issues/119)) ([191bcc3](https://github.com/andymai/tug/commit/191bcc304c29826900f3fb5486b7873d2c68be6a))
+
 ## [0.25.1](https://github.com/andymai/tug/compare/v0.25.0...v0.25.1) (2026-11-09)
 
 
