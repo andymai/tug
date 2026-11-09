@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/andymai/tug/compare/v0.19.0...v0.19.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* match hosts with a trailing dot, and remember forms across worker restarts ([#83](https://github.com/andymai/tug/issues/83)) ([7ca0962](https://github.com/andymai/tug/commit/7ca09628b6ca8605f7fe0f6585915223e3088200))
+
 ## [0.19.0](https://github.com/andymai/tug/compare/v0.18.0...v0.19.0) (2026-11-09)
 
 
