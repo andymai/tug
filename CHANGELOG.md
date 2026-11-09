@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.23.0](https://github.com/andymai/tug/compare/v0.22.1...v0.23.0) (2026-11-09)
+
+
+### Features
+
+* **core:** a slower speed limit for set hours on chosen days ([#106](https://github.com/andymai/tug/issues/106)) ([6bac6ab](https://github.com/andymai/tug/commit/6bac6abe5f9ce4913176ff52c8e31ba8665ce69a))
+* **core:** download only at set hours on chosen days ([#105](https://github.com/andymai/tug/issues/105)) ([8b22a41](https://github.com/andymai/tug/commit/8b22a41da9004ff763a5e0ff4115eed809f9db1d))
+
 ## [0.22.1](https://github.com/andymai/tug/compare/v0.22.0...v0.22.1) (2026-11-09)
 
 
