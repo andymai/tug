@@ -53,6 +53,8 @@ export interface Backend {
   add(url: string, dir?: string, options?: AddOptions): Promise<Download>;
   // A download's own connections and speed limit; null takes Tug's.
   setOptions(id: number, connections: number | null, speedLimit: number | null): Promise<Download>;
+  // Before it starts it takes the name; after it finishes its file does.
+  rename(id: number, name: string): Promise<Download>;
   // A folder for the downloads being added, which leaves Tug's own folder alone.
   chooseFolder(from?: string): Promise<string | null>;
   pause(id: number): Promise<void>;

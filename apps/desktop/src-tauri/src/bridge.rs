@@ -133,7 +133,7 @@ pub struct DownloadDto {
     pub speed_limit: Option<u64>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, TS)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export, rename = "AddOptions")]
 pub struct AddOptionsDto {
@@ -142,6 +142,7 @@ pub struct AddOptionsDto {
     pub connections: Option<u32>,
     #[ts(type = "number | null")]
     pub speed_limit: Option<u64>,
+    pub name: Option<String>,
 }
 
 impl From<AddOptionsDto> for AddOptions {
@@ -151,6 +152,7 @@ impl From<AddOptionsDto> for AddOptions {
             first: o.first,
             connections: o.connections,
             speed_limit: o.speed_limit,
+            name: o.name,
         }
     }
 }
@@ -671,8 +673,13 @@ impl From<LibraryError> for CommandError {
             LibraryError::Unknown(_) => ErrorKind::NotFound,
             LibraryError::Settings(_)
             | LibraryError::NotATorrent
-            | LibraryError::DuplicateTorrent(_) => ErrorKind::Invalid,
-            LibraryError::Store(_) | LibraryError::Delete { .. } => ErrorKind::Storage,
+            | LibraryError::DuplicateTorrent(_)
+            | LibraryError::BadName(_)
+            | LibraryError::CantRename
+            | LibraryError::NameTaken(_) => ErrorKind::Invalid,
+            LibraryError::Store(_) | LibraryError::Delete { .. } | LibraryError::Rename { .. } => {
+                ErrorKind::Storage
+            }
             LibraryError::Engine(_) | LibraryError::Torrent(_) | LibraryError::NoTorrents => {
                 ErrorKind::Engine
             }
@@ -893,6 +900,17 @@ pub async fn add_download(
         options.unwrap_or_default().into(),
     )
     .await
+}
+
+#[tauri::command]
+pub async fn rename_download(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    name: String,
+) -> Result<DownloadDto, CommandError> {
+    let id = DownloadId::from(id);
+    state.library.rename(id, &name).await?;
+    Ok(DownloadDto::from(&state.library.get(id)?))
 }
 
 #[tauri::command]
@@ -1247,6 +1265,7 @@ mod tests {
             position: 1,
             connections: None,
             speed_limit: None,
+            own_name: None,
         }
     }
 

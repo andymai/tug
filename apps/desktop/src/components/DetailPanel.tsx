@@ -1,4 +1,4 @@
-import { Check, Copy, ExternalLink, FolderOpen, ListStart, Pause, Play, RotateCw, Trash2, X } from "lucide-react";
+import { Check, Copy, ExternalLink, FolderOpen, ListStart, Pause, Pencil, Play, RotateCw, Trash2, X } from "lucide-react";
 import { type KeyboardEvent as KeyEvent, useEffect, useId, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 
@@ -18,7 +18,7 @@ import { focusRow } from "../lib/dom";
 import { limitText, type Parsed, parseConnections, parseLimit } from "../lib/options";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
-import { chosen, modalOpen, single } from "../state/downloads";
+import { canRename, chosen, modalOpen, single } from "../state/downloads";
 import { Button } from "./Button";
 import { ConnectionsPanel, InspectorTabs, LogPanel, tabIds, useInspection } from "./Inspector";
 
@@ -79,6 +79,52 @@ function History({ id, state, revision }: { id: number; state: Download["state"]
         })}
       </ol>
     </section>
+  );
+}
+
+// Enter renames, Escape or a click elsewhere keeps the name. The stem is
+// selected first, as file managers do.
+function NameEditor({ download }: { download: Download }) {
+  const startRename = useDownloads((s) => s.startRename);
+  const rename = useDownloads((s) => s.rename);
+  const [draft, setDraft] = useState(download.name);
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const input = field.current;
+    if (input === null) return;
+    input.focus();
+    const dot = input.value.lastIndexOf(".");
+    input.setSelectionRange(0, dot > 0 ? dot : input.value.length);
+  }, []);
+  return (
+    <form
+      className="min-w-0 flex-1"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (draft.trim() === download.name) startRename(null);
+        else void rename(download.id, draft);
+      }}
+    >
+      <input
+        ref={field}
+        aria-label="Name"
+        spellCheck={false}
+        value={draft}
+        onChange={(event) => {
+          setDraft(event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          event.stopPropagation();
+          startRename(null);
+        }}
+        onBlur={() => {
+          startRename(null);
+        }}
+        className="h-8 w-full rounded-sm border border-control-border bg-surface px-2 text-title text-ink"
+      />
+    </form>
   );
 }
 
@@ -195,6 +241,8 @@ function Panel({ download }: { download: Download }) {
   const notify = useDownloads((s) => s.notify);
   const store = useDownloadsStore();
   const tab = useDownloads((s) => s.inspectorTab);
+  const renaming = useDownloads((s) => s.renaming === download.id);
+  const startRename = useDownloads((s) => s.startRename);
   const setTab = useDownloads((s) => s.setInspectorTab);
   const seen = useInspection(download, tab !== "overview");
   const [copied, setCopied] = useState(false);
@@ -268,9 +316,22 @@ function Panel({ download }: { download: Download }) {
   return (
     <aside ref={panel} aria-labelledby={titleId} className={PANEL}>
       <div className="flex items-start gap-2 px-4 pt-3">
-        <h2 id={titleId} className="min-w-0 flex-1 pt-0.5 text-title [overflow-wrap:anywhere] text-ink">
+        <h2 id={titleId} className={renaming ? "sr-only" : "min-w-0 flex-1 pt-0.5 text-title [overflow-wrap:anywhere] text-ink"}>
           {download.name}
         </h2>
+        {renaming && <NameEditor download={download} />}
+        {!renaming && canRename(download) && (
+          <Button
+            variant="quiet"
+            size="icon"
+            icon={Pencil}
+            aria-label="Rename"
+            title="Rename (F2)"
+            onClick={() => {
+              startRename(download.id);
+            }}
+          />
+        )}
         <Button
           variant="quiet"
           size="icon"

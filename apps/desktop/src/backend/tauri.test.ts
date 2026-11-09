@@ -21,8 +21,9 @@ describe("tauri backend", () => {
     await tauriBackend.diskFree();
     await tauriBackend.add("https://example.org/a.iso");
     await tauriBackend.add("https://example.org/b.iso", "/data");
-    await tauriBackend.add("https://example.org/c.iso", "/data", { paused: true, first: false, connections: 4, speedLimit: null });
+    await tauriBackend.add("https://example.org/c.iso", "/data", { paused: true, first: false, connections: 4, speedLimit: null, name: null });
     await tauriBackend.setOptions(3, 2, 1024);
+    await tauriBackend.rename(3, "mine.iso");
     await tauriBackend.chooseFolder("/data");
     await tauriBackend.pause(3);
     await tauriBackend.resume(3);
@@ -43,8 +44,9 @@ describe("tauri backend", () => {
       ["disk_free", undefined],
       ["add_download", { url: "https://example.org/a.iso", dir: null, options: null }],
       ["add_download", { url: "https://example.org/b.iso", dir: "/data", options: null }],
-      ["add_download", { url: "https://example.org/c.iso", dir: "/data", options: { paused: true, first: false, connections: 4, speedLimit: null } }],
+      ["add_download", { url: "https://example.org/c.iso", dir: "/data", options: { paused: true, first: false, connections: 4, speedLimit: null, name: null } }],
       ["set_download_options", { id: 3, connections: 2, speedLimit: 1024 }],
+      ["rename_download", { id: 3, name: "mine.iso" }],
       ["choose_folder", { from: "/data" }],
       ["pause_download", { id: 3 }],
       ["resume_download", { id: 3 }],

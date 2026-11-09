@@ -131,6 +131,10 @@ export interface DownloadsState {
   closeAdd: () => void;
   addLinks: (hrefs: readonly string[], options?: { dir?: string; add?: AddOptions }) => Promise<void>;
   setOptions: (id: number, connections: number | null, speedLimit: number | null) => Promise<boolean>;
+  // The download whose name the panel edits.
+  renaming: number | null;
+  startRename: (id: number | null) => void;
+  rename: (id: number, name: string) => Promise<boolean>;
   pickFolder: (from?: string) => Promise<string | null>;
   settleFresh: (id: number) => void;
   answerCapture: (id: number, answer: CaptureAnswer) => Promise<void>;
@@ -253,6 +257,7 @@ export function createDownloadsStore(backend: Backend) {
       removing: null,
       dragging: null,
       dropMark: null,
+      renaming: null,
       status: "loading",
       loadError: null,
       notice: null,
@@ -769,6 +774,22 @@ export function createDownloadsStore(backend: Backend) {
         }
       },
 
+      startRename: (id) => {
+        set({ renaming: id, menu: null });
+      },
+
+      rename: async (id, name) => {
+        try {
+          await backend.rename(id, name);
+          set({ renaming: null });
+          await get().reload();
+          return true;
+        } catch (error) {
+          set({ notice: `couldn't rename it: ${BackendError.from(error).message}` });
+          return false;
+        }
+      },
+
       pickFolder: async (from) => {
         try {
           return await backend.chooseFolder(from);
@@ -843,6 +864,13 @@ export function countFor(items: readonly Download[], view: View): number {
 
 export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay" | "captures" | "removing" | "menu">): boolean {
   return state.adding.open || state.overlay !== null || state.captures.length > 0 || state.removing !== null || state.menu !== null;
+}
+
+// Before it starts it takes a name; after it finishes its file does. A torrent's
+// name is its own.
+export function canRename(download: Pick<Download, "url" | "file" | "state">): boolean {
+  if (download.url.startsWith("magnet:")) return false;
+  return download.state === "done" ? download.file !== null : download.file === null && download.state !== "downloading";
 }
 
 // The download that the details and the commands for one act on: the selected

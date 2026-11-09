@@ -180,9 +180,30 @@ describe("adding links", () => {
       first: true,
       connections: 4,
       speedLimit: 2 * MB,
+      name: null,
     });
     expect(await within(await screen.findByRole("row", { name: /^own\.iso/ })).findByText("Paused")).toBeInTheDocument();
     expect((await backend.settings()).downloadDir, "Tug's own folder stays").toBe("/home/you/Downloads");
+  });
+
+  it("gives one link the name the person types", async () => {
+    const { backend, user } = open();
+    const add = vi.spyOn(backend, "add");
+    await user.click(await screen.findByRole("button", { name: "Add" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Add downloads" }));
+    await user.type(dialog.getByRole("textbox", { name: "Links" }), "https://example.org/x7f3.bin");
+    await user.click(dialog.getByRole("button", { name: "Options" }));
+    expect(dialog.getByRole("textbox", { name: "Name" })).toHaveAttribute("placeholder", "x7f3.bin");
+    await user.type(dialog.getByRole("textbox", { name: "Name" }), "firmware.bin");
+    await user.click(dialog.getByRole("button", { name: "Add" }));
+    expect(add).toHaveBeenCalledWith("https://example.org/x7f3.bin", undefined, expect.objectContaining({ name: "firmware.bin" }));
+    expect(await screen.findByRole("row", { name: /^firmware\.bin/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    const again = within(screen.getByRole("dialog", { name: "Add downloads" }));
+    await user.type(again.getByRole("textbox", { name: "Links" }), "https://example.org/a.iso{Enter}https://example.org/b.iso");
+    await user.click(again.getByRole("button", { name: "Options" }));
+    expect(again.queryByRole("textbox", { name: "Name" }), "a name is for one link").not.toBeInTheDocument();
   });
 
   it("skips a link already in the list unless asked to download it again", async () => {
@@ -473,6 +494,36 @@ describe("detail panel", () => {
       expect((await backend.list()).find((d) => d.id === fedora)?.connections).toBe(4);
     });
     expect(options.getByRole("textbox", { name: "Connections" }), "the newer edit stays").toHaveValue("8");
+  });
+
+  it("renames a finished file, keeps the name on Escape, and refuses a bad one", async () => {
+    const { backend, user } = open();
+    const rename = vi.spyOn(backend, "rename");
+    await user.click(await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
+    let panel = within(screen.getByRole("complementary", { name: "noto-fonts-2026.11.zip" }));
+    await user.click(panel.getByRole("button", { name: "Rename" }));
+    const field = panel.getByRole("textbox", { name: "Name" });
+    expect(field).toHaveFocus();
+    expect([(field as HTMLInputElement).selectionStart, (field as HTMLInputElement).selectionEnd]).toEqual([0, "noto-fonts-2026.11".length]);
+    await user.keyboard("{Escape}");
+    expect(panel.queryByRole("textbox", { name: "Name" })).not.toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "noto-fonts-2026.11.zip" }), "Escape keeps the panel").toBeInTheDocument();
+
+    await user.keyboard("{F2}");
+    await user.keyboard("a/b{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Couldn't rename it/);
+    await user.clear(panel.getByRole("textbox", { name: "Name" }));
+    await user.type(panel.getByRole("textbox", { name: "Name" }), "fonts.zip{Enter}");
+    expect(rename).toHaveBeenLastCalledWith(expect.any(Number), "fonts.zip");
+    panel = within(await screen.findByRole("complementary", { name: "fonts.zip" }));
+    expect(panel.queryByRole("textbox", { name: "Name" })).not.toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /^fonts\.zip/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    expect(within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" })).queryByRole("button", { name: "Rename" }), "a running download keeps its name").not.toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }), { clientX: 200, clientY: 200 });
+    await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Rename…" }));
+    expect(within(screen.getByRole("complementary", { name: "blender-5.1-linux-x64.tar.xz" })).getByRole("textbox", { name: "Name" })).toHaveFocus();
   });
 
   it("closes with its button and with Escape", async () => {

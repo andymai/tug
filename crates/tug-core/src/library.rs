@@ -45,15 +45,39 @@ pub enum LibraryError {
     DuplicateTorrent(String),
     #[error(transparent)]
     Torrent(#[from] mdm_torrent::TorrentError),
+    #[error("{0:?} can't be a file name")]
+    BadName(String),
+    #[error("Tug renames a download before it starts or after it finishes")]
+    CantRename,
+    #[error("{0} is in that folder already")]
+    NameTaken(String),
+    #[error("could not rename {}: {source}", path.display())]
+    Rename { path: PathBuf, source: io::Error },
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AddOptions {
     pub paused: bool,
     // First in the queue rather than last.
     pub first: bool,
     pub connections: Option<u32>,
     pub speed_limit: Option<u64>,
+    // The file's name, in place of the one the server gives.
+    pub name: Option<String>,
+}
+
+fn file_name(name: &str) -> Result<&str, LibraryError> {
+    let name = name.trim();
+    let plain = !name.is_empty()
+        && name.len() <= 255
+        && name != "."
+        && name != ".."
+        && !name.contains(['/', '\0']);
+    if plain {
+        Ok(name)
+    } else {
+        Err(LibraryError::BadName(name.to_owned()))
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -146,11 +170,42 @@ impl Library {
         origin: &Origin,
         options: AddOptions,
     ) -> Result<DownloadId, LibraryError> {
-        let id = self.insert(url, dir, origin, options)?;
+        let id = self.insert(url, dir, origin, &options)?;
         if !options.paused {
             self.pump().await?;
         }
         Ok(id)
+    }
+
+    // Before the download starts, Tug saves it under the name; after it finishes,
+    // Tug renames the file. In between, the engine's state file holds the path.
+    pub async fn rename(&self, id: DownloadId, name: &str) -> Result<(), LibraryError> {
+        let name = file_name(name)?;
+        let running = self.running.lock().await;
+        let download = self.get(id)?;
+        if download.is_torrent() {
+            return Err(LibraryError::CantRename);
+        }
+        match (&download.file, download.state) {
+            (Some(file), DownloadState::Done) => {
+                let to = file.with_file_name(name);
+                if to != *file {
+                    rename_new(file, &to).map_err(|e| match e.kind() {
+                        io::ErrorKind::AlreadyExists => LibraryError::NameTaken(name.to_owned()),
+                        _ => LibraryError::Rename {
+                            path: file.clone(),
+                            source: e,
+                        },
+                    })?;
+                    self.store()?.set_file(id, &to)?;
+                }
+            }
+            (None, _) if !running.contains_key(&id) => self.store()?.set_name(id, name)?,
+            _ => return Err(LibraryError::CantRename),
+        }
+        drop(running);
+        self.changed(id);
+        Ok(())
     }
 
     // The connections take effect at the next start; the speed limit at once.
@@ -211,7 +266,7 @@ impl Library {
             paused,
             ..AddOptions::default()
         };
-        let id = self.insert(url, dir, &Origin::default(), options)?;
+        let id = self.insert(url, dir, &Origin::default(), &options)?;
         if let TorrentSource::File(bytes) = &source {
             self.store()?.set_torrent(id, &hash, bytes)?;
         }
@@ -249,7 +304,7 @@ impl Library {
             paused: true,
             ..AddOptions::default()
         };
-        self.insert(url, dir, origin, options)
+        self.insert(url, dir, origin, &options)
     }
 
     // All under the store's lock, so no tick starts the download before its
@@ -259,9 +314,10 @@ impl Library {
         url: Url,
         dir: &Path,
         origin: &Origin,
-        options: AddOptions,
+        options: &AddOptions,
     ) -> Result<DownloadId, LibraryError> {
         check_own(options.connections, options.speed_limit)?;
+        let name = options.name.as_deref().map(file_name).transpose()?;
         let added = SystemTime::now();
         let store = self.store()?;
         let id = store.insert_as(
@@ -275,6 +331,9 @@ impl Library {
         )?;
         if options.connections.is_some() || options.speed_limit.is_some() {
             store.set_options(id, options.connections, options.speed_limit)?;
+        }
+        if let Some(name) = name {
+            store.set_name(id, name)?;
         }
         if options.first {
             store.place(id, Place::First)?;
@@ -683,9 +742,12 @@ impl Library {
             limiter: Some(Arc::clone(&self.limiter)),
             origin: self.store()?.origin(download.id)?,
         };
-        let transfer = match resumable {
-            Some(file) => Transfer::resume(file, &options)?,
-            None => Transfer::start(download.url.clone(), &download.dir, &options),
+        let transfer = match (resumable, &download.own_name) {
+            (Some(file), _) => Transfer::resume(file, &options)?,
+            (None, Some(name)) => {
+                Transfer::start_as(download.url.clone(), &download.dir.join(name), &options)
+            }
+            (None, None) => Transfer::start(download.url.clone(), &download.dir, &options),
         };
         let now = SystemTime::now();
         let started = match resumable {
@@ -844,6 +906,12 @@ impl Library {
     fn store(&self) -> Result<MutexGuard<'_, Store>, LibraryError> {
         self.store.lock().map_err(|_| LibraryError::Poisoned)
     }
+}
+
+// Never over a file that is there already.
+fn rename_new(from: &Path, to: &Path) -> io::Result<()> {
+    use rustix::fs::{CWD, RenameFlags, renameat_with};
+    renameat_with(CWD, from, CWD, to, RenameFlags::NOREPLACE).map_err(io::Error::from)
 }
 
 fn within_hours(settings: &Settings) -> bool {

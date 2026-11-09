@@ -77,6 +77,9 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE downloads ADD COLUMN connections INTEGER CHECK (connections > 0);
     ALTER TABLE downloads ADD COLUMN speed_limit INTEGER CHECK (speed_limit > 0);
 ",
+    r"
+    ALTER TABLE downloads ADD COLUMN name TEXT;
+",
 ];
 
 // The search table's names come from Rust, so it fills the table when it adds it.
@@ -233,11 +236,16 @@ pub struct Download {
     // Its own connections and speed limit; None takes Tug's.
     pub connections: Option<u32>,
     pub speed_limit: Option<u64>,
+    // The file name the person chose before the download started.
+    pub own_name: Option<String>,
 }
 
 impl Download {
     pub fn name(&self) -> String {
-        name_of(&self.url, self.file.as_deref())
+        match (&self.file, &self.own_name) {
+            (None, Some(own)) => own.clone(),
+            _ => name_of(&self.url, self.file.as_deref()),
+        }
     }
 
     pub fn category(&self) -> Category {
@@ -520,6 +528,20 @@ impl Store {
         Ok(true)
     }
 
+    pub fn set_name(&self, id: DownloadId, name: &str) -> Result<(), StoreError> {
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "UPDATE downloads SET name = ?2 WHERE id = ?1",
+            params![id.0, name],
+        )?;
+        tx.execute(
+            "UPDATE search SET name = ?2 WHERE rowid = ?1",
+            params![id.0, name],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn set_options(
         &self,
         id: DownloadId,
@@ -746,7 +768,7 @@ fn private(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-const SELECT: &str = "SELECT id, url, dir, file, state, size, received, error, added_ms, finished_ms, position, connections, speed_limit FROM downloads";
+const SELECT: &str = "SELECT id, url, dir, file, state, size, received, error, added_ms, finished_ms, position, connections, speed_limit, name FROM downloads";
 
 fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
     let known = i64::try_from(MIGRATIONS.len()).map_err(|_| StoreError::TooLarge(u64::MAX))?;
@@ -802,6 +824,7 @@ fn read_row(row: &Row<'_>) -> rusqlite::Result<Result<Download, StoreError>> {
     let position: i64 = row.get(10)?;
     let connections: Option<i64> = row.get(11)?;
     let speed_limit: Option<i64> = row.get(12)?;
+    let own_name: Option<String> = row.get(13)?;
 
     let corrupt = |column, detail: String| StoreError::Corrupt { id, column, detail };
     Ok((|| {
@@ -825,6 +848,7 @@ fn read_row(row: &Row<'_>) -> rusqlite::Result<Result<Download, StoreError>> {
             speed_limit: speed_limit
                 .map(|l| u64::try_from(l).map_err(|e| corrupt("speed_limit", e.to_string())))
                 .transpose()?,
+            own_name,
         })
     })())
 }
@@ -868,7 +892,7 @@ mod tests {
     #[test]
     fn migrates_a_fresh_database_to_the_latest_schema() {
         let store = Store::open_in_memory().unwrap();
-        assert_eq!(store.schema_version().unwrap(), 7);
+        assert_eq!(store.schema_version().unwrap(), 8);
         assert!(store.list().unwrap().is_empty());
     }
 
@@ -881,7 +905,7 @@ mod tests {
             .insert(&new("https://example.org/a.iso", "/home/u/Downloads"))
             .unwrap();
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 7);
+        assert_eq!(store.schema_version().unwrap(), 8);
         assert_eq!(
             store.get(id).unwrap().unwrap().url.as_str(),
             "https://example.org/a.iso"
@@ -941,7 +965,7 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 7);
+        assert_eq!(store.schema_version().unwrap(), 8);
         let id = store
             .insert(&new("https://example.org/a.iso", "/d"))
             .unwrap();
@@ -1144,7 +1168,7 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 7);
+        assert_eq!(store.schema_version().unwrap(), 8);
         assert_eq!(store.search("backup").unwrap().len(), 1);
     }
 
@@ -1260,6 +1284,7 @@ mod tests {
                 position: 1,
                 connections: None,
                 speed_limit: None,
+                own_name: None,
             }
         );
     }

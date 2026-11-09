@@ -136,6 +136,18 @@ impl Transfer {
         }
     }
 
+    // Saves exactly at `file`, under the name the person chose.
+    pub fn start_as(url: Url, file: &Path, options: &TransferOptions) -> Self {
+        let request = Request {
+            url,
+            headers: options.origin.headers(),
+            dest: Destination::File(file.to_owned()),
+        };
+        Self {
+            work: Work::Http(Download::start(request, engine_options(options))),
+        }
+    }
+
     pub fn resume(file: &Path, options: &TransferOptions) -> Result<Self, mdm_engine::Error> {
         let state = mdm_engine::state::state_path(file);
         let download = Download::resume(state, options.origin.headers(), engine_options(options))?;
