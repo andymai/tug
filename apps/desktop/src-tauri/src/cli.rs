@@ -41,6 +41,18 @@ pub fn parse(args: &[String]) -> Command {
     }
 }
 
+pub fn printable(text: &str) -> String {
+    text.chars()
+        .fold(String::with_capacity(text.len()), |mut out, c| {
+            if c.is_control() {
+                out.extend(c.escape_unicode());
+            } else {
+                out.push(c);
+            }
+            out
+        })
+}
+
 pub fn line(entry: &Entry) -> String {
     let mut word = entry.state.clone();
     if let Some(first) = word.get_mut(0..1) {
@@ -56,7 +68,11 @@ pub fn line(entry: &Entry) -> String {
         _ => String::new(),
     };
     let size = entry.size.map(format_bytes).unwrap_or_default();
-    format!("{word:<12} {percent:>4} {size:>9}  {}", entry.name)
+    format!(
+        "{:<12} {percent:>4} {size:>9}  {}",
+        printable(&word),
+        printable(&entry.name)
+    )
 }
 
 async fn connect(endpoint: &Endpoint) -> Option<Client> {
@@ -104,11 +120,16 @@ async fn add(endpoint: &Endpoint, urls: Vec<String>) -> Result<bool, String> {
         Ok(Response::Added { added, failed }) => {
             let mut out = io::stdout().lock();
             for entry in &added {
-                let _written = writeln!(out, "Added {}", entry.name);
+                let _written = writeln!(out, "Added {}", printable(&entry.name));
             }
             let mut err = io::stderr().lock();
             for failure in &failed {
-                let _written = writeln!(err, "Couldn't add {}: {}", failure.url, failure.reason);
+                let _written = writeln!(
+                    err,
+                    "Couldn't add {}: {}",
+                    printable(&failure.url),
+                    printable(&failure.reason)
+                );
             }
             Ok(failed.is_empty())
         }
@@ -161,7 +182,7 @@ pub fn run(command: Command) -> ExitCode {
         Ok(true) => ExitCode::SUCCESS,
         Ok(false) => ExitCode::FAILURE,
         Err(message) => {
-            let _written = writeln!(io::stderr().lock(), "{message}");
+            let _written = writeln!(io::stderr().lock(), "{}", printable(&message));
             ExitCode::FAILURE
         }
     }
@@ -198,6 +219,23 @@ mod tests {
             parse(&args(&["list", "--yaml"])),
             Command::Usage(_)
         ));
+    }
+
+    #[test]
+    fn control_characters_print_as_escapes() {
+        assert_eq!(printable("fedora.iso"), "fedora.iso");
+        assert_eq!(printable("a\u{1b}[2Jb"), "a\\u{1b}[2Jb");
+        assert_eq!(printable("line\nbreak\u{7}"), "line\\u{a}break\\u{7}");
+        assert_eq!(printable("café"), "café");
+        let entry = Entry {
+            id: 1,
+            name: "evil\u{1b}]0;title\u{7}.iso".into(),
+            url: String::new(),
+            state: "queued".into(),
+            received: 0,
+            size: None,
+        };
+        assert!(!line(&entry).chars().any(char::is_control));
     }
 
     #[test]
