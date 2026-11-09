@@ -1,0 +1,21 @@
+apps/desktop/src-tauri/src/browsers.rs
+  s_b050dc8a593981::t_fe91e803d8e2b5 509-512,514-535,554
+  s_b050dc8a593981::t_21cd26ec3aa104 7,278-282,284-291,294,296,298
+  s_b050dc8a593981::t_d3702e88894246 15-17,513
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c9076dc8e10a74b749cff9b9c238441986753779",
+  "prompts": {},
+  "sessions": {
+    "s_b050dc8a593981": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "73bff100-cf23-4db2-a4ec-cac5b2ce385b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
