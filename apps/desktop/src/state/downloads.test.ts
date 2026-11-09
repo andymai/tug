@@ -519,7 +519,7 @@ describe("downloads store", () => {
     const fedora = store.getState().items.find((d) => d.name === "fedora.iso");
     store.getState().select(fedora?.id ?? null);
     await store.getState().loadHistory(fedora?.id ?? -1);
-    expect(store.getState().history?.events.map((e) => e.kind)).toEqual(["added", "started"]);
+    expect(store.getState().history?.data.map((e) => e.kind)).toEqual(["added", "started"]);
 
     store.getState().select(null);
     await store.getState().loadHistory(fedora?.id ?? -1);
@@ -547,7 +547,7 @@ describe("downloads store", () => {
     await newer;
     answers[0]?.([event("added")]);
     await older;
-    expect(store.getState().history?.events.map((e) => e.kind)).toEqual(["added", "paused"]);
+    expect(store.getState().history?.data.map((e) => e.kind)).toEqual(["added", "paused"]);
   });
 
   it("checks the disk once at a time, and once more for a request made during a check", async () => {

@@ -48,7 +48,7 @@ function describeEvent(event: DownloadEvent): { text: string; bytes: string | nu
 }
 
 function History({ id, state, revision }: { id: number; state: Download["state"]; revision: string }) {
-  const history = useDownloads((s) => (s.history?.id === id ? s.history.events : null));
+  const history = useDownloads((s) => (s.history?.id === id ? s.history.data : null));
   const loadHistory = useDownloads((s) => s.loadHistory);
 
   useEffect(() => {

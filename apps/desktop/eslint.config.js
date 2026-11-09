@@ -26,4 +26,19 @@ export default defineConfig([
       },
     },
   },
+  {
+    // A panel load outside `load` would keep a late answer for a download no longer shown.
+    files: ["src/state/**/*.ts", "src/components/**/*.tsx"],
+    ignores: ["**/*.test.*"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression[callee.object.name='backend'][callee.property.name=/^(events|inspect|headers|torrentView)$/]:not(CallExpression[callee.name='load'] CallExpression)",
+          message: "Load a panel slot through load() in the store, which drops a late answer.",
+        },
+      ],
+    },
+  },
 ]);
