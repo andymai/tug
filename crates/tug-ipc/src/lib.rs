@@ -1,5 +1,5 @@
 use std::fmt::Write as _;
-use std::fs::{DirBuilder, OpenOptions, Permissions};
+use std::fs::{DirBuilder, OpenOptions, Permissions, TryLockError};
 use std::future::Future;
 use std::io::{self, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
@@ -20,6 +20,7 @@ const DIR: &str = if cfg!(debug_assertions) {
 };
 const SOCKET: &str = "tug.sock";
 const TOKEN: &str = "token";
+const LOCK: &str = "lock";
 const MAX_REQUEST: u64 = 1 << 20;
 
 #[derive(Debug, thiserror::Error)]
@@ -137,6 +138,7 @@ fn same(a: &str, b: &str) -> bool {
 pub struct Server {
     listener: UnixListener,
     token: Arc<str>,
+    _lock: std::fs::File,
 }
 
 impl Server {
@@ -146,26 +148,39 @@ impl Server {
             .mode(0o700)
             .create(&endpoint.dir)?;
         std::fs::set_permissions(&endpoint.dir, Permissions::from_mode(0o700))?;
-        let socket = endpoint.socket();
-        if socket.exists() {
-            if std::os::unix::net::UnixStream::connect(&socket).is_ok() {
-                return Err(IpcError::AlreadyRunning);
-            }
-            std::fs::remove_file(&socket)?;
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
+            .open(endpoint.dir.join(LOCK))?;
+        match lock.try_lock() {
+            Ok(()) => {}
+            Err(TryLockError::WouldBlock) => return Err(IpcError::AlreadyRunning),
+            Err(TryLockError::Error(e)) => return Err(e.into()),
         }
+        let socket = endpoint.socket();
+        match std::fs::remove_file(&socket) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.into()),
+            _ => {}
+        }
+        let listener = UnixListener::bind(&socket)?;
+        std::fs::set_permissions(&socket, Permissions::from_mode(0o600))?;
         let token = new_token()?;
-        let mut file = OpenOptions::new()
+        let staged = endpoint.dir.join(format!("{TOKEN}.new"));
+        OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .mode(0o600)
-            .open(endpoint.token_path())?;
-        file.write_all(token.as_bytes())?;
-        let listener = UnixListener::bind(&socket)?;
-        std::fs::set_permissions(&socket, Permissions::from_mode(0o600))?;
+            .open(&staged)?
+            .write_all(token.as_bytes())?;
+        std::fs::rename(&staged, endpoint.token_path())?;
         Ok(Self {
             listener,
             token: token.into(),
+            _lock: lock,
         })
     }
 
@@ -180,11 +195,37 @@ impl Server {
     }
 }
 
+async fn reply(
+    write: &mut tokio::net::unix::OwnedWriteHalf,
+    response: &Response,
+) -> Result<(), IpcError> {
+    let mut line = serde_json::to_vec(response)?;
+    line.push(b'\n');
+    write.write_all(&line).await?;
+    Ok(())
+}
+
 async fn answer<H: Handler>(stream: UnixStream, token: &str, handler: &H) -> Result<(), IpcError> {
     let (read, mut write) = stream.into_split();
-    let mut lines = BufReader::new(read.take(MAX_REQUEST)).lines();
-    while let Some(line) = lines.next_line().await? {
-        let response = match serde_json::from_str::<Envelope>(&line) {
+    let mut reader = BufReader::new(read);
+    loop {
+        let mut line = Vec::new();
+        let read = (&mut reader)
+            .take(MAX_REQUEST + 1)
+            .read_until(b'\n', &mut line)
+            .await?;
+        if read == 0 {
+            return Ok(());
+        }
+        if line.last() != Some(&b'\n')
+            && line.len() > usize::try_from(MAX_REQUEST).unwrap_or(usize::MAX)
+        {
+            let refused = Response::Refused {
+                reason: format!("a request is limited to {MAX_REQUEST} bytes"),
+            };
+            return reply(&mut write, &refused).await;
+        }
+        let response = match serde_json::from_slice::<Envelope>(&line) {
             Ok(envelope) if same(&envelope.token, token) => handler.handle(envelope.request).await,
             Ok(_) => Response::Refused {
                 reason: "wrong token".into(),
@@ -193,11 +234,8 @@ async fn answer<H: Handler>(stream: UnixStream, token: &str, handler: &H) -> Res
                 reason: e.to_string(),
             },
         };
-        let mut reply = serde_json::to_vec(&response)?;
-        reply.push(b'\n');
-        write.write_all(&reply).await?;
+        reply(&mut write, &response).await?;
     }
-    Ok(())
 }
 
 pub struct Client {

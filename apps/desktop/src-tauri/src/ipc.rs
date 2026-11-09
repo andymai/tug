@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use tauri::{AppHandle, Manager, Runtime};
 use tug_core::{Download, DownloadId, Library};
-use tug_ipc::{Endpoint, Entry, Failure, Handler, Request, Response, Server};
+use tug_ipc::{Endpoint, Entry, Failure, Handler, IpcError, Request, Response, Server};
 
 use crate::{bridge, tray};
 
@@ -66,17 +66,27 @@ impl<R: Runtime> Handler for DesktopHandler<R> {
     }
 }
 
-pub fn serve<R: Runtime>(app: &AppHandle<R>, library: Arc<Library>) {
+pub enum Claim {
+    Owned(Server),
+    Taken,
+    Unavailable,
+}
+
+pub fn claim() -> Claim {
+    let Ok(endpoint) = Endpoint::from_env() else {
+        return Claim::Unavailable;
+    };
+    match tauri::async_runtime::block_on(async { Server::bind(&endpoint) }) {
+        Ok(server) => Claim::Owned(server),
+        Err(IpcError::AlreadyRunning) => Claim::Taken,
+        Err(_) => Claim::Unavailable,
+    }
+}
+
+pub fn serve<R: Runtime>(app: &AppHandle<R>, library: Arc<Library>, server: Server) {
     let handler = Arc::new(DesktopHandler {
         app: app.clone(),
         library,
     });
-    tauri::async_runtime::spawn(async move {
-        let Ok(endpoint) = Endpoint::from_env() else {
-            return;
-        };
-        if let Ok(server) = Server::bind(&endpoint) {
-            server.serve(handler).await;
-        }
-    });
+    tauri::async_runtime::spawn(server.serve(handler));
 }

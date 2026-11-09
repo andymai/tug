@@ -139,3 +139,57 @@ async fn connecting_without_a_server_fails() {
     let (_dir, endpoint) = endpoint();
     assert!(Client::connect(&endpoint).await.is_err());
 }
+
+#[tokio::test]
+async fn a_losing_server_leaves_the_token_alone() {
+    let (_dir, endpoint) = endpoint();
+    let server = Server::bind(&endpoint).unwrap();
+    tokio::spawn(server.serve(Arc::new(Fake)));
+    let token = std::fs::read_to_string(endpoint.token_path()).unwrap();
+    assert!(matches!(
+        Server::bind(&endpoint),
+        Err(IpcError::AlreadyRunning)
+    ));
+    assert_eq!(
+        std::fs::read_to_string(endpoint.token_path()).unwrap(),
+        token
+    );
+    let mut client = Client::connect(&endpoint).await.unwrap();
+    assert_eq!(client.send(Request::Ping).await.unwrap(), Response::Pong);
+}
+
+#[tokio::test]
+async fn each_request_gets_its_own_size_limit() {
+    let (_dir, endpoint) = endpoint();
+    let server = Server::bind(&endpoint).unwrap();
+    tokio::spawn(server.serve(Arc::new(Fake)));
+
+    let mut client = Client::connect(&endpoint).await.unwrap();
+    for _ in 0..3 {
+        assert_eq!(client.send(Request::Ping).await.unwrap(), Response::Pong);
+    }
+    let big = "x".repeat(900 << 10);
+    let Response::Added { failed, .. } = client
+        .send(Request::Add {
+            urls: vec![big.clone()],
+        })
+        .await
+        .unwrap()
+    else {
+        panic!("expected an add result");
+    };
+    assert_eq!(failed[0].url.len(), big.len());
+
+    let stream = tokio::net::UnixStream::connect(endpoint.socket())
+        .await
+        .unwrap();
+    let (read, mut write) = stream.into_split();
+    let mut lines = BufReader::new(read).lines();
+    let huge = format!("{{\"token\":\"{}\"}}", "y".repeat((1 << 20) + 100));
+    let _sent = write.write_all(huge.as_bytes()).await;
+    let reply: Response = serde_json::from_str(&lines.next_line().await.unwrap().unwrap()).unwrap();
+    assert!(
+        matches!(&reply, Response::Refused { reason } if reason.contains("limited")),
+        "{reply:?}"
+    );
+}

@@ -14,6 +14,8 @@ pub const USAGE: &str = "Usage:
 ";
 
 const START_TIMEOUT: Duration = Duration::from_secs(20);
+const ANSWER_TIMEOUT: Duration = Duration::from_secs(3);
+const HAND_OFF_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
@@ -91,18 +93,44 @@ pub fn line(entry: &Entry) -> String {
 }
 
 async fn connect(endpoint: &Endpoint) -> Option<Client> {
-    let mut client = Client::connect(endpoint).await.ok()?;
-    matches!(client.send(Request::Ping).await, Ok(Response::Pong)).then_some(client)
+    tokio::time::timeout(ANSWER_TIMEOUT, async {
+        let mut client = Client::connect(endpoint).await.ok()?;
+        matches!(client.send(Request::Ping).await, Ok(Response::Pong)).then_some(client)
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
-pub fn hand_off() -> bool {
+async fn show(endpoint: &Endpoint) -> bool {
+    let Some(mut client) = connect(endpoint).await else {
+        return false;
+    };
+    matches!(
+        tokio::time::timeout(ANSWER_TIMEOUT, client.send(Request::Show)).await,
+        Ok(Ok(Response::Shown))
+    )
+}
+
+pub fn hand_off(wait: bool) -> bool {
     let Ok(endpoint) = Endpoint::from_env() else {
         return false;
     };
     tauri::async_runtime::block_on(async {
-        match connect(&endpoint).await {
-            Some(mut client) => matches!(client.send(Request::Show).await, Ok(Response::Shown)),
-            None => false,
+        let deadline = Instant::now()
+            + if wait {
+                HAND_OFF_TIMEOUT
+            } else {
+                Duration::ZERO
+            };
+        loop {
+            if show(&endpoint).await {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
     })
 }
