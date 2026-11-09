@@ -16,7 +16,7 @@ export function manifest(target: Target, version: string): Record<string, unknow
     description: "Hands your downloads to Tug, the fast, resumable download manager for Linux.",
     version,
     icons: ICONS,
-    permissions: ["contextMenus", "cookies", "downloads", "nativeMessaging", "webRequest"],
+    permissions: ["contextMenus", "cookies", "downloads", "nativeMessaging", "storage", "webRequest"],
     host_permissions: ["<all_urls>"],
   };
   if (target === "chromium") {

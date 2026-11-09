@@ -12,7 +12,7 @@ export function start(api: Api, userAgent: string): Capture {
   });
   api.webRequest.onBeforeRequest.addListener(
     (request) => {
-      capture.requested(request);
+      void capture.requested(request);
     },
     { urls: ["<all_urls>"], types: ["main_frame", "sub_frame"] },
   );
