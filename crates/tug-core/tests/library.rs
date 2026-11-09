@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer, content};
 use tug_core::{
-    ConnectionStatus, Download, DownloadId, DownloadState, EventKind, Library, LibraryError,
-    MINUTES_PER_DAY, Origin, Place, Schedule, Settings, Store,
+    AddOptions, ConnectionStatus, Download, DownloadId, DownloadState, EventKind, Library,
+    LibraryError, MINUTES_PER_DAY, Origin, Place, Schedule, Settings, Store,
 };
 
 fn assert_intact(path: &Path, seed: u64, len: usize) {
@@ -628,6 +628,77 @@ async fn a_running_download_that_fails_to_go_stays_paused_with_its_inspection() 
     assert!(matches!(
         library.inspect(id).await,
         Err(LibraryError::Unknown(_))
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_add_can_wait_paused_or_go_first_in_the_queue() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let library = limited(1).await;
+    let dir = tempfile::tempdir().unwrap();
+    let link = |name: &str| format!("https://example.invalid/{name}").parse().unwrap();
+    let slow = lab.url("/gen/8M/busy.bin?seed=8&rate=64K").parse().unwrap();
+    let busy = library.add(slow, dir.path()).await.unwrap();
+    let later = library.add(link("later.bin"), dir.path()).await.unwrap();
+    let first = library
+        .add_with(
+            link("first.bin"),
+            dir.path(),
+            &Origin::default(),
+            AddOptions {
+                first: true,
+                ..AddOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+    let held = library
+        .add_with(
+            link("held.bin"),
+            dir.path(),
+            &Origin::default(),
+            AddOptions {
+                paused: true,
+                first: true,
+                ..AddOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    let waiting: Vec<DownloadId> = library
+        .list()
+        .unwrap()
+        .into_iter()
+        .filter(|d| d.state == DownloadState::Queued)
+        .map(|d| d.id)
+        .collect();
+    assert!(
+        waiting.contains(&first) && waiting.contains(&later),
+        "{waiting:?}"
+    );
+    assert_eq!(state_of(&library, held), DownloadState::Paused);
+    assert_eq!(kinds(&library, held), [EventKind::Added]);
+    let first_place = library.get(first).unwrap().position;
+    assert!(first_place < library.get(later).unwrap().position);
+    assert!(
+        library.get(held).unwrap().position < first_place,
+        "a held download waits at the top"
+    );
+    assert_eq!(state_of(&library, busy), DownloadState::Downloading);
+    assert!(matches!(
+        library
+            .add_with(
+                link("bad.bin"),
+                dir.path(),
+                &Origin::default(),
+                AddOptions {
+                    connections: Some(0),
+                    ..AddOptions::default()
+                },
+            )
+            .await,
+        Err(LibraryError::Settings(_))
     ));
 }
 

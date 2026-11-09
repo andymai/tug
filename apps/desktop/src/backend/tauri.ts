@@ -30,7 +30,9 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
 
 export const tauriBackend: Backend = {
   list: () => call<Download[]>("list_downloads"),
-  add: (url, dir) => call<Download>("add_download", { url, dir: dir ?? null }),
+  add: (url, dir, options) => call<Download>("add_download", { url, dir: dir ?? null, options: options ?? null }),
+  setOptions: (id, connections, speedLimit) => call<Download>("set_download_options", { id, connections, speedLimit }),
+  chooseFolder: (from) => call<string | null>("choose_folder", { from: from ?? null }),
   search: (query) => call<number[]>("search_downloads", { query }),
   diskFree: () => call<number | null>("disk_free"),
   pause: (id) => call("pause_download", { id }),

@@ -12,7 +12,7 @@ use url::Url;
 use crate::inspect::Inspection;
 use crate::origin::Origin;
 use crate::schedule::Schedule;
-use crate::settings::{Settings, SettingsError};
+use crate::settings::{Settings, SettingsError, check_own};
 use crate::store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Place, Store, StoreError,
 };
@@ -45,6 +45,15 @@ pub enum LibraryError {
     DuplicateTorrent(String),
     #[error(transparent)]
     Torrent(#[from] mdm_torrent::TorrentError),
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AddOptions {
+    pub paused: bool,
+    // First in the queue rather than last.
+    pub first: bool,
+    pub connections: Option<u32>,
+    pub speed_limit: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -127,9 +136,40 @@ impl Library {
         dir: &Path,
         origin: &Origin,
     ) -> Result<DownloadId, LibraryError> {
-        let id = self.insert(url, dir, origin, false)?;
-        self.pump().await?;
+        self.add_with(url, dir, origin, AddOptions::default()).await
+    }
+
+    pub async fn add_with(
+        &self,
+        url: Url,
+        dir: &Path,
+        origin: &Origin,
+        options: AddOptions,
+    ) -> Result<DownloadId, LibraryError> {
+        let id = self.insert(url, dir, origin, options)?;
+        if !options.paused {
+            self.pump().await?;
+        }
         Ok(id)
+    }
+
+    // The connections take effect at the next start; the speed limit at once.
+    pub async fn set_options(
+        &self,
+        id: DownloadId,
+        connections: Option<u32>,
+        speed_limit: Option<u64>,
+    ) -> Result<(), LibraryError> {
+        check_own(connections, speed_limit)?;
+        let running = self.running.lock().await;
+        self.get(id)?;
+        self.store()?.set_options(id, connections, speed_limit)?;
+        if let Some(entry) = running.get(&id) {
+            entry.transfer.set_speed_limit(speed_limit);
+        }
+        drop(running);
+        self.changed(id);
+        Ok(())
     }
 
     pub async fn add_torrent(
@@ -167,7 +207,11 @@ impl Library {
         if let Some(twin) = self.unfinished_torrent(&hash)? {
             return Err(LibraryError::DuplicateTorrent(twin.name()));
         }
-        let id = self.insert(url, dir, &Origin::default(), paused)?;
+        let options = AddOptions {
+            paused,
+            ..AddOptions::default()
+        };
+        let id = self.insert(url, dir, &Origin::default(), options)?;
         if let TorrentSource::File(bytes) = &source {
             self.store()?.set_torrent(id, &hash, bytes)?;
         }
@@ -201,23 +245,25 @@ impl Library {
         dir: &Path,
         origin: &Origin,
     ) -> Result<DownloadId, LibraryError> {
-        self.insert(url, dir, origin, true)
+        let options = AddOptions {
+            paused: true,
+            ..AddOptions::default()
+        };
+        self.insert(url, dir, origin, options)
     }
 
+    // All under the store's lock, so no tick starts the download before its
+    // options and its place are there.
     fn insert(
         &self,
         url: Url,
         dir: &Path,
         origin: &Origin,
-        paused: bool,
+        options: AddOptions,
     ) -> Result<DownloadId, LibraryError> {
+        check_own(options.connections, options.speed_limit)?;
         let added = SystemTime::now();
         let store = self.store()?;
-        let state = if paused {
-            DownloadState::Paused
-        } else {
-            DownloadState::Queued
-        };
         let id = store.insert_as(
             &NewDownload {
                 url,
@@ -225,8 +271,17 @@ impl Library {
                 added,
             },
             origin,
-            state,
+            DownloadState::Queued,
         )?;
+        if options.connections.is_some() || options.speed_limit.is_some() {
+            store.set_options(id, options.connections, options.speed_limit)?;
+        }
+        if options.first {
+            store.place(id, Place::First)?;
+        }
+        if options.paused {
+            store.set_state(id, DownloadState::Paused, None, added)?;
+        }
         store.add_event(id, &event(EventKind::Added, added, None, None))?;
         drop(store);
         self.changed(id);
@@ -623,7 +678,8 @@ impl Library {
             .as_deref()
             .filter(|file| state_path(file).exists());
         let options = TransferOptions {
-            connections: self.settings()?.connections,
+            connections: download.connections.unwrap_or(self.settings()?.connections),
+            speed_limit: download.speed_limit,
             limiter: Some(Arc::clone(&self.limiter)),
             origin: self.store()?.origin(download.id)?,
         };

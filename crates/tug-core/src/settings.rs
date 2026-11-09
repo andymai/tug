@@ -464,6 +464,19 @@ impl Settings {
     }
 }
 
+// A download's own connections and speed limit keep the same rules as Tug's.
+pub fn check_own(connections: Option<u32>, speed_limit: Option<u64>) -> Result<(), SettingsError> {
+    if let Some(count) = connections
+        && !(1..=MAX_CONNECTIONS).contains(&count)
+    {
+        return Err(SettingsError::Connections(count));
+    }
+    if speed_limit == Some(0) {
+        return Err(SettingsError::ZeroSpeedLimit);
+    }
+    Ok(())
+}
+
 fn name(text: &str) -> bool {
     (1..=20).contains(&text.len()) && text.chars().all(|c| c.is_ascii_lowercase())
 }

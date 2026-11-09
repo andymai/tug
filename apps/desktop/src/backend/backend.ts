@@ -1,3 +1,4 @@
+import type { AddOptions } from "./bindings/AddOptions";
 import type { CaptureAnswer } from "./bindings/CaptureAnswer";
 import type { ColorScheme } from "./bindings/ColorScheme";
 import type { CommandError } from "./bindings/CommandError";
@@ -9,6 +10,7 @@ import type { Place } from "./bindings/Place";
 import type { ProgressBatch } from "./bindings/ProgressBatch";
 import type { Settings } from "./bindings/Settings";
 
+export type { AddOptions } from "./bindings/AddOptions";
 export type { Appearance } from "./bindings/Appearance";
 export type { CaptureAnswer } from "./bindings/CaptureAnswer";
 export type { ColorScheme } from "./bindings/ColorScheme";
@@ -48,7 +50,11 @@ export interface Backend {
   list(): Promise<Download[]>;
   search(query: string): Promise<number[]>;
   diskFree(): Promise<number | null>;
-  add(url: string, dir?: string): Promise<Download>;
+  add(url: string, dir?: string, options?: AddOptions): Promise<Download>;
+  // A download's own connections and speed limit; null takes Tug's.
+  setOptions(id: number, connections: number | null, speedLimit: number | null): Promise<Download>;
+  // A folder for the downloads being added, which leaves Tug's own folder alone.
+  chooseFolder(from?: string): Promise<string | null>;
   pause(id: number): Promise<void>;
   resume(id: number): Promise<void>;
   remove(id: number, deleteFile: boolean): Promise<void>;

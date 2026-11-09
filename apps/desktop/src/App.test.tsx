@@ -145,6 +145,46 @@ describe("adding links", () => {
     expect(screen.getByText("b.iso")).toBeInTheDocument();
   });
 
+  it("adds with its own folder, connections and limit, paused and first in the queue", async () => {
+    const { backend, user } = open();
+    const add = vi.spyOn(backend, "add");
+    await user.click(await screen.findByRole("button", { name: "Add" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Add downloads" }));
+    await user.type(dialog.getByRole("textbox", { name: "Links" }), "https://example.org/own.iso");
+    await user.click(dialog.getByRole("button", { name: "Options" }));
+    expect(dialog.getByRole("button", { name: "Options" })).toHaveAttribute("aria-expanded", "true");
+    expect(dialog.getByRole("textbox", { name: "Connections" })).toHaveAttribute("placeholder", "8");
+
+    await user.type(dialog.getByRole("textbox", { name: "Connections" }), "0");
+    await user.click(dialog.getByRole("button", { name: "Add" }));
+    expect(dialog.getByRole("alert")).toHaveTextContent("Enter 1 to 32 connections.");
+    expect(add).not.toHaveBeenCalled();
+
+    await user.clear(dialog.getByRole("textbox", { name: "Connections" }));
+    await user.type(dialog.getByRole("textbox", { name: "Connections" }), "4");
+    await user.clear(dialog.getByRole("textbox", { name: "Folder" }));
+    expect(dialog.getByText("Saves to Downloads"), "an empty folder is Tug's own").toBeInTheDocument();
+    await user.type(dialog.getByRole("textbox", { name: "Folder" }), "Media");
+    await user.click(dialog.getByRole("button", { name: "Add" }));
+    expect(dialog.getByRole("alert")).toHaveTextContent("Enter a full path, like /home/you/Downloads.");
+    expect(add).not.toHaveBeenCalled();
+    await user.type(dialog.getByRole("textbox", { name: "Speed limit" }), "2");
+    await user.click(dialog.getByRole("button", { name: "Choose…" }));
+    expect(await dialog.findByText("Saves to Media/Downloads")).toBeInTheDocument();
+    await user.click(dialog.getByRole("checkbox", { name: "Start paused" }));
+    await user.click(dialog.getByRole("checkbox", { name: "First in the queue" }));
+    await user.click(dialog.getByRole("button", { name: "Add" }));
+
+    expect(add).toHaveBeenCalledWith("https://example.org/own.iso", "/home/you/Media/Downloads", {
+      paused: true,
+      first: true,
+      connections: 4,
+      speedLimit: 2 * MB,
+    });
+    expect(await within(await screen.findByRole("row", { name: /^own\.iso/ })).findByText("Paused")).toBeInTheDocument();
+    expect((await backend.settings()).downloadDir, "Tug's own folder stays").toBe("/home/you/Downloads");
+  });
+
   it("skips a link already in the list unless asked to download it again", async () => {
     const { user } = open();
     await user.click(await screen.findByRole("button", { name: "Add" }));
@@ -374,6 +414,65 @@ describe("detail panel", () => {
     expect(panel.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
     expect(panel.getAllByRole("tab").filter((tab) => tab.tabIndex === 0)).toHaveLength(1);
     expect(screen.getByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("changes a download's own connections and limit, and says what holds when", async () => {
+    const { backend, user } = open();
+    const setOptions = vi.spyOn(backend, "setOptions");
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    const panel = within(screen.getByRole("complementary", { name: "fedora-kde-44-x86_64.iso" }));
+    const options = within(panel.getByRole("region", { name: "Options" }));
+    expect(options.getByText("A new limit holds at once; connections change at the next start.")).toBeInTheDocument();
+
+    await user.type(options.getByRole("textbox", { name: "Speed limit" }), "fast{Enter}");
+    expect(options.getByRole("alert")).toHaveTextContent("Enter a speed above zero.");
+    expect(setOptions).not.toHaveBeenCalled();
+
+    await user.clear(options.getByRole("textbox", { name: "Speed limit" }));
+    await user.type(options.getByRole("textbox", { name: "Speed limit" }), "1.5");
+    await user.type(options.getByRole("textbox", { name: "Connections" }), "4{Enter}");
+    expect(setOptions).toHaveBeenCalledWith(expect.any(Number), 4, Math.round(1.5 * MB));
+    await vi.waitFor(() => {
+      expect(within(panel.getByRole("region", { name: "Options" })).getByRole("textbox", { name: "Connections" })).toHaveValue("4");
+    });
+
+    await user.click(screen.getByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
+    expect(within(screen.getByRole("complementary", { name: "noto-fonts-2026.11.zip" })).queryByRole("region", { name: "Options" })).not.toBeInTheDocument();
+  });
+
+  it("keeps an edit made while a save is on its way, and a tiny limit as it is", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const fedora = (await backend.list()).find((d) => d.name === "fedora-kde-44-x86_64.iso")?.id ?? -1;
+    await backend.setOptions(fedora, null, 1049);
+    const saves: (() => void)[] = [];
+    const slow = {
+      ...backend,
+      setOptions: (id: number, connections: number | null, speedLimit: number | null) =>
+        new Promise<Awaited<ReturnType<typeof backend.setOptions>>>((resolve) => {
+          saves.push(() => {
+            resolve(backend.setOptions(id, connections, speedLimit));
+          });
+        }),
+    };
+    const sent = vi.spyOn(slow, "setOptions");
+    render(<App store={createDownloadsStore(slow)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    const options = within(screen.getByRole("region", { name: "Options" }));
+    expect(options.getByRole("textbox", { name: "Speed limit" })).toHaveValue("0.001");
+
+    await user.type(options.getByRole("textbox", { name: "Connections" }), "4{Enter}");
+    expect(sent).toHaveBeenLastCalledWith(fedora, 4, 1049);
+    await user.clear(options.getByRole("textbox", { name: "Connections" }));
+    await user.type(options.getByRole("textbox", { name: "Connections" }), "8");
+    await act(async () => {
+      saves.shift()?.();
+      await Promise.resolve();
+    });
+    await vi.waitFor(async () => {
+      expect((await backend.list()).find((d) => d.id === fedora)?.connections).toBe(4);
+    });
+    expect(options.getByRole("textbox", { name: "Connections" }), "the newer edit stays").toHaveValue("8");
   });
 
   it("closes with its button and with Escape", async () => {

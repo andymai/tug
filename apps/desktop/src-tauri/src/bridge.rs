@@ -8,9 +8,10 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 use ts_rs::TS;
 use tug_core::{
-    Appearance, Batch, Category, ConnectionStatus, Download, DownloadId, DownloadState, Event,
-    EventKind, Inspection, Library, LibraryError, Origin, Phase, Place, ProgressStream, SavedView,
-    Schedule, Settings, SlowHours, Store, StreamOptions, TorrentOptions, TorrentSource, Update,
+    AddOptions, Appearance, Batch, Category, ConnectionStatus, Download, DownloadId, DownloadState,
+    Event, EventKind, Inspection, Library, LibraryError, Origin, Phase, Place, ProgressStream,
+    SavedView, Schedule, Settings, SlowHours, Store, StreamOptions, TorrentOptions, TorrentSource,
+    Update,
 };
 use url::Url;
 
@@ -127,6 +128,31 @@ pub struct DownloadDto {
     pub finished_ms: Option<u64>,
     #[ts(type = "number")]
     pub position: i64,
+    pub connections: Option<u32>,
+    #[ts(type = "number | null")]
+    pub speed_limit: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export, rename = "AddOptions")]
+pub struct AddOptionsDto {
+    pub paused: bool,
+    pub first: bool,
+    pub connections: Option<u32>,
+    #[ts(type = "number | null")]
+    pub speed_limit: Option<u64>,
+}
+
+impl From<AddOptionsDto> for AddOptions {
+    fn from(o: AddOptionsDto) -> Self {
+        Self {
+            paused: o.paused,
+            first: o.first,
+            connections: o.connections,
+            speed_limit: o.speed_limit,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
@@ -317,6 +343,8 @@ impl From<&Download> for DownloadDto {
             added_ms: unix_ms(d.added),
             finished_ms: d.finished.map(unix_ms),
             position: d.position,
+            connections: d.connections,
+            speed_limit: d.speed_limit,
         }
     }
 }
@@ -770,6 +798,21 @@ pub async fn add(
     origin: &Origin,
     paused: bool,
 ) -> Result<DownloadDto, CommandError> {
+    let options = AddOptions {
+        paused,
+        ..AddOptions::default()
+    };
+    add_with_options(library, url, dir, origin, options).await
+}
+
+// A torrent takes only `paused`; the other options are for one server's file.
+pub async fn add_with_options(
+    library: &Library,
+    url: &str,
+    dir: Option<&str>,
+    origin: &Origin,
+    options: AddOptions,
+) -> Result<DownloadDto, CommandError> {
     let url = Url::parse(url.trim())
         .map_err(|e| CommandError::invalid(format!("{url} is not a link: {e}")))?;
     if !matches!(url.scheme(), "http" | "https" | "ftp" | "ftps" | "magnet") {
@@ -779,20 +822,23 @@ pub async fn add(
         )));
     }
     let dir = match dir {
-        Some(dir) => PathBuf::from(dir),
+        Some(dir) if Path::new(dir).is_absolute() => PathBuf::from(dir),
+        Some(dir) => {
+            return Err(CommandError::invalid(format!(
+                "the folder must be a full path, like /home/you/Downloads, not {dir}"
+            )));
+        }
         None => library.settings()?.download_dir,
     };
     let id = if url.scheme() == "magnet" {
         let source = TorrentSource::Magnet(url.to_string());
-        if paused {
+        if options.paused {
             library.add_torrent_paused(source, &dir).await?
         } else {
             library.add_torrent(source, &dir).await?
         }
-    } else if paused {
-        library.add_paused(url, &dir, origin)?
     } else {
-        library.add_from(url, &dir, origin).await?
+        library.add_with(url, &dir, origin, options).await?
     };
     Ok(DownloadDto::from(&library.get(id)?))
 }
@@ -837,15 +883,31 @@ pub async fn add_download(
     state: tauri::State<'_, AppState>,
     url: String,
     dir: Option<String>,
+    options: Option<AddOptionsDto>,
 ) -> Result<DownloadDto, CommandError> {
-    add(
+    add_with_options(
         &state.library,
         &url,
         dir.as_deref(),
         &Origin::default(),
-        false,
+        options.unwrap_or_default().into(),
     )
     .await
+}
+
+#[tauri::command]
+pub async fn set_download_options(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    connections: Option<u32>,
+    speed_limit: Option<u64>,
+) -> Result<DownloadDto, CommandError> {
+    let id = DownloadId::from(id);
+    state
+        .library
+        .set_options(id, connections, speed_limit)
+        .await?;
+    Ok(DownloadDto::from(&state.library.get(id)?))
 }
 
 #[tauri::command]
@@ -1021,23 +1083,19 @@ pub fn folder_from_uri(uri: &str) -> Result<PathBuf, CommandError> {
         .ok_or_else(|| CommandError::invalid(format!("{uri} is not a local folder")))
 }
 
-#[tauri::command]
-pub async fn choose_download_folder(
-    state: tauri::State<'_, AppState>,
-) -> Result<Option<SettingsDto>, CommandError> {
+async fn pick_folder(title: &str, from: &Path) -> Result<Option<PathBuf>, CommandError> {
     use ashpd::desktop::file_chooser::SelectedFiles;
 
-    let current = state.library.settings()?;
     let portal = |e: ashpd::Error| CommandError {
         kind: ErrorKind::Internal,
         message: format!("the folder chooser failed: {e}"),
     };
     let request = SelectedFiles::open_file()
-        .title("Choose the download folder")
+        .title(title)
         .accept_label("Choose")
         .modal(true)
         .directory(true)
-        .current_folder(&current.download_dir)
+        .current_folder(from)
         .map_err(portal)?
         .send()
         .await
@@ -1047,11 +1105,36 @@ pub async fn choose_download_folder(
         Err(ashpd::Error::Response(ashpd::desktop::ResponseError::Cancelled)) => return Ok(None),
         Err(e) => return Err(portal(e)),
     };
-    let Some(uri) = files.uris().first() else {
+    files
+        .uris()
+        .first()
+        .map(|uri| folder_from_uri(uri.as_str()))
+        .transpose()
+}
+
+// A folder for the downloads being added; Tug's own folder stays.
+#[tauri::command]
+pub async fn choose_folder(
+    state: tauri::State<'_, AppState>,
+    from: Option<String>,
+) -> Result<Option<String>, CommandError> {
+    let from = from.map_or(state.library.settings()?.download_dir, PathBuf::from);
+    Ok(pick_folder("Choose a folder for these downloads", &from)
+        .await?
+        .map(|folder| folder.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+pub async fn choose_download_folder(
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<SettingsDto>, CommandError> {
+    let current = state.library.settings()?;
+    let Some(folder) = pick_folder("Choose the download folder", &current.download_dir).await?
+    else {
         return Ok(None);
     };
     let next = Settings {
-        download_dir: folder_from_uri(uri.as_str())?,
+        download_dir: folder,
         ..current
     };
     state.library.update_settings(next.clone())?;
@@ -1162,6 +1245,8 @@ mod tests {
             added: UNIX_EPOCH + Duration::from_millis(1_762_600_000_123),
             finished: None,
             position: 1,
+            connections: None,
+            speed_limit: None,
         }
     }
 
@@ -1488,6 +1573,63 @@ mod tests {
             Settings::from(typed).excluded_sites,
             vec!["mail.example.net".to_owned(), "not a site".to_owned()],
             "the store refuses what isn't a site"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_add_takes_its_options_and_a_torrent_takes_only_paused() {
+        let library = library().await;
+        let options = AddOptions {
+            paused: true,
+            connections: Some(4),
+            speed_limit: Some(1 << 20),
+            ..AddOptions::default()
+        };
+        let dto = add_with_options(
+            &library,
+            "https://example.org/own.iso",
+            Some("/tmp"),
+            &Origin::default(),
+            options,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            (dto.state, dto.connections, dto.speed_limit),
+            (StateDto::Paused, Some(4), Some(1 << 20))
+        );
+        let refused = add_with_options(
+            &library,
+            "https://example.org/bad.iso",
+            Some("/tmp"),
+            &Origin::default(),
+            AddOptions {
+                speed_limit: Some(0),
+                ..AddOptions::default()
+            },
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(refused.kind, ErrorKind::Invalid, "{}", refused.message);
+        let relative = add_with_options(
+            &library,
+            "https://example.org/here.iso",
+            Some("Downloads"),
+            &Origin::default(),
+            AddOptions::default(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(relative.kind, ErrorKind::Invalid, "{}", relative.message);
+        let json: AddOptionsDto =
+            serde_json::from_value(serde_json::json!({"first": true, "speedLimit": 2048})).unwrap();
+        assert_eq!(
+            AddOptions::from(json),
+            AddOptions {
+                first: true,
+                speed_limit: Some(2048),
+                ..AddOptions::default()
+            }
         );
     }
 

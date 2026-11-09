@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use mdm_labserver::{Config, LabServer};
 use tug_core::{
-    Appearance, DownloadId, DownloadState, Library, LibraryError, Schedule, Settings,
-    SettingsError, SlowHours, Store,
+    AddOptions, Appearance, DownloadId, DownloadState, Library, LibraryError, Origin, Schedule,
+    Settings, SettingsError, SlowHours, Store,
 };
 
 async fn finish(library: &Library, id: DownloadId) -> Duration {
@@ -143,6 +143,72 @@ async fn lifting_the_limit_speeds_up_a_running_download() {
         took < Duration::from_secs(8),
         "4 MB at 256 KB/s would take 16 s; took {took:?}"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_download_keeps_its_own_limit_and_lifts_it_while_it_runs() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(Store::open_in_memory().unwrap())
+        .await
+        .unwrap();
+
+    let own = AddOptions {
+        speed_limit: Some(1 << 20),
+        connections: Some(2),
+        ..AddOptions::default()
+    };
+    let url = lab.url("/gen/3M/own.bin?seed=3").parse().unwrap();
+    let started = Instant::now();
+    let id = library
+        .add_with(url, dir.path(), &Origin::default(), own)
+        .await
+        .unwrap();
+    let added = library.get(id).unwrap();
+    assert_eq!(
+        (added.connections, added.speed_limit),
+        (Some(2), Some(1 << 20))
+    );
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let seen = library.inspect(id).await.unwrap().unwrap();
+    assert!(
+        (1..=2).contains(&seen.connections.len()),
+        "{:?}",
+        seen.connections
+    );
+    finish(&library, id).await;
+    let took = started.elapsed();
+    assert!(
+        took >= Duration::from_millis(1500),
+        "3 MB at its own 1 MB/s took {took:?}"
+    );
+
+    let url = lab.url("/gen/4M/lifted-own.bin?seed=5").parse().unwrap();
+    let slow = AddOptions {
+        speed_limit: Some(256 << 10),
+        ..AddOptions::default()
+    };
+    let id = library
+        .add_with(url, dir.path(), &Origin::default(), slow)
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    library.set_options(id, None, None).await.unwrap();
+    let took = finish(&library, id).await;
+    assert!(
+        took < Duration::from_secs(8),
+        "4 MB took {took:?} after its limit went"
+    );
+    assert_eq!(library.get(id).unwrap().speed_limit, None);
+
+    assert!(matches!(
+        library.set_options(id, Some(0), None).await,
+        Err(LibraryError::Settings(SettingsError::Connections(0)))
+    ));
+    assert!(matches!(
+        library.set_options(id, None, Some(0)).await,
+        Err(LibraryError::Settings(SettingsError::ZeroSpeedLimit))
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread")]

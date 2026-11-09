@@ -237,6 +237,8 @@ mod tests {
             added: SystemTime::UNIX_EPOCH,
             finished: None,
             position: 1,
+            connections: None,
+            speed_limit: None,
         }
     }
 

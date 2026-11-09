@@ -148,10 +148,19 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       addedMs: now(),
       finishedMs: null,
       position: Math.max(0, ...[...downloads.values()].map((d) => d.position)) + 1,
+      connections: null,
+      speedLimit: null,
     };
     downloads.set(download.id, download);
     log(download.id, "added", download.addedMs);
     return download;
+  };
+
+  const checkOwn = (connections: number | null, speedLimit: number | null) => {
+    if (connections !== null && (connections < 1 || connections > 32)) {
+      throw new BackendError("invalid", `connections must be between 1 and 32, not ${String(connections)}`);
+    }
+    if (speedLimit === 0) throw new BackendError("invalid", "a speed limit must be above zero");
   };
 
   const queue = () =>
@@ -340,12 +349,32 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       });
       return Promise.resolve(found.map((d) => d.id));
     },
-    add: (url, dir) =>
+    add: (url, dir, options) =>
       attempt(() => {
+        checkOwn(options?.connections ?? null, options?.speedLimit ?? null);
+        if (dir !== undefined && !dir.startsWith("/")) {
+          throw new BackendError("invalid", `the folder must be a full path, like /home/you/Downloads, not ${dir}`);
+        }
         const download = addNow(url, dir);
-        fill();
+        if (!url.trim().startsWith("magnet:")) {
+          download.connections = options?.connections ?? null;
+          download.speedLimit = options?.speedLimit ?? null;
+          if (options?.first === true) place(download.id, "first");
+        }
+        if (options?.paused === true) download.state = "paused";
+        else fill();
         return { ...download };
       }),
+    setOptions: (id, connections, speedLimit) =>
+      attempt(() => {
+        checkOwn(connections, speedLimit);
+        const download = find(id);
+        download.connections = connections;
+        download.speedLimit = speedLimit;
+        revision += 1;
+        return { ...download };
+      }),
+    chooseFolder: () => Promise.resolve(options.folder ?? "/home/you/Media/Downloads"),
     pause: (id) =>
       attempt(() => {
         const download = find(id);

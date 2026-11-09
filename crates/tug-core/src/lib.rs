@@ -13,7 +13,7 @@ mod transfer;
 pub use category::Category;
 pub use disk::free_space;
 pub use inspect::{Connection, ConnectionStatus, Inspection, LogLine, Segment, Server};
-pub use library::{Library, LibraryError, Tick};
+pub use library::{AddOptions, Library, LibraryError, Tick};
 pub use origin::{Origin, OriginError};
 pub use progress::{
     Batch, MIN_INTERVAL, ProgressStream, Smoother, StreamOptions, Update, time_left,

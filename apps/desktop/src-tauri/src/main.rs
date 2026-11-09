@@ -81,6 +81,8 @@ fn main() -> Result<ExitCode, tauri::Error> {
             bridge::download_events,
             bridge::inspect_download,
             bridge::choose_download_folder,
+            bridge::choose_folder,
+            bridge::set_download_options,
             bridge::system_color_scheme,
         ])
         .run(tauri::generate_context!())?;

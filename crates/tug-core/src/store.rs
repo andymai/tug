@@ -73,6 +73,10 @@ const MIGRATIONS: &[&str] = &[
         torrent     BLOB NOT NULL
     );
 ",
+    r"
+    ALTER TABLE downloads ADD COLUMN connections INTEGER CHECK (connections > 0);
+    ALTER TABLE downloads ADD COLUMN speed_limit INTEGER CHECK (speed_limit > 0);
+",
 ];
 
 // The search table's names come from Rust, so it fills the table when it adds it.
@@ -226,6 +230,9 @@ pub struct Download {
     pub finished: Option<SystemTime>,
     // The queue's order: lower goes first.
     pub position: i64,
+    // Its own connections and speed limit; None takes Tug's.
+    pub connections: Option<u32>,
+    pub speed_limit: Option<u64>,
 }
 
 impl Download {
@@ -513,6 +520,20 @@ impl Store {
         Ok(true)
     }
 
+    pub fn set_options(
+        &self,
+        id: DownloadId,
+        connections: Option<u32>,
+        speed_limit: Option<u64>,
+    ) -> Result<(), StoreError> {
+        let limit = speed_limit.map(|l| i64::try_from(l).unwrap_or(i64::MAX));
+        self.conn.execute(
+            "UPDATE downloads SET connections = ?2, speed_limit = ?3 WHERE id = ?1",
+            params![id.0, connections, limit],
+        )?;
+        Ok(())
+    }
+
     pub fn set_state(
         &self,
         id: DownloadId,
@@ -725,7 +746,7 @@ fn private(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-const SELECT: &str = "SELECT id, url, dir, file, state, size, received, error, added_ms, finished_ms, position FROM downloads";
+const SELECT: &str = "SELECT id, url, dir, file, state, size, received, error, added_ms, finished_ms, position, connections, speed_limit FROM downloads";
 
 fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
     let known = i64::try_from(MIGRATIONS.len()).map_err(|_| StoreError::TooLarge(u64::MAX))?;
@@ -779,6 +800,8 @@ fn read_row(row: &Row<'_>) -> rusqlite::Result<Result<Download, StoreError>> {
     let added: i64 = row.get(8)?;
     let finished: Option<i64> = row.get(9)?;
     let position: i64 = row.get(10)?;
+    let connections: Option<i64> = row.get(11)?;
+    let speed_limit: Option<i64> = row.get(12)?;
 
     let corrupt = |column, detail: String| StoreError::Corrupt { id, column, detail };
     Ok((|| {
@@ -796,6 +819,12 @@ fn read_row(row: &Row<'_>) -> rusqlite::Result<Result<Download, StoreError>> {
             added: from_ms(added),
             finished: finished.map(from_ms),
             position,
+            connections: connections
+                .map(|c| u32::try_from(c).map_err(|e| corrupt("connections", e.to_string())))
+                .transpose()?,
+            speed_limit: speed_limit
+                .map(|l| u64::try_from(l).map_err(|e| corrupt("speed_limit", e.to_string())))
+                .transpose()?,
         })
     })())
 }
@@ -839,7 +868,7 @@ mod tests {
     #[test]
     fn migrates_a_fresh_database_to_the_latest_schema() {
         let store = Store::open_in_memory().unwrap();
-        assert_eq!(store.schema_version().unwrap(), 6);
+        assert_eq!(store.schema_version().unwrap(), 7);
         assert!(store.list().unwrap().is_empty());
     }
 
@@ -852,7 +881,7 @@ mod tests {
             .insert(&new("https://example.org/a.iso", "/home/u/Downloads"))
             .unwrap();
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 6);
+        assert_eq!(store.schema_version().unwrap(), 7);
         assert_eq!(
             store.get(id).unwrap().unwrap().url.as_str(),
             "https://example.org/a.iso"
@@ -912,7 +941,7 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 6);
+        assert_eq!(store.schema_version().unwrap(), 7);
         let id = store
             .insert(&new("https://example.org/a.iso", "/d"))
             .unwrap();
@@ -1115,7 +1144,7 @@ mod tests {
             tx.commit().unwrap();
         }
         let store = Store::open(&db).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 6);
+        assert_eq!(store.schema_version().unwrap(), 7);
         assert_eq!(store.search("backup").unwrap().len(), 1);
     }
 
@@ -1229,6 +1258,8 @@ mod tests {
                 added: input.added,
                 finished: None,
                 position: 1,
+                connections: None,
+                speed_limit: None,
             }
         );
     }
