@@ -1,0 +1,21 @@
+apps/desktop/src/components/DownloadRow.tsx
+  s_b321718d129a1e::t_b999a9945b7a1d 10,153-157
+apps/desktop/src/components/DownloadTable.tsx
+  s_b321718d129a1e::t_b999a9945b7a1d 157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "39a6805b0d8e192efc46590f1c29a1bf02b2d5eb",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
