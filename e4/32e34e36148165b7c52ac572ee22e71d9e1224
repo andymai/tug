@@ -1,0 +1,25 @@
+apps/desktop/eslint.config.js
+  s_b321718d129a1e::t_c424dc61b8bc1a 29-43
+apps/desktop/src/components/DetailPanel.tsx
+  s_b321718d129a1e::t_73696a35df2aad 51
+apps/desktop/src/state/downloads.test.ts
+  s_b321718d129a1e::t_ca6789b7650897 522,550
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_126fa964ffce2a 71,162-165,186-208,720,722,724,728,811,816
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e432e34e36148165b7c52ac572ee22e71d9e1224",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
