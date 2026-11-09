@@ -10,6 +10,7 @@ use crate::format::format_bytes;
 pub const USAGE: &str = "Usage:
   tug                  Open Tug
   tug add <link>...    Download each link
+  tug <magnet link>    Download a torrent (how the system hands Tug a magnet link)
   tug list [--json]    Show every download
   tug browsers         Connect Tug to each browser
 ";
@@ -60,6 +61,7 @@ pub fn parse(args: &[String]) -> Command {
         [command] if command == "list" => Command::List { json: false },
         [command, flag] if command == "list" && flag == "--json" => Command::List { json: true },
         [command] if command == "browsers" => Command::Browsers,
+        [link, ..] if link.starts_with("magnet:") => Command::Add(args.to_vec()),
         [flag] if matches!(flag.as_str(), "-h" | "--help" | "help") => Command::Help,
         [other, ..] => Command::Usage(format!("unknown command {other}")),
     }
@@ -347,6 +349,14 @@ mod tests {
         ));
         assert_eq!(parse(&args(&["--help"])), Command::Help);
         assert!(matches!(parse(&args(&["add"])), Command::Usage(_)));
+        assert_eq!(
+            parse(&args(&["magnet:?xt=urn:btih:00", "magnet:?xt=urn:btih:11"])),
+            Command::Add(vec![
+                "magnet:?xt=urn:btih:00".into(),
+                "magnet:?xt=urn:btih:11".into()
+            ]),
+            "the system hands Tug a magnet link on its own"
+        );
         assert!(matches!(parse(&args(&["remove", "1"])), Command::Usage(_)));
         assert!(matches!(
             parse(&args(&["list", "--yaml"])),

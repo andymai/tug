@@ -1,6 +1,6 @@
 import type { Download } from "../backend/backend";
 
-export const SCHEMES = new Set(["http:", "https:", "ftp:", "ftps:"]);
+export const SCHEMES = new Set(["http:", "https:", "ftp:", "ftps:", "magnet:"]);
 
 export type LinkCheck =
   | { kind: "ready"; input: string; href: string; name: string; host: string }
@@ -9,6 +9,7 @@ export type LinkCheck =
   | { kind: "notLink"; input: string };
 
 export function nameOf(url: URL): string {
+  if (url.protocol === "magnet:") return url.searchParams.get("dn")?.trim() || "magnet link";
   const segment = url.pathname.split("/").filter(Boolean).at(-1);
   if (!segment) return url.hostname;
   try {
@@ -68,7 +69,7 @@ export function checkLinks(text: string, items: readonly Download[]): LinkCheck[
     checks.push(
       existing
         ? { kind: "duplicate", input, href: url.href, name: nameOf(url), existing }
-        : { kind: "ready", input, href: url.href, name: nameOf(url), host: url.hostname },
+        : { kind: "ready", input, href: url.href, name: nameOf(url), host: url.protocol === "magnet:" ? "torrent" : url.hostname },
     );
   }
   return checks;
