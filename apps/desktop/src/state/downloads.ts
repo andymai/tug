@@ -23,6 +23,8 @@ export type StateView = "all" | "active" | "done" | "failed";
 // carries an earlier patch that failed.
 export type SettingsPatch = Partial<Settings> | ((current: Settings) => Partial<Settings>);
 export const MAX_SAVED_VIEWS = 50;
+export const SAMPLES = 60;
+const SAMPLE_MS = 1000;
 
 function patched(settings: Settings, patch: SettingsPatch): Settings {
   return { ...settings, ...(typeof patch === "function" ? patch(settings) : patch) };
@@ -56,6 +58,9 @@ export interface DownloadsState {
   search: string;
   matches: number[] | null;
   searchRequest: number;
+  // Total speed, one sample a second, the newest last.
+  speeds: number[];
+  diskFree: number | null;
   captures: Download[];
   framed: boolean;
   maximized: boolean;
@@ -65,6 +70,8 @@ export interface DownloadsState {
   setView: (view: View) => void;
   setPage: (page: Page) => void;
   saveSettings: (patch: SettingsPatch) => Promise<boolean>;
+  // For a choice made outside the Settings page, whose error shows only there.
+  savePreference: (patch: SettingsPatch, what: string) => Promise<void>;
   chooseFolder: () => Promise<void>;
   select: (id: number | null) => void;
   step: (delta: number) => number | null;
@@ -76,6 +83,7 @@ export interface DownloadsState {
   openView: (saved: SavedView) => void;
   removeView: (saved: SavedView) => void;
   openSearch: () => void;
+  checkDisk: () => Promise<void>;
   pause: (id: number) => Promise<void>;
   resume: (id: number) => Promise<void>;
   startNext: (id: number) => Promise<void>;
@@ -127,6 +135,7 @@ export function createDownloadsStore(backend: Backend) {
     let revision: number | null = null;
     let searches = 0;
     let answered = 0;
+    let sampled = 0;
     // Answers can arrive out of order, so only the newest search may set the matches.
     const find = async (text: string) => {
       const asked = ++searches;
@@ -191,6 +200,8 @@ export function createDownloadsStore(backend: Backend) {
       search: "",
       matches: null,
       searchRequest: 0,
+      speeds: [],
+      diskFree: null,
       captures: [],
       framed: backend.windowControls !== null,
       maximized: false,
@@ -296,6 +307,12 @@ export function createDownloadsStore(backend: Backend) {
       applyBatch: (batch) => {
         const live = Object.fromEntries(batch.updates.map((update) => [update.id, update]));
         set(batch.error === null ? { live } : { live, notice: batch.error });
+        const at = Date.now();
+        if (at - sampled >= SAMPLE_MS) {
+          sampled = at;
+          const total = batch.updates.reduce((sum, update) => sum + update.speed, 0);
+          set((state) => ({ speeds: [...state.speeds, total].slice(-SAMPLES) }));
+        }
         const states = new Map(get().items.map((item) => [item.id, item.state]));
         const news = batch.revision !== revision;
         revision = batch.revision;
@@ -333,6 +350,11 @@ export function createDownloadsStore(backend: Backend) {
             showSettings();
           }
         }).then(() => saved);
+      },
+
+      savePreference: async (patch, what) => {
+        const saved = await get().saveSettings(patch);
+        if (!saved) set({ notice: `couldn't save ${what}: ${get().settingsError ?? "the settings didn't save"}` });
       },
 
       chooseFolder: () =>
@@ -417,6 +439,14 @@ export function createDownloadsStore(backend: Backend) {
           .then((removed) => {
             if (!removed) set({ notice: `couldn't remove the view: ${get().settingsError ?? "the settings didn't save"}` });
           });
+      },
+
+      checkDisk: async () => {
+        try {
+          set({ diskFree: await backend.diskFree() });
+        } catch {
+          set({ diskFree: null });
+        }
       },
 
       openSearch: () => {

@@ -25,10 +25,15 @@ async function open(seed: readonly SeedDownload[], overrides: Partial<Backend> =
   return { backend, store, window: page.elementLocator(root) };
 }
 
+const MB = 1 << 20;
+// A minute of total speed, so the status bar's graph has a shape to show.
+const SPEEDS = Array.from({ length: 60 }, (_, at) => Math.round((14 + 4 * Math.sin(at / 6) + (at % 7) * 0.3) * MB));
+
 async function showcase(select?: string) {
   const opened = await open(SHOWCASE);
   act(() => {
     opened.backend.tick();
+    opened.store.setState({ speeds: SPEEDS });
   });
   if (select !== undefined) {
     const item = opened.store.getState().items.find((d) => d.name === select);

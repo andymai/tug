@@ -678,6 +678,16 @@ pub fn list_downloads(state: tauri::State<'_, AppState>) -> Result<Vec<DownloadD
     clippy::needless_pass_by_value,
     reason = "Tauri injects State by value"
 )]
+pub fn disk_free(state: tauri::State<'_, AppState>) -> Result<Option<u64>, CommandError> {
+    let folder = state.library.settings()?.download_dir;
+    Ok(tug_core::free_space(&folder).ok())
+}
+
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects State by value"
+)]
 pub fn search_downloads(
     state: tauri::State<'_, AppState>,
     query: String,

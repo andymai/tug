@@ -16,6 +16,7 @@ import {
 } from "./backend";
 
 const MB = 1 << 20;
+const GB = 1 << 30;
 const TICK_MS = 100;
 const RATE = 18.4 * MB;
 
@@ -46,6 +47,7 @@ export interface MockOptions {
   folder?: string;
   colorScheme?: ColorScheme | null;
   captures?: readonly string[];
+  diskFree?: number | null;
 }
 
 function attempt<T>(action: () => T): Promise<T> {
@@ -282,6 +284,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
 
   return {
     list: () => Promise.resolve([...downloads.values()].map((d) => ({ ...d }))),
+    diskFree: () => Promise.resolve(options.diskFree === undefined ? 412 * GB : options.diskFree),
     search: (query) => {
       const asked = words(query);
       if (asked.length === 0) return Promise.resolve([]);

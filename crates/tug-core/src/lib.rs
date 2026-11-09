@@ -1,4 +1,5 @@
 mod category;
+mod disk;
 mod library;
 mod origin;
 mod progress;
@@ -9,6 +10,7 @@ mod torrent;
 mod transfer;
 
 pub use category::Category;
+pub use disk::free_space;
 pub use library::{Library, LibraryError, Tick};
 pub use origin::{Origin, OriginError};
 pub use progress::{
