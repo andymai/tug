@@ -161,7 +161,25 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     return Math.min(slow.limit, settings.speedLimit ?? slow.limit);
   };
 
+  // With a schedule, each tick stops or starts downloads at the hours' edges, as Tug does.
+  const keepHours = () => {
+    if (settings.schedule === null) return 0;
+    if (openAt(settings.schedule, new Date(now()))) {
+      fill();
+      return 0;
+    }
+    let stopped = 0;
+    for (const download of downloads.values()) {
+      if (download.state !== "downloading") continue;
+      download.state = "queued";
+      log(download.id, "paused", now(), download.received);
+      stopped += 1;
+    }
+    return stopped;
+  };
+
   const tick = () => {
+    revision += keepHours();
     const perTick = Math.floor((limitNow() ?? RATE) / (1000 / TICK_MS));
     const updates: ProgressUpdate[] = [];
     const settled: number[] = [];

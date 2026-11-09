@@ -58,6 +58,26 @@ describe("mock backend", () => {
     expect((await backend.list())[0]?.received).toBe(Math.floor((2 * MB) / 10));
   });
 
+  it("starts and stops downloads at the edges of the scheduled hours", async () => {
+    let clock = new Date(2026, 10, 9, 0, 30).getTime();
+    const backend = createMockBackend({ now: () => clock });
+    await backend.updateSettings({ ...(await backend.settings()), schedule: { days: 0b111_1111, start: 60, stop: 7 * 60 } });
+    const night = await backend.add("https://example.org/night.iso");
+    backend.tick();
+    expect((await backend.list())[0]?.state, "before the hours").toBe("queued");
+
+    clock = new Date(2026, 10, 9, 1, 30).getTime();
+    backend.tick();
+    expect((await backend.list())[0]?.state, "in the hours").toBe("downloading");
+
+    clock = new Date(2026, 10, 9, 7, 30).getTime();
+    backend.tick();
+    const after = (await backend.list())[0];
+    expect(after?.state, "after the hours").toBe("queued");
+    expect(after?.received).toBeGreaterThan(0);
+    expect((await backend.events(night.id)).map((e) => e.kind)).toEqual(["added", "started", "paused"]);
+  });
+
   it("takes the lower limit in the slower hours", async () => {
     const backend = createMockBackend({ now: () => new Date(2026, 10, 9, 12, 0).getTime() });
     const settings = await backend.settings();

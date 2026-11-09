@@ -60,6 +60,9 @@ pub struct Library {
     settings: Mutex<Settings>,
     limiter: Arc<Limiter>,
     news: Mutex<News>,
+    // Downloads that the schedule stops, with the state each settles as when its
+    // transfer ends. Pause and resume change it under the run lock in that time.
+    stopping: Mutex<HashMap<DownloadId, DownloadState>>,
 }
 
 impl Library {
@@ -71,6 +74,7 @@ impl Library {
             store: Mutex::new(store),
             running: tokio::sync::Mutex::default(),
             news: Mutex::default(),
+            stopping: Mutex::default(),
         };
         {
             let store = library.store()?;
@@ -177,6 +181,8 @@ impl Library {
         let Some(entry) = running.remove(&id) else {
             if download.state == DownloadState::Queued {
                 self.hold(&download)?;
+            } else if let Some(target) = self.stopping().get_mut(&id) {
+                *target = DownloadState::Paused;
             }
             drop(running);
             return Ok(());
@@ -234,6 +240,10 @@ impl Library {
         let mut running = self.running.lock().await;
         let download = self.get(id)?;
         if download.state == DownloadState::Done || running.contains_key(&id) {
+            return Ok(());
+        }
+        if let Some(target) = self.stopping().get_mut(&id) {
+            *target = DownloadState::Queued;
             return Ok(());
         }
         if download.state != DownloadState::Queued {
@@ -396,13 +406,25 @@ impl Library {
         if within_hours(settings) {
             return Ok(());
         }
-        let stopped: Vec<(DownloadId, Running)> = self.running.lock().await.drain().collect();
+        let mut running = self.running.lock().await;
+        let stopped: Vec<(DownloadId, Running)> = running.drain().collect();
+        self.stopping()
+            .extend(stopped.iter().map(|(id, _)| (*id, DownloadState::Queued)));
+        drop(running);
         for (_, entry) in &stopped {
             entry.transfer.stop();
         }
         let mut first = None;
         for (id, entry) in stopped {
-            if let Err(e) = self.settle(id, entry.transfer, DownloadState::Queued).await {
+            let last = entry.transfer.progress();
+            let outcome = entry.transfer.finish().await;
+            let running = self.running.lock().await;
+            let target = self.stopping().remove(&id).unwrap_or(DownloadState::Queued);
+            let recorded = self
+                .store()
+                .and_then(|store| record(&store, id, &last, outcome, target));
+            drop(running);
+            if let Err(e) = recorded {
                 first.get_or_insert(e);
             }
             self.changed(id);
@@ -421,6 +443,10 @@ impl Library {
         drop(store);
         self.changed(download.id);
         Ok(())
+    }
+
+    fn stopping(&self) -> MutexGuard<'_, HashMap<DownloadId, DownloadState>> {
+        self.stopping.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn news(&self) -> MutexGuard<'_, News> {
@@ -625,5 +651,36 @@ mod tests {
         );
         assert_eq!(library.get(id).unwrap().state, DownloadState::Failed);
         assert_eq!(library.tick().await.unwrap().settled, [id]);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_pause_while_the_hours_stop_a_download_is_kept() {
+        let library = Library::open(Store::open_in_memory().unwrap())
+            .await
+            .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let id = library
+            .add_paused(
+                "https://example.org/a.iso".parse().unwrap(),
+                dir.path(),
+                &Origin::default(),
+            )
+            .unwrap();
+        library
+            .store()
+            .unwrap()
+            .set_state(id, DownloadState::Downloading, None, SystemTime::now())
+            .unwrap();
+        library.stopping().insert(id, DownloadState::Queued);
+
+        library.pause(id).await.unwrap();
+        assert_eq!(library.stopping().get(&id), Some(&DownloadState::Paused));
+        library.resume(id).await.unwrap();
+        assert_eq!(library.stopping().get(&id), Some(&DownloadState::Queued));
+        assert_eq!(
+            library.get(id).unwrap().state,
+            DownloadState::Downloading,
+            "the stopping download settles once, as its target"
+        );
     }
 }
