@@ -102,6 +102,7 @@ export function createDownloadsStore(backend: Backend) {
       }
     };
 
+    let revision: number | null = null;
     let confirmed: Settings | null = null;
     let pending: { id: number; patch: Partial<Settings> }[] = [];
     let patches = 0;
@@ -250,7 +251,9 @@ export function createDownloadsStore(backend: Backend) {
         const live = Object.fromEntries(batch.updates.map((update) => [update.id, update]));
         set(batch.error === null ? { live } : { live, notice: batch.error });
         const states = new Map(get().items.map((item) => [item.id, item.state]));
-        if (batch.settled.length > 0 || batch.changed.length > 0 || batch.updates.some((update) => states.get(update.id) !== "downloading")) {
+        const news = batch.revision !== revision;
+        revision = batch.revision;
+        if (news || batch.updates.some((update) => states.get(update.id) !== "downloading")) {
           void get().reload();
         }
       },

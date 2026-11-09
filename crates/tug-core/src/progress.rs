@@ -29,7 +29,10 @@ pub struct Batch {
     pub seq: u64,
     pub updates: Vec<Update>,
     pub settled: Vec<DownloadId>,
-    pub changed: Vec<DownloadId>,
+    // Counts each settle and each change outside a tick since the stream began.
+    // The watch keeps only the newest batch, so a reader compares this number
+    // rather than trust that it saw every batch.
+    pub revision: u64,
     pub error: Option<String>,
 }
 
@@ -92,6 +95,7 @@ async fn run(
     let persist_every = u64::from(options.persist_every.max(1));
     let mut speeds: HashMap<DownloadId, Smoother> = HashMap::new();
     let mut seq: u64 = 0;
+    let mut revision: u64 = 0;
     loop {
         ticker.tick().await;
         seq += 1;
@@ -127,16 +131,19 @@ async fn run(
                     None
                 };
                 let error = tick.error.or(persisted);
+                let news = tick.settled.len() + tick.changed.len();
+                revision = revision.saturating_add(u64::try_from(news).unwrap_or(u64::MAX));
                 Batch {
                     seq,
                     updates,
+                    revision,
                     settled: tick.settled,
-                    changed: tick.changed,
                     error,
                 }
             }
             Err(e) => Batch {
                 seq,
+                revision,
                 error: Some(e.to_string()),
                 ..Batch::default()
             },

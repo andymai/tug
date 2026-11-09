@@ -85,6 +85,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   let waiting: number[] = [];
   let nextId = 1;
   let seq = 0;
+  let revision = 0;
 
   const find = (id: number): Download => {
     const download = downloads.get(id);
@@ -180,7 +181,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       }
     }
     if (settled.length > 0) fill();
-    const batch: ProgressBatch = { seq: ++seq, updates, settled, changed: [], error: null };
+    revision += settled.length;
+    const batch: ProgressBatch = { seq: ++seq, updates, settled, revision, error: null };
     for (const listener of listeners) listener(batch);
   };
 
@@ -389,6 +391,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     },
     capture: (url) =>
       attempt(() => {
+        revision += 1;
         if (!settings.confirmCaptures) {
           addNow(url);
           fill();
