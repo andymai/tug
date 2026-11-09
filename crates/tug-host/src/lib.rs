@@ -60,29 +60,52 @@ pub trait Launcher: Send + Sync {
     fn launch(&self) -> io::Result<()>;
 }
 
-pub struct SystemLauncher;
+pub struct SystemLauncher {
+    commands: Vec<Vec<String>>,
+}
+
+impl SystemLauncher {
+    pub const fn new(commands: Vec<Vec<String>>) -> Self {
+        Self { commands }
+    }
+}
+
+impl Default for SystemLauncher {
+    fn default() -> Self {
+        Self::new(vec![
+            vec!["tug".into()],
+            vec!["flatpak".into(), "run".into(), tug_ipc::APP_ID.into()],
+        ])
+    }
+}
+
+fn spawn_reaped(command: &[String]) -> io::Result<()> {
+    let (program, args) = command
+        .split_first()
+        .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?;
+    let mut child = Process::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()?;
+    std::thread::spawn(move || {
+        let _reaped = child.wait();
+    });
+    Ok(())
+}
 
 impl Launcher for SystemLauncher {
     fn launch(&self) -> io::Result<()> {
-        let quiet = |program: &str, args: &[&str]| -> io::Result<()> {
-            let mut child = Process::new(program)
-                .args(args)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .process_group(0)
-                .spawn()?;
-            std::thread::spawn(move || {
-                let _reaped = child.wait();
-            });
-            Ok(())
-        };
-        match quiet("tug", &[]) {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                quiet("flatpak", &["run", tug_ipc::APP_ID])
+        let mut missing = io::Error::from(io::ErrorKind::NotFound);
+        for command in &self.commands {
+            match spawn_reaped(command) {
+                Err(e) if e.kind() == io::ErrorKind::NotFound => missing = e,
+                result => return result,
             }
-            result => result,
         }
+        Err(missing)
     }
 }
 

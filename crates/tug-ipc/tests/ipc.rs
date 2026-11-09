@@ -148,6 +148,28 @@ async fn a_live_socket_without_the_lock_still_counts_as_running() {
 }
 
 #[tokio::test]
+async fn a_live_socket_with_a_full_queue_is_kept() {
+    let (_dir, endpoint) = endpoint();
+    std::fs::create_dir_all(endpoint.socket().parent().unwrap()).unwrap();
+    let socket = tokio::net::UnixSocket::new_stream().unwrap();
+    socket.bind(endpoint.socket()).unwrap();
+    let _busy = socket.listen(1).unwrap();
+    let mut queued = Vec::new();
+    let full = loop {
+        match tokio::net::UnixStream::connect(endpoint.socket()).await {
+            Ok(stream) if queued.len() < 64 => queued.push(stream),
+            Ok(_) => break false,
+            Err(e) => break e.kind() == std::io::ErrorKind::WouldBlock,
+        }
+    };
+    assert!(full, "the accept queue never filled");
+    assert!(matches!(
+        Server::bind(&endpoint).await,
+        Err(IpcError::AlreadyRunning)
+    ));
+}
+
+#[tokio::test]
 async fn connecting_without_a_server_fails() {
     let (_dir, endpoint) = endpoint();
     assert!(Client::connect(&endpoint).await.is_err());
