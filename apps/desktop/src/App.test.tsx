@@ -931,9 +931,22 @@ describe("selection", () => {
     });
     expect(rowOf("a.iso")).toHaveAttribute("draggable", "true");
 
-    const dataTransfer = { types: [] as string[], setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+    const types: string[] = [];
+    const dataTransfer = {
+      types,
+      setData: (type: string) => {
+        types.push(type);
+      },
+      getData: () => "https://example.org/x.iso",
+      effectAllowed: "",
+      dropEffect: "",
+    };
     fireEvent.dragStart(rowOf("c.iso"), { dataTransfer });
-    expect(dataTransfer.setData).toHaveBeenCalledWith("application/x-tug-downloads", expect.any(String));
+    expect(types).toEqual(["application/x-tug-downloads"]);
+    // A browser may add text to a drag; the row's own type still keeps the link overlay shut.
+    types.push("text/plain");
+    fireEvent.dragEnter(rowOf("a.iso"), { dataTransfer });
+    expect(screen.queryByText("Drop to add")).not.toBeInTheDocument();
     // jsdom has no DragEvent, so the pointer's height goes on by hand: above the middle.
     const at = (event: Event) => Object.defineProperty(event, "clientY", { value: -1 });
     fireEvent(rowOf("a.iso"), at(createEvent.dragOver(rowOf("a.iso"), { dataTransfer })));
@@ -941,7 +954,6 @@ describe("selection", () => {
     await vi.waitFor(() => {
       expect(order()).toEqual(["c.iso", "a.iso", "b.iso", "run.iso"]);
     });
-    expect(screen.queryByText("Drop to add"), "a row isn't a link").not.toBeInTheDocument();
 
     expect(rowOf("c.iso"), "the drag selects the row it carries").toHaveAttribute("aria-selected", "true");
     await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
