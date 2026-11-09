@@ -1,3 +1,0 @@
-# The same accepted advisories as deny.toml and osv-scanner.toml, which give the reasons.
-[advisories]
-ignore = ["RUSTSEC-2026-0293"]
