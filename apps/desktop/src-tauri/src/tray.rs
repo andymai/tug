@@ -17,7 +17,10 @@ pub const ID: &str = "io.github.andymai.Tug";
 pub const ICON: &str = "io.github.andymai.Tug-symbolic";
 pub const STEPS: u8 = 20;
 const SYMBOLIC: &str = include_str!("../../../../brand/svg/symbolic-22.svg");
-const RING_RADIUS: f64 = 9.5;
+const RING_RADIUS: f64 = 9.0;
+// The tray's glyph, smaller and drawn at this size: a scaled copy of the 1px glyph would
+// thin its lines below a pixel. Ring and glyph share pixel column 10, so lines stay crisp.
+const RING_GLYPH: &str = "M7.5 6.5H13.5M10.5 6.5V15.5M7.5 12.5L10.5 15.5L13.5 12.5";
 const PUBLISH_EVERY: Duration = Duration::from_secs(1);
 pub const NOTICE_EVENT: &str = "notice";
 
@@ -35,14 +38,6 @@ pub fn progress_icon(step: u8) -> String {
     format!("{ID}-progress-{step:02}")
 }
 
-fn mark() -> &'static str {
-    let open = r#"<g class="ColorScheme-Text">"#;
-    SYMBOLIC
-        .split_once(open)
-        .and_then(|(_, rest)| rest.split_once("</g>"))
-        .map_or("", |(body, _)| body)
-}
-
 pub fn ring_svg(step: u8) -> String {
     let step = step.min(STEPS);
     let length = TAU * RING_RADIUS * f64::from(step) / f64::from(STEPS);
@@ -50,12 +45,11 @@ pub fn ring_svg(step: u8) -> String {
         String::new()
     } else {
         format!(
-            r##"<circle cx="11" cy="11" r="{RING_RADIUS}" fill="none" stroke="#E35F1C" stroke-width="2" stroke-linecap="round" stroke-dasharray="{length:.2} 100" transform="rotate(-90 11 11)"/>"##
+            r##"<circle cx="10.5" cy="11" r="{RING_RADIUS}" fill="none" stroke="#E35F1C" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="{length:.2} 100" transform="rotate(-90 10.5 11)"/>"##
         )
     };
     format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" width="22" height="22"><style id="current-color-scheme">.ColorScheme-Text{{color:#232629;}}</style><circle class="ColorScheme-Text" cx="11" cy="11" r="{RING_RADIUS}" fill="none" stroke="currentColor" stroke-opacity="0.3" stroke-width="2"/>{arc}<g class="ColorScheme-Text" transform="translate(11 11) scale(0.6) translate(-11 -10.5)">{mark}</g></svg>"#,
-        mark = mark()
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" width="22" height="22"><style id="current-color-scheme">.ColorScheme-Text{{color:#232629;}}</style><circle class="ColorScheme-Text" cx="10.5" cy="11" r="{RING_RADIUS}" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-width="1"/>{arc}<path class="ColorScheme-Text" d="{RING_GLYPH}" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>"#
     )
 }
 
@@ -457,11 +451,15 @@ mod tests {
     #[test]
     fn the_ring_grows_with_the_step_around_the_mark() {
         assert!(!ring_svg(0).contains("stroke-dasharray"));
-        assert!(ring_svg(10).contains(r#"stroke-dasharray="29.85 100""#));
-        assert!(ring_svg(STEPS).contains(r#"stroke-dasharray="59.69 100""#));
+        assert!(ring_svg(10).contains(r#"stroke-dasharray="28.27 100""#));
+        assert!(ring_svg(STEPS).contains(r#"stroke-dasharray="56.55 100""#));
         assert!(
-            ring_svg(10).contains(r#"<rect x="10" y="4""#),
+            ring_svg(10).contains(&format!(r#"d="{RING_GLYPH}""#)),
             "the mark is missing"
+        );
+        assert!(
+            !ring_svg(10).contains(r#"stroke-width="2""#),
+            "no line is heavier than the panel's"
         );
         assert_eq!(ring_svg(STEPS + 5), ring_svg(STEPS));
     }

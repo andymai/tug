@@ -85,8 +85,15 @@ for px, spec in HINTED.items():
     (OUT / f"icon-{px}.svg").write_text(svg(f"0 0 {px} {px}", body, px, px))
 
 KDE = '<style id="current-color-scheme">.ColorScheme-Text{color:#232629;}</style>'
-for px, g in ((16, dict(hx=2, hy=2, hw=12, w=2, cx=8, vy=13, arm=4)), (22, dict(hx=3, hy=3, hw=16, w=2, cx=11, vy=18, arm=5))):
-    body = KDE + f'<g class="ColorScheme-Text">{pixel_mark("currentColor", "currentColor", **g)}</g>'
+LINE = 'fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"'
+# One-pixel lines on half-pixel coordinates, as Breeze draws the panel's other icons:
+# the handle is an outlined pill, the rod and the arrow single lines, all centred on a pixel column.
+SYMBOLIC = {
+    16: f'<rect x="2.5" y="2.5" width="10" height="2" rx="1" {LINE}/><path d="M7.5 4.5V12.5M4.5 9.5L7.5 12.5L10.5 9.5" {LINE}/>',
+    22: f'<rect x="4.5" y="3.5" width="12" height="2" rx="1" {LINE}/><path d="M10.5 5.5V17.5M6.5 13.5L10.5 17.5L14.5 13.5" {LINE}/>',
+}
+for px, glyph in SYMBOLIC.items():
+    body = KDE + f'<g class="ColorScheme-Text">{glyph}</g>'
     (OUT / ("symbolic.svg" if px == 16 else f"symbolic-{px}.svg")).write_text(svg(f"0 0 {px} {px}", body, px, px))
 
 for name, handle, arrow in (
