@@ -161,6 +161,9 @@ impl Server {
             Err(TryLockError::Error(e)) => return Err(e.into()),
         }
         let socket = endpoint.socket();
+        if std::os::unix::net::UnixStream::connect(&socket).is_ok() {
+            return Err(IpcError::AlreadyRunning);
+        }
         match std::fs::remove_file(&socket) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.into()),
             _ => {}

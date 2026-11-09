@@ -135,6 +135,19 @@ async fn a_second_server_finds_the_first_and_a_stale_socket_is_replaced() {
 }
 
 #[tokio::test]
+async fn a_live_socket_without_the_lock_still_counts_as_running() {
+    let (_dir, endpoint) = endpoint();
+    std::fs::create_dir_all(endpoint.socket().parent().unwrap()).unwrap();
+    let older = tokio::net::UnixListener::bind(endpoint.socket()).unwrap();
+    assert!(matches!(
+        Server::bind(&endpoint),
+        Err(IpcError::AlreadyRunning)
+    ));
+    drop(older);
+    assert!(Server::bind(&endpoint).is_ok());
+}
+
+#[tokio::test]
 async fn connecting_without_a_server_fails() {
     let (_dir, endpoint) = endpoint();
     assert!(Client::connect(&endpoint).await.is_err());
@@ -165,20 +178,21 @@ async fn each_request_gets_its_own_size_limit() {
     tokio::spawn(server.serve(Arc::new(Fake)));
 
     let mut client = Client::connect(&endpoint).await.unwrap();
-    for _ in 0..3 {
-        assert_eq!(client.send(Request::Ping).await.unwrap(), Response::Pong);
-    }
+    assert_eq!(client.send(Request::Ping).await.unwrap(), Response::Pong);
     let big = "x".repeat(900 << 10);
-    let Response::Added { failed, .. } = client
-        .send(Request::Add {
-            urls: vec![big.clone()],
-        })
-        .await
-        .unwrap()
-    else {
-        panic!("expected an add result");
-    };
-    assert_eq!(failed[0].url.len(), big.len());
+    for _ in 0..2 {
+        let Response::Added { failed, .. } = client
+            .send(Request::Add {
+                urls: vec![big.clone()],
+            })
+            .await
+            .unwrap()
+        else {
+            panic!("expected an add result");
+        };
+        assert_eq!(failed[0].url.len(), big.len());
+    }
+    assert_eq!(client.send(Request::Ping).await.unwrap(), Response::Pong);
 
     let stream = tokio::net::UnixStream::connect(endpoint.socket())
         .await

@@ -16,6 +16,14 @@ pub const USAGE: &str = "Usage:
 const START_TIMEOUT: Duration = Duration::from_secs(20);
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(3);
 const HAND_OFF_TIMEOUT: Duration = Duration::from_secs(5);
+const ADD_TIMEOUT: Duration = Duration::from_secs(10);
+
+async fn ask(client: &mut Client, request: Request, limit: Duration) -> Result<Response, String> {
+    tokio::time::timeout(limit, client.send(request))
+        .await
+        .map_err(|_| "Tug didn't answer in time".to_owned())?
+        .map_err(|e| e.to_string())
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
@@ -159,8 +167,8 @@ async fn running_or_started(endpoint: &Endpoint) -> Result<Client, String> {
 
 async fn add(endpoint: &Endpoint, urls: Vec<String>) -> Result<bool, String> {
     let mut client = running_or_started(endpoint).await?;
-    match client.send(Request::Add { urls }).await {
-        Ok(Response::Added { added, failed }) => {
+    match ask(&mut client, Request::Add { urls }, ADD_TIMEOUT).await? {
+        Response::Added { added, failed } => {
             let mut out = io::stdout().lock();
             for entry in &added {
                 let _written = writeln!(out, "Added {}", printable(&entry.name));
@@ -176,15 +184,14 @@ async fn add(endpoint: &Endpoint, urls: Vec<String>) -> Result<bool, String> {
             }
             Ok(failed.is_empty())
         }
-        Ok(_) => Err("Tug gave an answer this tug doesn't know".into()),
-        Err(e) => Err(e.to_string()),
+        _ => Err("Tug gave an answer this tug doesn't know".into()),
     }
 }
 
 async fn list(endpoint: &Endpoint, json: bool) -> Result<bool, String> {
     let mut client = connect(endpoint).await.ok_or("Tug isn't running")?;
-    match client.send(Request::List).await {
-        Ok(Response::List { downloads }) => {
+    match ask(&mut client, Request::List, ANSWER_TIMEOUT).await? {
+        Response::List { downloads } => {
             let mut out = io::stdout().lock();
             if json {
                 serde_json::to_writer(&mut out, &downloads).map_err(|e| e.to_string())?;
@@ -198,8 +205,7 @@ async fn list(endpoint: &Endpoint, json: bool) -> Result<bool, String> {
             }
             Ok(true)
         }
-        Ok(_) => Err("Tug gave an answer this tug doesn't know".into()),
-        Err(e) => Err(e.to_string()),
+        _ => Err("Tug gave an answer this tug doesn't know".into()),
     }
 }
 
