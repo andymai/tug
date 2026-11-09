@@ -7,6 +7,7 @@ import { siteOf } from "../lib/sites";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { Button } from "./Button";
+import { WindowControls } from "./WindowControls";
 
 const MB = 1 << 20;
 const DEFAULT_LIMIT = 10 * MB;
@@ -272,10 +273,11 @@ export function SettingsPage() {
 
   return (
     <main className="flex min-w-0 flex-1 flex-col bg-surface">
-      <header className="flex h-12 shrink-0 items-center border-b border-line px-4">
-        <h1 id="list-title" tabIndex={-1} className="text-title text-ink outline-none">
+      <header data-tauri-drag-region className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line px-4">
+        <h1 id="list-title" data-tauri-drag-region tabIndex={-1} className="text-title text-ink outline-none">
           Settings
         </h1>
+        <WindowControls />
       </header>
       {error !== null && (
         <p role="alert" className="flex items-center gap-2 border-b border-line px-4 py-2 text-small text-ink">

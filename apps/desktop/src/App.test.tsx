@@ -447,6 +447,47 @@ describe("notifications", () => {
   });
 });
 
+describe("window title bar", () => {
+  it("minimizes, maximizes, restores and closes through its own buttons", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const { container } = render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveAttribute("data-tauri-drag-region");
+
+    await user.click(screen.getByRole("button", { name: "Minimize" }));
+    await user.click(screen.getByRole("button", { name: "Maximize" }));
+    expect(await screen.findByRole("button", { name: "Restore" })).toBeInTheDocument();
+    expect(container.querySelector("[data-edge]")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Restore" }));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(backend.windowCalls).toEqual(["minimize", "toggleMaximize", "toggleMaximize", "close"]);
+  });
+
+  it("resizes from its edges while the window isn't maximized", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const { container } = render(<App store={createDownloadsStore(backend)} />);
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const east = container.querySelector("[data-edge=East]");
+    expect(east).not.toBeNull();
+    fireEvent.mouseDown(east ?? document.body, { button: 2 });
+    fireEvent.mouseDown(east ?? document.body, { button: 0 });
+    expect(backend.windowCalls).toEqual(["resize East"]);
+    act(() => {
+      backend.setMaximized(true);
+    });
+    expect(container.querySelector("[data-edge]")).toBeNull();
+  });
+
+  it("keeps the window buttons on the settings page", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+  });
+});
+
 describe("command bar and keyboard", () => {
   it("opens on Ctrl+K and runs the chosen command", async () => {
     const { user } = open();

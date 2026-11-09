@@ -10,6 +10,7 @@ import { type View, visibleItems } from "../state/downloads";
 import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
+import { WindowControls } from "./WindowControls";
 import { DownloadRow } from "./DownloadRow";
 
 const TITLES: Record<View, string> = {
@@ -38,7 +39,7 @@ function Summary() {
   );
   if (count === 0) return null;
   return (
-    <p className="text-small text-ink-muted">
+    <p className="truncate text-small text-ink-muted @max-xl/main:hidden">
       {count} downloading
       {speed > 0 && (
         <>
@@ -103,11 +104,11 @@ export function DownloadList() {
 
   return (
     <main className="@container/main flex min-w-0 flex-1 flex-col bg-surface">
-      <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line px-4">
-        <h1 id="list-title" tabIndex={-1} className="text-title text-ink outline-none">
+      <header data-tauri-drag-region className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line px-4">
+        <h1 id="list-title" data-tauri-drag-region tabIndex={-1} className="min-w-0 truncate text-title text-ink outline-none">
           {TITLES[view]}
         </h1>
-        <div className="flex items-center gap-4">
+        <div className="flex min-w-0 items-center gap-4">
           <Summary />
           <Button
             variant="primary"
@@ -118,6 +119,7 @@ export function DownloadList() {
           >
             Add
           </Button>
+          <WindowControls />
         </div>
       </header>
       <Notice />

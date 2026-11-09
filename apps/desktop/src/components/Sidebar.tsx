@@ -28,8 +28,8 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-(--sidebar-width) shrink-0 flex-col border-r border-line bg-bg">
-      <div className="flex h-12 items-center px-4">
-        <img src={theme === "dark" ? lockupDark : lockup} alt="Tug" width={57} height={22} />
+      <div data-tauri-drag-region className="flex h-12 items-center px-4">
+        <img data-tauri-drag-region draggable={false} src={theme === "dark" ? lockupDark : lockup} alt="Tug" width={57} height={22} />
       </div>
       <nav aria-labelledby="views-label" className="flex flex-col gap-1 px-2 pt-2">
         <h2 id="views-label" className="text-label px-2 pb-1 text-ink-muted">

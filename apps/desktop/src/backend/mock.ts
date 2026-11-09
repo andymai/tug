@@ -20,6 +20,8 @@ export interface MockBackend extends Backend {
   tick(): void;
   capture(url: string): Promise<void>;
   focus(id: number): void;
+  windowCalls: string[];
+  setMaximized(maximized: boolean): void;
   setColorScheme(scheme: ColorScheme | null): void;
   notice(message: string): void;
   dispose(): void;
@@ -71,6 +73,13 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   const noticeListeners = new Set<(message: string) => void>();
   const captureListeners = new Set<(captures: Download[]) => void>();
   const focusListeners = new Set<(id: number) => void>();
+  const maximizedListeners = new Set<(maximized: boolean) => void>();
+  const windowCalls: string[] = [];
+  let maximized = false;
+  const setMaximized = (next: boolean) => {
+    maximized = next;
+    for (const listener of maximizedListeners) listener(next);
+  };
   let waiting: number[] = [];
   let nextId = 1;
   let seq = 0;
@@ -296,6 +305,34 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         focusListeners.delete(listener);
       });
     },
+    windowControls: {
+      minimize: () => {
+        windowCalls.push("minimize");
+        return Promise.resolve();
+      },
+      toggleMaximize: () => {
+        windowCalls.push("toggleMaximize");
+        setMaximized(!maximized);
+        return Promise.resolve();
+      },
+      close: () => {
+        windowCalls.push("close");
+        return Promise.resolve();
+      },
+      startResize: (edge) => {
+        windowCalls.push(`resize ${edge}`);
+        return Promise.resolve();
+      },
+      isMaximized: () => Promise.resolve(maximized),
+      onMaximized: (listener) => {
+        maximizedListeners.add(listener);
+        return Promise.resolve(() => {
+          maximizedListeners.delete(listener);
+        });
+      },
+    },
+    windowCalls,
+    setMaximized,
     focus: (id) => {
       for (const listener of focusListeners) listener(id);
     },
@@ -316,6 +353,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       noticeListeners.clear();
       captureListeners.clear();
       focusListeners.clear();
+      maximizedListeners.clear();
     },
   };
 }
