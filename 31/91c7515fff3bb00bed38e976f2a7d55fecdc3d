@@ -1,0 +1,73 @@
+apps/desktop/src/components/DownloadRow.tsx
+  s_b321718d129a1e::t_27be0820498547 1,70-71,130-142,144
+  s_b321718d129a1e::t_c93346370a1411 126
+  s_b321718d129a1e::t_b4048d246b6dd2 6,95
+  s_b321718d129a1e::t_82eff986926c38 2,4-5,14-17,20-22,30,34,37,41-44,46-62,64,66-69,72-94,96-125,127-129,145
+apps/desktop/src/components/DownloadList.tsx
+  s_b321718d129a1e::t_0903a535b9916c 17,209
+apps/desktop/src-tauri/src/bridge.rs
+  s_b321718d129a1e::t_a00e328e5da301 123-124,190,1010
+  s_b321718d129a1e::t_5e1a9e7a909a82 407-408,432-433,474-475
+  s_b321718d129a1e::t_72d1565fb4a030 1092-1093,1254-1255
+apps/desktop/src/backend/mock.test.ts
+  s_b321718d129a1e::t_ba6daa08525429 69
+apps/desktop/src/backend/tauri.test.ts
+  s_b321718d129a1e::t_ba6daa08525429 30
+apps/desktop/src/lib/columns.test.ts
+  s_b321718d129a1e::t_75fb60a56ae7f0 1-16,18-31
+  s_b321718d129a1e::t_5142bc53aef713 17
+apps/desktop/src-tauri/src/notify.rs
+  s_b321718d129a1e::t_a00e328e5da301 239
+apps/desktop/src/window.visual.tsx
+  s_b321718d129a1e::t_bfbd99dc6a49c0 116-126
+crates/tug-core/src/settings.rs
+  s_b321718d129a1e::t_22a176c46e6203 653-689
+  s_b321718d129a1e::t_72d1565fb4a030 26-28,126-129,152-155,189-190,226-238,342-350,362-363,398-408,419-422,445-446,756-757
+  s_b321718d129a1e::t_b1ca9a947a985c 652
+apps/desktop/src/lib/links.test.ts
+  s_b321718d129a1e::t_f84fc02acf55da 19
+crates/tug-core/src/store.rs
+  s_b321718d129a1e::t_dd8aab2806796f 224-225,750,767,1186
+  s_b321718d129a1e::t_72d1565fb4a030 697
+apps/desktop/src/backend/bindings/Download.ts
+  s_b321718d129a1e::t_5e1a9e7a909a82 5
+crates/tug-core/tests/settings.rs
+  s_b321718d129a1e::t_72d1565fb4a030 41-42,90-91,122-123
+apps/desktop/src/backend/bindings/Settings.ts
+  s_b321718d129a1e::t_5e1a9e7a909a82 7
+apps/desktop/src/components/DetailPanel.tsx
+  s_b321718d129a1e::t_565fed9d79994c 171
+apps/desktop/src/lib/columns.ts
+  s_b321718d129a1e::t_c93346370a1411 10-11,20-29,31-33,35-46
+  s_b321718d129a1e::t_27be0820498547 12
+  s_b321718d129a1e::t_4e806312a6262c 133
+  s_b321718d129a1e::t_5aec8162716cc0 34
+  s_b321718d129a1e::t_8d7092f0a3e008 1-9,13-19,30,47-132,134-141
+apps/desktop/src/backend/mock.ts
+  s_b321718d129a1e::t_ba6daa08525429 100,147,155,174-178,182,420
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_4e806312a6262c 19,573,575-576
+apps/desktop/src/components/DownloadTable.tsx
+  s_b321718d129a1e::t_7d47bac236c0dd 1-4,6-86,102-106,108-110,112-124,126-141,143-165
+  s_b321718d129a1e::t_c93346370a1411 5,87-101,107,111,125,142
+apps/desktop/src/App.test.tsx
+  s_b321718d129a1e::t_76c1f418dc8339 635-638,640-666
+  s_b321718d129a1e::t_b4048d246b6dd2 20-23,25,68,87,89,91,204,220,235,257,264,277,293,303,409,516,533,622-623,678,680,689,716,748,764,785,787
+  s_b321718d129a1e::t_e5065607f20380 639
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3191c7515fff3bb00bed38e976f2a7d55fecdc3d",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
