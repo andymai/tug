@@ -24,6 +24,7 @@ export function parseLimit(text: string): Parsed {
   return { ok: true, value: Math.max(1, Math.round(value * MB)) };
 }
 
+// Four digits, so a small limit doesn't show as 0.
 export function limitText(bytes: number | null): string {
-  return bytes === null ? "" : String(Number((bytes / MB).toFixed(2)));
+  return bytes === null ? "" : String(Number((bytes / MB).toPrecision(4)));
 }

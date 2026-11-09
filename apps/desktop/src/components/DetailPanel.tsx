@@ -15,7 +15,7 @@ import {
   shortDir,
 } from "../lib/format";
 import { focusRow } from "../lib/dom";
-import { limitText, parseConnections, parseLimit } from "../lib/options";
+import { limitText, type Parsed, parseConnections, parseLimit } from "../lib/options";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
 import { chosen, modalOpen, single } from "../state/downloads";
@@ -85,18 +85,20 @@ function History({ id, state, revision }: { id: number; state: Download["state"]
 const countText = (count: number | null) => (count === null ? "" : String(count));
 
 // A field commits on Enter or when it loses the focus, as Settings does. A field
-// takes a new stored value only when that value changes, so a commit of one
-// leaves the other's draft and the focus alone.
+// takes a new stored value only when that value changes and nobody typed in it
+// since the last commit, so a late save never overwrites a newer edit. A field
+// whose text still shows the stored value keeps that value exactly.
 function OwnOptions({ download }: { download: Download }) {
   const tug = useDownloads((s) => s.settings?.connections ?? null);
   const setOptions = useDownloads((s) => s.setOptions);
   const [connections, setConnections] = useState(countText(download.connections));
   const [limit, setLimit] = useState(limitText(download.speedLimit));
   const [stored, setStored] = useState({ connections: download.connections, speedLimit: download.speedLimit });
+  const [edited, setEdited] = useState({ connections: false, limit: false });
   const [problem, setProblem] = useState<string | null>(null);
   if (stored.connections !== download.connections || stored.speedLimit !== download.speedLimit) {
-    if (stored.connections !== download.connections) setConnections(countText(download.connections));
-    if (stored.speedLimit !== download.speedLimit) setLimit(limitText(download.speedLimit));
+    if (stored.connections !== download.connections && !edited.connections) setConnections(countText(download.connections));
+    if (stored.speedLimit !== download.speedLimit && !edited.limit) setLimit(limitText(download.speedLimit));
     setStored({ connections: download.connections, speedLimit: download.speedLimit });
   }
   const headingId = useId();
@@ -104,13 +106,14 @@ function OwnOptions({ download }: { download: Download }) {
   const limitId = useId();
 
   const commit = () => {
-    const own = parseConnections(connections);
-    const cap = parseLimit(limit);
+    const own: Parsed = connections === countText(download.connections) ? { ok: true, value: download.connections } : parseConnections(connections);
+    const cap: Parsed = limit === limitText(download.speedLimit) ? { ok: true, value: download.speedLimit } : parseLimit(limit);
     if (!own.ok || !cap.ok) {
       setProblem(own.ok ? (cap.ok ? null : cap.problem) : own.problem);
       return;
     }
     setProblem(null);
+    setEdited({ connections: false, limit: false });
     if (own.value === download.connections && cap.value === download.speedLimit) return;
     void setOptions(download.id, own.value, cap.value);
   };
@@ -136,6 +139,7 @@ function OwnOptions({ download }: { download: Download }) {
           aria-invalid={problem !== null && !parseConnections(connections).ok}
           onChange={(event) => {
             setConnections(event.target.value);
+            setEdited((now) => ({ ...now, connections: true }));
           }}
           onBlur={commit}
           onKeyDown={keys}
@@ -153,6 +157,7 @@ function OwnOptions({ download }: { download: Download }) {
             aria-invalid={problem !== null && !parseLimit(limit).ok}
             onChange={(event) => {
               setLimit(event.target.value);
+              setEdited((now) => ({ ...now, limit: true }));
             }}
             onBlur={commit}
             onKeyDown={keys}

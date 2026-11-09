@@ -440,6 +440,41 @@ describe("detail panel", () => {
     expect(within(screen.getByRole("complementary", { name: "noto-fonts-2026.11.zip" })).queryByRole("region", { name: "Options" })).not.toBeInTheDocument();
   });
 
+  it("keeps an edit made while a save is on its way, and a tiny limit as it is", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const fedora = (await backend.list()).find((d) => d.name === "fedora-kde-44-x86_64.iso")?.id ?? -1;
+    await backend.setOptions(fedora, null, 1049);
+    const saves: (() => void)[] = [];
+    const slow = {
+      ...backend,
+      setOptions: (id: number, connections: number | null, speedLimit: number | null) =>
+        new Promise<Awaited<ReturnType<typeof backend.setOptions>>>((resolve) => {
+          saves.push(() => {
+            resolve(backend.setOptions(id, connections, speedLimit));
+          });
+        }),
+    };
+    const sent = vi.spyOn(slow, "setOptions");
+    render(<App store={createDownloadsStore(slow)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    const options = within(screen.getByRole("region", { name: "Options" }));
+    expect(options.getByRole("textbox", { name: "Speed limit" })).toHaveValue("0.001");
+
+    await user.type(options.getByRole("textbox", { name: "Connections" }), "4{Enter}");
+    expect(sent).toHaveBeenLastCalledWith(fedora, 4, 1049);
+    await user.clear(options.getByRole("textbox", { name: "Connections" }));
+    await user.type(options.getByRole("textbox", { name: "Connections" }), "8");
+    await act(async () => {
+      saves.shift()?.();
+      await Promise.resolve();
+    });
+    await vi.waitFor(async () => {
+      expect((await backend.list()).find((d) => d.id === fedora)?.connections).toBe(4);
+    });
+    expect(options.getByRole("textbox", { name: "Connections" }), "the newer edit stays").toHaveValue("8");
+  });
+
   it("closes with its button and with Escape", async () => {
     const { user } = open();
     const row = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
