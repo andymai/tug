@@ -379,10 +379,12 @@ impl AppState {
         }
     }
 
-    fn answered(&self, id: DownloadId) {
-        if let Ok(mut captures) = self.captures.lock() {
+    fn answered(&self, id: DownloadId) -> bool {
+        self.captures.lock().is_ok_and(|mut captures| {
+            let before = captures.len();
             captures.retain(|&waiting| waiting != id);
-        }
+            captures.len() != before
+        })
     }
 
     fn prune(&self, batch: &Batch) -> bool {
@@ -527,10 +529,25 @@ pub async fn pause_download(
 
 #[tauri::command]
 pub async fn resume_download(
+    app: AppHandle,
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<(), CommandError> {
-    Ok(state.library.resume(DownloadId::from(id)).await?)
+    let id = DownloadId::from(id);
+    state.library.resume(id).await?;
+    started(&app, id);
+    Ok(())
+}
+
+// A resume between two progress ticks can start and stop a capture unseen by
+// the batch pruning, so every resume also takes it off the sheet.
+pub fn started<R: tauri::Runtime>(app: &AppHandle<R>, id: DownloadId) {
+    if app
+        .try_state::<AppState>()
+        .is_some_and(|state| state.answered(id))
+    {
+        emit_captures(app);
+    }
 }
 
 #[tauri::command]
@@ -559,13 +576,7 @@ pub async fn answer_capture(
     state.answered(id);
     let result = match answer {
         CaptureAnswer::Download => state.library.resume(id).await,
-        CaptureAnswer::Cancel => match state.library.get(id) {
-            Ok(download) if download.state == DownloadState::Paused => {
-                state.library.remove(id, true).await
-            }
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        },
+        CaptureAnswer::Cancel => state.library.remove_if_paused(id).await.map(|_| ()),
         CaptureAnswer::Later => Ok(()),
     };
     emit_captures(&app);
