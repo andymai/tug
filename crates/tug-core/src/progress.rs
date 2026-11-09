@@ -29,6 +29,7 @@ pub struct Batch {
     pub seq: u64,
     pub updates: Vec<Update>,
     pub settled: Vec<DownloadId>,
+    pub changed: Vec<DownloadId>,
     pub error: Option<String>,
 }
 
@@ -130,6 +131,7 @@ async fn run(
                     seq,
                     updates,
                     settled: tick.settled,
+                    changed: tick.changed,
                     error,
                 }
             }

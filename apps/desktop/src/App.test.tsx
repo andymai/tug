@@ -363,7 +363,7 @@ describe("capture sheet", () => {
       await backend.capture(TALK);
     });
     expect(screen.queryByRole("dialog", { name: "Download this file?" })).not.toBeInTheDocument();
-    expect((await backend.list()).find((d) => d.url === TALK)?.state).toBe("downloading");
+    expect((await backend.list()).find((d) => d.url === TALK)?.state, "three downloads already run").toBe("queued");
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
     const ask = screen.getByRole("switch", { name: "Ask before each browser download" });
@@ -502,7 +502,25 @@ describe("queue", () => {
     expect((await backend.settings()).maxActive).toBe(2);
   });
 
-  it("moves a waiting download to the front, or pauses it", async () => {
+  it("starts the download chosen to go next when a place frees up", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    await backend.updateSettings({ ...(await backend.settings()), maxActive: 1 });
+    const later = await backend.add("https://example.org/later.iso");
+    expect(later.state).toBe("queued");
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /^later\.iso/ }));
+    const panel = within(screen.getByRole("complementary", { name: "later.iso" }));
+    await user.click(panel.getByRole("button", { name: "Start next" }));
+
+    const state = async (name: string) => (await backend.list()).find((d) => d.name === name)?.state;
+    const running = (await backend.list()).find((d) => d.state === "downloading");
+    await backend.pause(running?.id ?? -1);
+    expect(await state("later.iso")).toBe("downloading");
+    expect(await state("blender-5.1-linux-x64.tar.xz")).toBe("queued");
+  });
+
+  it("takes a waiting download out of the queue with Pause", async () => {
     const backend = createMockBackend({ seed: SHOWCASE });
     render(<App store={createDownloadsStore(backend)} />);
     const user = userEvent.setup();
@@ -510,9 +528,6 @@ describe("queue", () => {
     expect(queued).toBeDefined();
     await user.click(await screen.findByRole("button", { name: new RegExp(`^${queued?.name ?? ""}`) }));
     const panel = within(screen.getByRole("complementary", { name: queued?.name ?? "" }));
-
-    await user.click(panel.getByRole("button", { name: "Start next" }));
-    expect(backend.placed).toEqual([`${String(queued?.id)} first`]);
     await user.click(panel.getByRole("button", { name: "Pause" }));
     expect((await backend.list()).find((d) => d.id === queued?.id)?.state).toBe("paused");
     expect(panel.getByRole("button", { name: "Resume" })).toBeInTheDocument();

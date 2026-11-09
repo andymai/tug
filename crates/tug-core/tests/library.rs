@@ -326,6 +326,53 @@ async fn the_queue_starts_downloads_in_order_up_to_the_limit() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn the_next_tick_reports_what_changed_outside_a_tick() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = limited(1).await;
+    let link = |name: &str| {
+        lab.url(&format!("/gen/4M/{name}?seed=81&rate=1M"))
+            .parse()
+            .unwrap()
+    };
+    let a = library.add(link("a.bin"), dir.path()).await.unwrap();
+    let b = library.add(link("b.bin"), dir.path()).await.unwrap();
+    assert_eq!(library.tick().await.unwrap().changed, vec![a, b]);
+    assert!(library.tick().await.unwrap().changed.is_empty());
+
+    library.pause_all().await.unwrap();
+    assert_eq!(library.tick().await.unwrap().changed, vec![a, b]);
+    library.resume_all().await.unwrap();
+    let tick = library.tick().await.unwrap();
+    assert_eq!(tick.changed, vec![a, b]);
+    assert_eq!(state_of(&library, b), DownloadState::Queued);
+    assert!(tick.settled.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_download_that_cannot_start_settles_as_failed_on_the_next_tick() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = limited(1).await;
+    let url = lab
+        .url("/gen/4M/broken.bin?seed=83&rate=1M")
+        .parse()
+        .unwrap();
+    let id = library.add(url, dir.path()).await.unwrap();
+    received_at_least(&library, id, 256 << 10).await;
+    library.pause(id).await.unwrap();
+    let file = library.get(id).unwrap().file.unwrap();
+    std::fs::write(mdm_engine::state::state_path(&file), "not a state file").unwrap();
+    library.tick().await.unwrap();
+
+    library.resume(id).await.unwrap();
+    let failed = library.get(id).unwrap();
+    assert_eq!(failed.state, DownloadState::Failed);
+    assert!(failed.error.is_some_and(|e| !e.is_empty()));
+    assert_eq!(library.tick().await.unwrap().settled, vec![id]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_raised_limit_starts_the_waiting_on_the_next_tick_and_a_paused_wait_leaves_the_queue() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();

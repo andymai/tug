@@ -55,7 +55,7 @@ describe("downloads store", () => {
     expect(store.getState().items.find((d) => d.name === "fedora.iso")?.state).toBe("done");
   });
 
-  it("reloads when a waiting download starts, not on each tick of a running one", async () => {
+  it("reloads when a download starts or changes outside a tick, not on each tick of a running one", async () => {
     const backend = createMockBackend({ seed: showcase });
     let lists = 0;
     const store = createDownloadsStore({
@@ -70,10 +70,12 @@ describe("downloads store", () => {
     const update = (of: number) => ({ id: of, phase: "downloading" as const, received: MB, total: null, speed: MB, leftMs: null, connections: 1 });
     const before = lists;
 
-    store.getState().applyBatch({ seq: 1, updates: [update(id("downloading"))], settled: [], error: null });
+    store.getState().applyBatch({ seq: 1, updates: [update(id("downloading"))], settled: [], changed: [], error: null });
     expect(lists).toBe(before);
-    store.getState().applyBatch({ seq: 2, updates: [update(id("queued"))], settled: [], error: null });
+    store.getState().applyBatch({ seq: 2, updates: [update(id("queued"))], settled: [], changed: [], error: null });
     expect(lists).toBe(before + 1);
+    store.getState().applyBatch({ seq: 3, updates: [], settled: [], changed: [id("paused")], error: null });
+    expect(lists).toBe(before + 2);
   });
 
   it("retries a failed download", async () => {
@@ -115,7 +117,7 @@ describe("downloads store", () => {
   it("keeps a batch's warning through the reload that a settled download starts", async () => {
     const { store } = await ready();
     const done = store.getState().items.find((d) => d.state === "done");
-    store.getState().applyBatch({ seq: 9, updates: [], settled: [done?.id ?? -1], error: "couldn't save progress" });
+    store.getState().applyBatch({ seq: 9, updates: [], settled: [done?.id ?? -1], changed: [], error: "couldn't save progress" });
     await store.getState().reload();
     expect(store.getState().notice).toBe("couldn't save progress");
     store.getState().dismissNotice();

@@ -347,7 +347,10 @@ fn follow<R: Runtime>(
         let mut gate = Gate::default();
         while batches.changed().await.is_ok() {
             let batch = Arc::clone(&batches.borrow_and_update());
-            if !gate.due(Instant::now(), !batch.settled.is_empty()) {
+            if !gate.due(
+                Instant::now(),
+                !batch.settled.is_empty() || !batch.changed.is_empty(),
+            ) {
                 continue;
             }
             let summary = Summary::from_batch(&batch, paused(&library));

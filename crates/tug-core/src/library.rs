@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::SystemTime;
 
 use mdm_engine::limiter::Limiter;
@@ -36,7 +36,16 @@ pub enum LibraryError {
 pub struct Tick {
     pub live: Vec<(DownloadId, Progress)>,
     pub settled: Vec<DownloadId>,
+    pub changed: Vec<DownloadId>,
     pub error: Option<String>,
+}
+
+// What changed outside a tick: the next tick reports it, so every reader of
+// the progress stream learns of a download that waits, stops or fails to start.
+#[derive(Default)]
+struct News {
+    settled: Vec<DownloadId>,
+    changed: Vec<DownloadId>,
 }
 
 struct Running {
@@ -49,6 +58,7 @@ pub struct Library {
     running: tokio::sync::Mutex<HashMap<DownloadId, Running>>,
     settings: Mutex<Settings>,
     limiter: Arc<Limiter>,
+    news: Mutex<News>,
 }
 
 impl Library {
@@ -59,6 +69,7 @@ impl Library {
             settings: Mutex::new(settings),
             store: Mutex::new(store),
             running: tokio::sync::Mutex::default(),
+            news: Mutex::default(),
         };
         {
             let store = library.store()?;
@@ -122,6 +133,7 @@ impl Library {
         )?;
         store.add_event(id, &event(EventKind::Added, added, None, None))?;
         drop(store);
+        self.changed(id);
         Ok(id)
     }
 
@@ -170,8 +182,9 @@ impl Library {
         };
         drop(running);
         entry.transfer.stop();
-        self.settle(id, entry.transfer, DownloadState::Paused)
-            .await?;
+        let settled = self.settle(id, entry.transfer, DownloadState::Paused).await;
+        self.changed(id);
+        settled?;
         self.pump().await
     }
 
@@ -188,6 +201,7 @@ impl Library {
             if let Err(e) = self.settle(id, entry.transfer, DownloadState::Paused).await {
                 first.get_or_insert(e);
             }
+            self.changed(id);
         }
         first.map_or(Ok(()), Err)
     }
@@ -204,6 +218,7 @@ impl Library {
             }
         }
         drop(store);
+        self.news().changed.extend(&queued);
         let filled = self.fill(&mut running);
         drop(running);
         filled.map(|()| queued)
@@ -223,6 +238,7 @@ impl Library {
         if download.state != DownloadState::Queued {
             self.store()?
                 .set_state(id, DownloadState::Queued, None, SystemTime::now())?;
+            self.changed(id);
         }
         let filled = self.fill(&mut running);
         drop(running);
@@ -247,6 +263,7 @@ impl Library {
             delete_files(&download)?;
         }
         self.store()?.remove(id)?;
+        self.changed(id);
         self.pump().await
     }
 
@@ -260,6 +277,7 @@ impl Library {
         }
         self.store()?.remove(id)?;
         drop(running);
+        self.changed(id);
         delete_files(&download)?;
         Ok(true)
     }
@@ -299,9 +317,15 @@ impl Library {
         if let Err(e) = self.pump().await {
             error.get_or_insert_with(|| e.to_string());
         }
+        let news = std::mem::take(&mut *self.news());
+        settled.extend(news.settled);
+        let mut changed = news.changed;
+        changed.sort_unstable();
+        changed.dedup();
         Ok(Tick {
             live,
             settled,
+            changed,
             error,
         })
     }
@@ -352,6 +376,8 @@ impl Library {
                         Some(reason),
                     ),
                 )?;
+                drop(store);
+                self.news().settled.push(id);
             }
         }
         Ok(())
@@ -366,7 +392,16 @@ impl Library {
             &event(EventKind::Paused, now, Some(download.received), None),
         )?;
         drop(store);
+        self.changed(download.id);
         Ok(())
+    }
+
+    fn news(&self) -> MutexGuard<'_, News> {
+        self.news.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn changed(&self, id: DownloadId) {
+        self.news().changed.push(id);
     }
 
     fn hold_queue(&self) -> Result<(), LibraryError> {

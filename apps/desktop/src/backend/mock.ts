@@ -7,6 +7,7 @@ import {
   type ColorScheme,
   type DownloadEvent,
   type DownloadState,
+  type Place,
   type ProgressBatch,
   type ProgressUpdate,
   type Settings,
@@ -22,7 +23,6 @@ export interface MockBackend extends Backend {
   focus(id: number): void;
   windowCalls: string[];
   setMaximized(maximized: boolean): void;
-  placed: string[];
   setColorScheme(scheme: ColorScheme | null): void;
   notice(message: string): void;
   dispose(): void;
@@ -81,7 +81,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     maximized = next;
     for (const listener of maximizedListeners) listener(next);
   };
-  const placed: string[] = [];
+  const order = new Map<number, number>();
   let waiting: number[] = [];
   let nextId = 1;
   let seq = 0;
@@ -108,7 +108,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       name: nameOf(url),
       dir: dir ?? settings.downloadDir,
       file: null,
-      state: "downloading",
+      state: "queued",
       size: sizeOf(url),
       received: 0,
       error: null,
@@ -116,9 +116,40 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       finishedMs: null,
     };
     downloads.set(download.id, download);
+    order.set(download.id, Math.max(0, ...order.values()) + 1);
     log(download.id, "added", download.addedMs);
-    log(download.id, "started", download.addedMs);
     return download;
+  };
+
+  const queue = () =>
+    [...downloads.values()].filter((d) => d.state === "queued").sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+
+  // Like Tug, a place that frees up goes to the next queued download; the seed keeps its states.
+  const fill = () => {
+    let running = [...downloads.values()].filter((d) => d.state === "downloading").length;
+    for (const download of queue()) {
+      if (running >= settings.maxActive) return;
+      download.state = "downloading";
+      if (download.received > 0) log(download.id, "resumed", now(), download.received);
+      else log(download.id, "started", now());
+      running += 1;
+    }
+  };
+
+  const place = (id: number, where: Place) => {
+    const waiting = queue();
+    const at = waiting.findIndex((d) => d.id === id);
+    if (at < 0) return;
+    const positions = [...order.values()];
+    if (where === "first") order.set(id, Math.min(...positions) - 1);
+    else if (where === "last") order.set(id, Math.max(...positions) + 1);
+    else {
+      const other = waiting[where === "up" ? at - 1 : at + 1];
+      if (other === undefined) return;
+      const mine = order.get(id) ?? 0;
+      order.set(id, order.get(other.id) ?? 0);
+      order.set(other.id, mine);
+    }
   };
 
   const tick = () => {
@@ -148,7 +179,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         });
       }
     }
-    const batch: ProgressBatch = { seq: ++seq, updates, settled, error: null };
+    if (settled.length > 0) fill();
+    const batch: ProgressBatch = { seq: ++seq, updates, settled, changed: [], error: null };
     for (const listener of listeners) listener(batch);
   };
 
@@ -194,13 +226,19 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
 
   return {
     list: () => Promise.resolve([...downloads.values()].map((d) => ({ ...d }))),
-    add: (url, dir) => attempt(() => ({ ...addNow(url, dir) })),
+    add: (url, dir) =>
+      attempt(() => {
+        const download = addNow(url, dir);
+        fill();
+        return { ...download };
+      }),
     pause: (id) =>
       attempt(() => {
         const download = find(id);
         if (download.state === "downloading" || download.state === "queued") {
           download.state = "paused";
           log(id, "paused", now(), download.received);
+          fill();
         }
       }),
     resume: (id) =>
@@ -211,10 +249,9 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           announce();
         }
         if (download.state === "paused" || download.state === "failed") {
-          download.state = "downloading";
+          download.state = "queued";
           download.error = null;
-          if (download.received > 0) log(id, "resumed", now(), download.received);
-          else log(id, "started", now());
+          fill();
         }
       }),
     remove: (id) =>
@@ -222,6 +259,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         find(id);
         downloads.delete(id);
         history.delete(id);
+        order.delete(id);
+        fill();
       }),
     openFile: (id) =>
       attempt(() => {
@@ -252,6 +291,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           if (next.excludedSites.indexOf(site) !== at) throw new BackendError("invalid", `${site} is in the list twice`);
         }
         settings = { ...next };
+        fill();
       }),
     chooseDownloadFolder: () =>
       attempt(() => {
@@ -290,11 +330,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const download = find(id);
         waiting = waiting.filter((entry) => entry !== id);
         if (answer === "download") {
-          download.state = "downloading";
-          log(id, "started", now());
+          download.state = "queued";
+          fill();
         } else if (answer === "cancel") {
           downloads.delete(id);
           history.delete(id);
+          order.delete(id);
         }
         announce();
       }),
@@ -338,11 +379,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     },
     windowCalls,
     setMaximized,
-    placed,
     place: (id, where) =>
       attempt(() => {
         find(id);
-        placed.push(`${String(id)} ${where}`);
+        place(id, where);
       }),
     focus: (id) => {
       for (const listener of focusListeners) listener(id);
@@ -351,6 +391,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       attempt(() => {
         if (!settings.confirmCaptures) {
           addNow(url);
+          fill();
           return;
         }
         ask(url);
