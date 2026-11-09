@@ -1,0 +1,51 @@
+apps/desktop/src/backend/contract/headers.json
+  s_b321718d129a1e::t_febe34889956e3 1-124,137-138
+  s_b321718d129a1e::t_ad54acfdd7f1b4 125-136
+crates/tug-core/src/lib.rs
+  s_b321718d129a1e::t_febe34889956e3 16,24-25
+apps/desktop/src/backend/contract.test.ts
+  s_b321718d129a1e::t_febe34889956e3 1-44,55-71
+  s_b321718d129a1e::t_f557256a91b32b 45-54
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_febe34889956e3 90,204,495
+apps/desktop/src/backend/mock.ts
+  s_b321718d129a1e::t_faa3a739e907be 18,65-84,168-169,264-266,582,584-597,599-603,605-608,610-616,618,620,622,625,628
+  s_b321718d129a1e::t_11b4d36bbe9894 173
+  s_b321718d129a1e::t_f557256a91b32b 172
+apps/desktop/src-tauri/src/bridge.rs
+  s_b321718d129a1e::t_febe34889956e3 1444-1445
+  s_b321718d129a1e::t_8e396e953a6ff3 1443
+apps/desktop/tsconfig.json
+  s_b321718d129a1e::t_febe34889956e3 25
+apps/desktop/src-tauri/src/bridge/contract.rs
+  s_b321718d129a1e::t_febe34889956e3 1-16,18-33,36-64,68-201
+  s_b321718d129a1e::t_ad54acfdd7f1b4 17,34-35,65-67
+CLAUDE.md
+  s_b321718d129a1e::t_352629a3b0bb59 37
+apps/desktop/src/backend/contract/own.json
+  s_b321718d129a1e::t_febe34889956e3 1-51
+apps/desktop/src/backend/contract/names.json
+  s_b321718d129a1e::t_febe34889956e3 1-80,93-104
+  s_b321718d129a1e::t_ad54acfdd7f1b4 81-92
+.github/workflows/ci.yml
+  s_b321718d129a1e::t_efebd67c570655 63-65,67-68
+apps/desktop/src/backend/contract/settings.json
+  s_b321718d129a1e::t_febe34889956e3 1-504,519-828
+  s_b321718d129a1e::t_ad54acfdd7f1b4 505-518
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b7354c0f6542d5933a959d1a9a2615625f9dd27e",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
