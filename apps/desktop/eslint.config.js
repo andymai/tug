@@ -39,7 +39,8 @@ export default defineConfig([
           message: "Load a panel slot through loadSlot() in the store, which drops a late answer.",
         },
         {
-          selector: "CallExpression[callee.name='set'] > ObjectExpression > Property[key.name=/^(history|inspection|torrent|headers)$/]",
+          selector:
+            "CallExpression:matches([callee.name='set'], [callee.property.name='setState']) ObjectExpression > Property[key.name=/^(history|inspection|torrent|headers)$/]",
           message: "Write a panel slot through loadSlot() or saveSlot(), which check the download on screen.",
         },
       ],

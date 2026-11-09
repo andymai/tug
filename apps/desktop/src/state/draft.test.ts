@@ -84,4 +84,31 @@ describe("useDraft", () => {
     });
     expect(result.current.text).toBe("second answer");
   });
+
+  it("brings back the sent text when a failed save's value showed early and rolled back", () => {
+    const { result, rerender } = renderHook(({ saved }) => useDraft(saved), { initialProps: { saved: "10" } });
+    let save = idle;
+    act(() => {
+      result.current.edit("20");
+      save = result.current.commit();
+    });
+    rerender({ saved: "20" });
+    rerender({ saved: "10" });
+    expect(result.current.text, "the rollback shows first").toBe("10");
+    act(() => {
+      save.failed();
+    });
+    expect(result.current.text).toBe("20");
+    rerender({ saved: "12" });
+    expect(result.current.text, "it stays until the next save").toBe("20");
+
+    act(() => {
+      save = result.current.commit();
+      result.current.edit("30");
+    });
+    act(() => {
+      save.failed();
+    });
+    expect(result.current.text, "text typed since the save stays").toBe("30");
+  });
 });

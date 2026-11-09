@@ -1647,6 +1647,25 @@ describe("settings page", () => {
     expect(field).toHaveValue("5");
   });
 
+  it("keeps a typed speed limit when Tug can't save it, so Enter tries again", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    await backend.updateSettings({ ...(await backend.settings()), speedLimit: 10 * MB });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    vi.spyOn(backend, "updateSettings").mockRejectedValueOnce(new BackendError("storage", "the disk is full"));
+    const field = screen.getByRole("textbox", { name: "Speed limit" });
+    await user.clear(field);
+    await user.type(field, "20{Enter}");
+    expect(await screen.findByText("The disk is full")).toBeInTheDocument();
+    expect(field).toHaveValue("20");
+    expect((await backend.settings()).speedLimit).toBe(10 * MB);
+
+    await user.type(field, "{Enter}");
+    expect((await backend.settings()).speedLimit).toBe(20 * MB);
+    expect(field).toHaveValue("20");
+  });
+
   it("limits speed with a switch and a field that refuses zero", async () => {
     const backend = createMockBackend({ seed: SHOWCASE });
     render(<App store={createDownloadsStore(backend)} />);

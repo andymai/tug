@@ -16,7 +16,8 @@ export interface Save {
   // Tug's answer (it may clean the value up): the field takes it unless the person
   // typed something else since the save started.
   saved: (answer: string) => void;
-  // The text stays as typed and stops following the saved value.
+  // The text goes back to what the save sent (a page that showed the value early may
+  // have rolled it back), unless the person typed since, and stops following the saved value.
   failed: () => void;
 }
 
@@ -51,7 +52,7 @@ export function useDraft(saved: string): Draft {
           setState((s) => (s.save === save && (s.edits === s.committed || s.text === s.sent) ? { ...s, text: answer, committed: s.edits } : s));
         },
         failed: () => {
-          setState((s) => (s.save === save ? { ...s, committed: -1 } : s));
+          setState((s) => (s.save === save ? { ...s, text: s.edits === s.committed ? s.sent : s.text, committed: -1 } : s));
         },
       };
     },
