@@ -168,7 +168,11 @@ impl<R: Runtime> TugTray<R> {
                         let result = if pause {
                             library.pause(download.id).await
                         } else {
-                            library.resume(download.id).await
+                            let resumed = library.resume(download.id).await;
+                            if resumed.is_ok() {
+                                crate::bridge::started(&app, download.id);
+                            }
+                            resumed
                         };
                         if let Err(e) = result {
                             failed.push(e.to_string());

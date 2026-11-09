@@ -156,6 +156,20 @@ describe("main window", () => {
     await capture(window, "capture-sheet");
   });
 
+  it("moves focus past the command bar to the download a notification shows", async () => {
+    const { backend, store } = await open(SHOWCASE);
+    act(() => {
+      store.getState().setOverlay("commands");
+    });
+    const done = (await backend.list()).find((download) => download.state === "done");
+    act(() => {
+      backend.focus(done?.id ?? 0);
+    });
+    await vi.waitFor(() => {
+      expect(document.activeElement?.textContent).toContain(done?.name ?? "missing");
+    });
+  });
+
   it("stays dark when the person picks dark, whatever the system says", async () => {
     const { store, window } = await showcase();
     await act(async () => {

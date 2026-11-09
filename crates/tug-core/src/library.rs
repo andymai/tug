@@ -167,11 +167,14 @@ impl Library {
     }
 
     pub async fn resume(&self, id: DownloadId) -> Result<(), LibraryError> {
+        let mut running = self.running.lock().await;
         let download = self.get(id)?;
-        if download.state == DownloadState::Done || self.running.lock().await.contains_key(&id) {
+        if download.state == DownloadState::Done || running.contains_key(&id) {
             return Ok(());
         }
-        self.launch(&download).await
+        let launched = self.launch_into(&download, &mut running);
+        drop(running);
+        launched
     }
 
     pub async fn remove(&self, id: DownloadId, delete_file: bool) -> Result<(), LibraryError> {
@@ -181,18 +184,25 @@ impl Library {
             running.transfer.stop();
             let _stopped = running.transfer.finish().await;
         }
-        if delete_file && let Some(file) = &download.file {
-            for path in [file.clone(), part_path(file), state_path(file)] {
-                match std::fs::remove_file(&path) {
-                    Err(e) if e.kind() != io::ErrorKind::NotFound => {
-                        return Err(LibraryError::Delete { path, source: e });
-                    }
-                    _ => {}
-                }
-            }
+        if delete_file {
+            delete_files(&download)?;
         }
         self.store()?.remove(id)?;
         Ok(())
+    }
+
+    // Under the same lock as resume, so nothing can start the download between
+    // the check and the removal.
+    pub async fn remove_if_paused(&self, id: DownloadId) -> Result<bool, LibraryError> {
+        let running = self.running.lock().await;
+        let download = self.get(id)?;
+        if download.state != DownloadState::Paused || running.contains_key(&id) {
+            return Ok(false);
+        }
+        self.store()?.remove(id)?;
+        drop(running);
+        delete_files(&download)?;
+        Ok(true)
     }
 
     pub async fn tick(&self) -> Result<Tick, LibraryError> {
@@ -243,6 +253,17 @@ impl Library {
     }
 
     async fn launch(&self, download: &Download) -> Result<(), LibraryError> {
+        let mut running = self.running.lock().await;
+        let launched = self.launch_into(download, &mut running);
+        drop(running);
+        launched
+    }
+
+    fn launch_into(
+        &self,
+        download: &Download,
+        running: &mut HashMap<DownloadId, Running>,
+    ) -> Result<(), LibraryError> {
         let resumable = download
             .file
             .as_deref()
@@ -266,7 +287,7 @@ impl Library {
             store.set_state(download.id, DownloadState::Downloading, None, now)?;
             store.add_event(download.id, &started)?;
         }
-        self.running.lock().await.insert(
+        running.insert(
             download.id,
             Running {
                 transfer,
@@ -290,6 +311,21 @@ impl Library {
     fn store(&self) -> Result<MutexGuard<'_, Store>, LibraryError> {
         self.store.lock().map_err(|_| LibraryError::Poisoned)
     }
+}
+
+fn delete_files(download: &Download) -> Result<(), LibraryError> {
+    let Some(file) = &download.file else {
+        return Ok(());
+    };
+    for path in [file.clone(), part_path(file), state_path(file)] {
+        match std::fs::remove_file(&path) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => {
+                return Err(LibraryError::Delete { path, source: e });
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn record(

@@ -204,9 +204,13 @@ pub fn spawn<R: Runtime>(
             let Some(notice) = library.get(id).ok().as_ref().and_then(notice) else {
                 continue;
             };
-            if let Ok(notification) = send(&proxy, &notice).await {
-                remember(&shown, notification, id);
-            }
+            let proxy = proxy.clone();
+            let shown = Arc::clone(&shown);
+            tauri::async_runtime::spawn(async move {
+                if let Ok(notification) = send(&proxy, &notice).await {
+                    remember(&shown, notification, id);
+                }
+            });
         }
     });
 }

@@ -227,6 +227,43 @@ async fn a_paused_add_waits_for_resume_then_downloads_with_its_origin() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn only_a_paused_download_goes_when_removed_if_paused() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(Store::open_in_memory().unwrap())
+        .await
+        .unwrap();
+    let origin = Origin::default();
+    let waiting = library
+        .add_paused(
+            lab.url("/gen/1M/w.bin?seed=41").parse().unwrap(),
+            dir.path(),
+            &origin,
+        )
+        .unwrap();
+    let running = library
+        .add_paused(
+            lab.url("/gen/8M/r.bin?seed=43&rate=1M").parse().unwrap(),
+            dir.path(),
+            &origin,
+        )
+        .unwrap();
+    library.resume(running).await.unwrap();
+
+    assert!(!library.remove_if_paused(running).await.unwrap());
+    assert_eq!(state_of(&library, running), DownloadState::Downloading);
+    assert!(library.remove_if_paused(waiting).await.unwrap());
+    assert!(matches!(
+        library.get(waiting),
+        Err(LibraryError::Unknown(_))
+    ));
+    assert!(matches!(
+        library.resume(waiting).await,
+        Err(LibraryError::Unknown(_))
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn removing_with_delete_clears_the_partial_files() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();
