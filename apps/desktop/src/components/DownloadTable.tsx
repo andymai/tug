@@ -104,13 +104,16 @@ export function DownloadTable({ title }: { title: string }) {
   const allItems = useDownloads((s) => s.items);
   const savePreference = useDownloads((s) => s.savePreference);
   const closeMenu = useDownloads((s) => s.closeMenu);
+  const endDrag = useDownloads((s) => s.endDrag);
   const chosen = columnsOf(settings);
-  // The empty view can take the table's place while its menu is open.
+  // The empty view can take the table's place while its menu is open or a row
+  // is in a drag, and a row that goes sends no dragend.
   useEffect(
     () => () => {
       closeMenu();
+      endDrag();
     },
-    [closeMenu],
+    [closeMenu, endDrag],
   );
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
