@@ -1,0 +1,20 @@
+CLAUDE.md
+  s_b321718d129a1e::t_c6f2560ba7f440 31-34,37-39,42-43
+  s_b321718d129a1e::t_041afdd6ffe88e 35-36,40-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ab64c80d55db45c67a7c7d7b8b1d8221e4e6f4b",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
