@@ -5315,7 +5315,7 @@ dependencies = [
 
 [[package]]
 name = "tug-core"
-version = "0.20.0"
+version = "0.21.0"
 dependencies = [
  "dirs 6.0.0",
  "http",
@@ -5330,7 +5330,7 @@ dependencies = [
 
 [[package]]
 name = "tug-desktop"
-version = "0.20.0"
+version = "0.21.0"
 dependencies = [
  "ashpd",
  "futures-util",
@@ -5351,7 +5351,7 @@ dependencies = [
 
 [[package]]
 name = "tug-host"
-version = "0.20.0"
+version = "0.21.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -5362,7 +5362,7 @@ dependencies = [
 
 [[package]]
 name = "tug-ipc"
-version = "0.20.0"
+version = "0.21.0"
 dependencies = [
  "serde",
  "serde_json",
