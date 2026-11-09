@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.31.0](https://github.com/andymai/tug/compare/v0.30.0...v0.31.0) (2026-11-09)
+
+
+### Features
+
+* **core:** the live connections inspector: segments, connections, server and engine log ([#130](https://github.com/andymai/tug/issues/130)) ([0c385f1](https://github.com/andymai/tug/commit/0c385f17703a2c95f9b86e9cc42b19eb3f23172b))
+
+
+### Bug Fixes
+
+* **desktop:** check free space off the main thread, and keep the last limit across pages ([#129](https://github.com/andymai/tug/issues/129)) ([7b8891c](https://github.com/andymai/tug/commit/7b8891cbd751b8063757f2757efc28b511e74783))
+
 ## [0.30.0](https://github.com/andymai/tug/compare/v0.29.0...v0.30.0) (2026-11-09)
 
 
