@@ -234,4 +234,17 @@ describe("mock backend", () => {
     const added = await backend.add("https://example.org/a.iso", undefined, { ...options, paused: true, referrer: " https://u:p@example.org/page#top " });
     expect(await backend.headers(added.id)).toEqual({ referrer: "https://example.org/page", userAgent: null, hasCookies: false });
   });
+  it("keeps a torrent's file sizes through a choice and back", async () => {
+    const magnet = "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056&dn=Movie";
+    const backend = createMockBackend({ seed: [{ url: magnet, state: "paused", size: 1000 }] });
+    const [movie] = await backend.list();
+    const id = movie?.id ?? -1;
+    const sizes = async () => (await backend.torrentView(id))?.files.map((file) => file.size);
+    const before = await sizes();
+    await backend.chooseFiles(id, [0]);
+    expect((await backend.list())[0]?.size).toBe(before?.[0]);
+    await backend.chooseFiles(id, [0, 1, 2]);
+    expect(await sizes()).toEqual(before);
+    expect((await backend.list())[0]?.size).toBe(1000);
+  });
 });

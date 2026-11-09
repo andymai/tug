@@ -271,6 +271,27 @@ describe("main window", () => {
     await capture(window, "remove");
   });
 
+  it("shows a torrent's files and its peers", async () => {
+    const magnet = "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056&dn=Open%20Movie%202026";
+    const { store, window } = await open([{ url: magnet, state: "downloading", progress: 0.43, size: 2.4 * 1024 * MB }, ...SHOWCASE]);
+    const id = store.getState().items.find((d) => d.name === "Open Movie 2026")?.id ?? -1;
+    act(() => {
+      store.getState().select(id);
+      store.getState().setInspectorTab("files");
+    });
+    await vi.waitFor(() => {
+      expect(document.querySelector('[role="tabpanel"] input[type="checkbox"]')).not.toBeNull();
+    });
+    await capture(window, "torrent-files");
+    act(() => {
+      store.getState().setInspectorTab("peers");
+    });
+    await vi.waitFor(() => {
+      expect(document.querySelector('[role="tabpanel"] table')).not.toBeNull();
+    });
+    await capture(window, "torrent-peers");
+  });
+
   it("offers Start next for a download that waits in the queue", async () => {
     const { window } = await showcase("blender-5.1-linux-x64.tar.xz");
     await capture(window, "detail-queued");

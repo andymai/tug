@@ -25,6 +25,8 @@ describe("tauri backend", () => {
     await tauriBackend.setOptions(3, 2, 1024);
     await tauriBackend.rename(3, "mine.iso");
     await tauriBackend.headers(3);
+    await tauriBackend.torrentView(3);
+    await tauriBackend.chooseFiles(3, [0, 2]);
     await tauriBackend.setHeaders(3, null, { kind: "keep" }, "Mozilla/5.0");
     await tauriBackend.chooseFolder("/data");
     await tauriBackend.pause(3);
@@ -50,6 +52,8 @@ describe("tauri backend", () => {
       ["set_download_options", { id: 3, connections: 2, speedLimit: 1024 }],
       ["rename_download", { id: 3, name: "mine.iso" }],
       ["download_headers", { id: 3 }],
+      ["torrent_view", { id: 3 }],
+      ["choose_torrent_files", { id: 3, files: [0, 2] }],
       ["set_download_headers", { id: 3, referrer: null, cookies: { kind: "keep" }, userAgent: "Mozilla/5.0" }],
       ["choose_folder", { from: "/data" }],
       ["pause_download", { id: 3 }],

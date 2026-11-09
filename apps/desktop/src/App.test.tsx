@@ -657,6 +657,81 @@ describe("detail panel", () => {
     expect(headers.getByRole("textbox", { name: "User agent" })).toHaveValue("");
   });
 
+  it("shows a torrent's files and peers, and takes the files you choose", async () => {
+    const magnet = "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056&dn=Open%20Movie";
+    const { backend, user } = open([
+      { url: magnet, state: "downloading", progress: 0.4, size: 2 * 1024 * MB },
+      { url: "https://example.org/plain.iso", state: "downloading", progress: 0.2 },
+    ]);
+    const chooseFiles = vi.spyOn(backend, "chooseFiles");
+    await user.click(await screen.findByRole("row", { name: /^Open Movie/ }));
+    const panel = within(screen.getByRole("complementary", { name: "Open Movie" }));
+    expect(panel.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Overview", "Files", "Peers"]);
+
+    await user.click(panel.getByRole("tab", { name: "Files" }));
+    const files = within(await panel.findByRole("region", { name: "Files" }));
+    expect(files.getAllByRole("checkbox").map((box) => box.getAttribute("aria-label"))).toEqual(["Open Movie.mkv", "README.txt", "Subtitles/en.srt"]);
+    await user.click(files.getByRole("checkbox", { name: "README.txt" }));
+    expect(chooseFiles).toHaveBeenLastCalledWith(expect.any(Number), [0, 1]);
+    await vi.waitFor(() => {
+      expect(files.getByRole("checkbox", { name: "README.txt" })).not.toBeChecked();
+    });
+    await user.click(files.getByRole("checkbox", { name: "Subtitles/en.srt" }));
+    await vi.waitFor(() => {
+      expect(files.getByRole("checkbox", { name: "Open Movie.mkv" }), "the last file stays").toBeDisabled();
+    });
+    await user.click(files.getByRole("button", { name: "Choose all" }));
+    await vi.waitFor(() => {
+      expect(files.getAllByRole("checkbox").every((box) => (box as HTMLInputElement).checked)).toBe(true);
+    });
+
+    await user.click(panel.getByRole("tab", { name: "Peers" }));
+    const peers = within(await panel.findByRole("region", { name: "Peers" }));
+    expect(peers.getByText("4 connected · 23 seen")).toBeInTheDocument();
+    expect(peers.getByText("203.0.113.20:6881")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("row", { name: /^plain\.iso/ }));
+    const plain = within(screen.getByRole("complementary", { name: "plain.iso" }));
+    expect(plain.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Overview", "Connections", "Log"]);
+    expect(plain.getByRole("tab", { name: "Overview" }), "a tab the download lacks shows its Overview").toHaveAttribute("aria-selected", "true");
+  });
+
+  it("takes one file choice at a time, and keeps the peer totals with no peer", async () => {
+    const magnet = "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056&dn=Open%20Movie";
+    const backend = createMockBackend({ seed: [{ url: magnet, state: "paused", progress: 0.4, size: 2 * 1024 * MB }] });
+    const answers: (() => void)[] = [];
+    const slow = {
+      ...backend,
+      chooseFiles: (id: number, files: number[]) =>
+        new Promise<Awaited<ReturnType<typeof backend.chooseFiles>>>((resolve) => {
+          answers.push(() => {
+            resolve(backend.chooseFiles(id, files));
+          });
+        }),
+    };
+    render(<App store={createDownloadsStore(slow)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^Open Movie/ }));
+    const panel = within(screen.getByRole("complementary", { name: "Open Movie" }));
+    await user.click(panel.getByRole("tab", { name: "Files" }));
+    const files = within(await panel.findByRole("region", { name: "Files" }));
+    await user.click(files.getByRole("checkbox", { name: "README.txt" }));
+    expect(files.getByRole("checkbox", { name: "Subtitles/en.srt" }), "no second choice during a save").toBeDisabled();
+    await act(async () => {
+      answers.shift()?.();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => {
+      expect(files.getByRole("checkbox", { name: "Subtitles/en.srt" })).toBeEnabled();
+    });
+
+    await user.click(panel.getByRole("tab", { name: "Peers" }));
+    const peers = within(await panel.findByRole("region", { name: "Peers" }));
+    expect(peers.getByText("0 connected · 0 seen")).toBeInTheDocument();
+    expect(peers.getByText("Tug shows the peers while the torrent runs.")).toBeInTheDocument();
+    expect(peers.getByText(/Sent to peers/)).toBeInTheDocument();
+  });
+
   it("closes with its button and with Escape", async () => {
     const { user } = open();
     const row = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });

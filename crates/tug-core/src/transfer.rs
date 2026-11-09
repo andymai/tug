@@ -104,6 +104,8 @@ pub struct TorrentJob {
     pub magnet: String,
     pub torrent: Option<(String, Vec<u8>)>,
     pub dir: PathBuf,
+    // The chosen files' indexes; None takes them all.
+    pub files: Option<Vec<usize>>,
 }
 
 type Learned = Arc<Mutex<Option<(String, Vec<u8>)>>>;
@@ -332,16 +334,18 @@ async fn run_torrent(
             let mut peers = swarm.options.peers.clone();
             peers.extend(meta.peers.iter().copied());
             session
-                .add(&meta.torrent, &folder, None, peers, false)
+                .add(&meta.torrent, &folder, job.files.clone(), peers, false)
                 .await?;
         }
         loop {
             session.set_download_limit(limiter.get());
+            let changes = swarm.changes.lock().await;
             let stats = session.stats(&hash)?;
             set(torrent_progress(&stats, &file));
             match stats.phase {
                 mdm_torrent::Phase::Finished => {
                     session.remove(&hash, false).await?;
+                    drop(changes);
                     return Ok(Finished {
                         path: file,
                         size: stats.total,
@@ -355,6 +359,7 @@ async fn run_torrent(
                 }
                 _ => {}
             }
+            drop(changes);
             tokio::select! {
                 () = tokio::time::sleep(POLL) => {}
                 () = stop_asked(&mut stopped) => {

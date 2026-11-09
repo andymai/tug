@@ -13,6 +13,7 @@ import {
   type Inspection,
   type ProgressBatch,
   type Settings,
+  type TorrentView,
 } from "./backend";
 
 export const PROGRESS_EVENT = "progress";
@@ -34,6 +35,8 @@ export const tauriBackend: Backend = {
   add: (url, dir, options) => call<Download>("add_download", { url, dir: dir ?? null, options: options ?? null }),
   setOptions: (id, connections, speedLimit) => call<Download>("set_download_options", { id, connections, speedLimit }),
   rename: (id, name) => call<Download>("rename_download", { id, name }),
+  torrentView: (id) => call<TorrentView | null>("torrent_view", { id }),
+  chooseFiles: (id, files) => call<TorrentView | null>("choose_torrent_files", { id, files }),
   headers: (id) => call<Headers>("download_headers", { id }),
   setHeaders: (id, referrer, cookies, userAgent) => call<Headers>("set_download_headers", { id, referrer, cookies, userAgent }),
   chooseFolder: (from) => call<string | null>("choose_folder", { from: from ?? null }),

@@ -50,6 +50,9 @@ impl TorrentSource {
 pub struct Swarm {
     pub options: TorrentOptions,
     session: OnceCell<Torrents>,
+    // A transfer holds it from reading a torrent finished to taking it out of the
+    // session, and a file choice holds it too, so no choice lands in between.
+    pub changes: tokio::sync::Mutex<()>,
 }
 
 impl Swarm {
@@ -57,6 +60,7 @@ impl Swarm {
         Self {
             options,
             session: OnceCell::new(),
+            changes: tokio::sync::Mutex::new(()),
         }
     }
 
@@ -72,5 +76,64 @@ impl Swarm {
                 Torrents::start(config)
             })
             .await
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TorrentView {
+    pub files: Vec<TorrentFile>,
+    pub peers: Vec<TorrentPeer>,
+    pub uploaded: u64,
+    pub peers_live: usize,
+    pub peers_seen: usize,
+}
+
+// `index` is its place in the .torrent's list, which a choice names; padding
+// files never show.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TorrentFile {
+    pub index: usize,
+    pub path: PathBuf,
+    pub size: u64,
+    pub done: u64,
+    pub chosen: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TorrentPeer {
+    pub address: String,
+    pub client: Option<String>,
+    pub received: u64,
+    pub sent: u64,
+    // "tcp" or "utp".
+    pub transport: Option<String>,
+}
+
+pub fn files_of(
+    entries: &[mdm_torrent::FileEntry],
+    chosen: Option<&[usize]>,
+    done: impl Fn(usize) -> u64,
+) -> Vec<TorrentFile> {
+    entries
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| !entry.padding)
+        .map(|(index, entry)| TorrentFile {
+            index,
+            path: entry.path.clone(),
+            size: entry.size,
+            done: done(index).min(entry.size),
+            chosen: chosen.is_none_or(|chosen| chosen.contains(&index)),
+        })
+        .collect()
+}
+
+pub fn peer_of(peer: mdm_torrent::Peer) -> TorrentPeer {
+    TorrentPeer {
+        address: peer.addr,
+        client: peer.client,
+        received: peer.fetched,
+        sent: peer.uploaded,
+        transport: peer.kind,
     }
 }

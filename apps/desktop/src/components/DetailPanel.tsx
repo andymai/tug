@@ -20,7 +20,7 @@ import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
 import { canRename, chosen, modalOpen, single } from "../state/downloads";
 import { Button } from "./Button";
-import { ConnectionsPanel, InspectorTabs, LogPanel, tabIds, useInspection } from "./Inspector";
+import { ConnectionsPanel, FilesPanel, HTTP_TABS, InspectorTabs, LogPanel, PeersPanel, tabIds, TORRENT_TABS, useInspection, useTorrentView } from "./Inspector";
 
 interface Fact {
   label: string;
@@ -378,11 +378,15 @@ function Panel({ download }: { download: Download }) {
   const showInFolder = useDownloads((s) => s.showInFolder);
   const notify = useDownloads((s) => s.notify);
   const store = useDownloadsStore();
-  const tab = useDownloads((s) => s.inspectorTab);
+  const chosenTab = useDownloads((s) => s.inspectorTab);
+  const torrent = download.url.startsWith("magnet:");
+  const tabs = torrent ? TORRENT_TABS : HTTP_TABS;
+  const tab = tabs.some((entry) => entry.id === chosenTab) ? chosenTab : "overview";
   const renaming = useDownloads((s) => s.renaming === download.id);
   const startRename = useDownloads((s) => s.startRename);
   const setTab = useDownloads((s) => s.setInspectorTab);
-  const seen = useInspection(download, tab !== "overview");
+  const seen = useInspection(download, !torrent && tab !== "overview");
+  const torrentView = useTorrentView(download, torrent && tab !== "overview");
   const [copied, setCopied] = useState(false);
   const titleId = useId();
   const tabBase = useId();
@@ -526,7 +530,7 @@ function Panel({ download }: { download: Download }) {
           {copied ? "Copied" : "Copy link"}
         </Button>
       </div>
-      <InspectorTabs base={tabBase} tab={tab} onChange={setTab} />
+      <InspectorTabs base={tabBase} tabs={tabs} tab={tab} onChange={setTab} />
       <div role="tabpanel" id={tabIds(tabBase, tab).panel} aria-labelledby={tabIds(tabBase, tab).tab}>
         {tab === "overview" && (
           <>
@@ -555,6 +559,8 @@ function Panel({ download }: { download: Download }) {
         )}
         {tab === "connections" && <ConnectionsPanel download={download} seen={seen} />}
         {tab === "log" && <LogPanel seen={seen} />}
+        {tab === "files" && <FilesPanel download={download} view={torrentView} />}
+        {tab === "peers" && <PeersPanel download={download} view={torrentView} />}
       </div>
     </aside>
   );

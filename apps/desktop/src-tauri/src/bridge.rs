@@ -11,7 +11,7 @@ use tug_core::{
     AddOptions, Appearance, Batch, Category, ConnectionStatus, Cookies, Download, DownloadId,
     DownloadState, Event, EventKind, Inspection, Library, LibraryError, Origin, Phase, Place,
     ProgressStream, SavedView, Schedule, Settings, SlowHours, Store, StreamOptions, TorrentOptions,
-    TorrentSource, Update,
+    TorrentSource, TorrentView, Update,
 };
 use url::Url;
 
@@ -156,6 +156,79 @@ impl AddOptionsDto {
             self.user_agent.as_deref(),
         )
         .map_err(|e| CommandError::invalid(e.to_string()))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "TorrentView")]
+pub struct TorrentViewDto {
+    pub files: Vec<TorrentFileDto>,
+    pub peers: Vec<TorrentPeerDto>,
+    #[ts(type = "number")]
+    pub uploaded: u64,
+    #[ts(type = "number")]
+    pub peers_live: usize,
+    #[ts(type = "number")]
+    pub peers_seen: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "TorrentFile")]
+pub struct TorrentFileDto {
+    #[ts(type = "number")]
+    pub index: usize,
+    pub path: String,
+    #[ts(type = "number")]
+    pub size: u64,
+    #[ts(type = "number")]
+    pub done: u64,
+    pub chosen: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename = "TorrentPeer")]
+pub struct TorrentPeerDto {
+    pub address: String,
+    pub client: Option<String>,
+    #[ts(type = "number")]
+    pub received: u64,
+    #[ts(type = "number")]
+    pub sent: u64,
+    pub transport: Option<String>,
+}
+
+impl From<TorrentView> for TorrentViewDto {
+    fn from(view: TorrentView) -> Self {
+        Self {
+            files: view
+                .files
+                .into_iter()
+                .map(|f| TorrentFileDto {
+                    index: f.index,
+                    path: f.path.to_string_lossy().into_owned(),
+                    size: f.size,
+                    done: f.done,
+                    chosen: f.chosen,
+                })
+                .collect(),
+            peers: view
+                .peers
+                .into_iter()
+                .map(|p| TorrentPeerDto {
+                    address: p.address,
+                    client: p.client,
+                    received: p.received,
+                    sent: p.sent,
+                    transport: p.transport,
+                })
+                .collect(),
+            uploaded: view.uploaded,
+            peers_live: view.peers_live,
+            peers_seen: view.peers_seen,
+        }
     }
 }
 
@@ -721,7 +794,11 @@ impl From<LibraryError> for CommandError {
             | LibraryError::CantRename
             | LibraryError::NameTaken(_)
             | LibraryError::NoHeaders
-            | LibraryError::Origin(_) => ErrorKind::Invalid,
+            | LibraryError::Origin(_)
+            | LibraryError::NoFileList
+            | LibraryError::BadFiles
+            | LibraryError::TorrentDone
+            | LibraryError::TorrentBusy => ErrorKind::Invalid,
             LibraryError::Store(_) | LibraryError::Delete { .. } | LibraryError::Rename { .. } => {
                 ErrorKind::Storage
             }
@@ -987,6 +1064,33 @@ pub fn set_download_headers(
         user_agent.as_deref(),
     )?;
     Ok(HeadersDto::from(&origin))
+}
+
+#[tauri::command]
+pub async fn torrent_view(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<Option<TorrentViewDto>, CommandError> {
+    Ok(state
+        .library
+        .torrent_view(DownloadId::from(id))
+        .await?
+        .map(TorrentViewDto::from))
+}
+
+#[tauri::command]
+pub async fn choose_torrent_files(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+    files: Vec<usize>,
+) -> Result<Option<TorrentViewDto>, CommandError> {
+    let id = DownloadId::from(id);
+    state.library.choose_files(id, &files).await?;
+    Ok(state
+        .library
+        .torrent_view(id)
+        .await?
+        .map(TorrentViewDto::from))
 }
 
 #[tauri::command]

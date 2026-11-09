@@ -1,16 +1,24 @@
 import { Check, Copy } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
-import type { Connection, ConnectionStatus, Download, Inspection, Segment, Server } from "../backend/backend";
+import type { Connection, ConnectionStatus, Download, Inspection, Segment, Server, TorrentView } from "../backend/backend";
 import { formatBytes, formatDate, formatSeconds, formatSpeed, sentence } from "../lib/format";
 import { useDownloads } from "../state/context";
 import type { InspectorTab } from "../state/downloads";
 import { Button } from "./Button";
 
-export const TABS: readonly { id: InspectorTab; label: string }[] = [
+type Tabs = readonly { id: InspectorTab; label: string }[];
+
+export const HTTP_TABS: Tabs = [
   { id: "overview", label: "Overview" },
   { id: "connections", label: "Connections" },
   { id: "log", label: "Log" },
+];
+
+export const TORRENT_TABS: Tabs = [
+  { id: "overview", label: "Overview" },
+  { id: "files", label: "Files" },
+  { id: "peers", label: "Peers" },
 ];
 
 const INSPECT_EVERY_MS = 1000;
@@ -19,22 +27,22 @@ export function tabIds(base: string, tab: InspectorTab) {
   return { tab: `${base}-tab-${tab}`, panel: `${base}-panel-${tab}` };
 }
 
-export function InspectorTabs({ base, tab, onChange }: { base: string; tab: InspectorTab; onChange: (tab: InspectorTab) => void }) {
+export function InspectorTabs({ base, tabs, tab, onChange }: { base: string; tabs: Tabs; tab: InspectorTab; onChange: (tab: InspectorTab) => void }) {
   const list = useRef<HTMLDivElement>(null);
   const move = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const at = TABS.findIndex((entry) => entry.id === tab);
-    const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: TABS.length - 1 }[event.key];
+    const at = tabs.findIndex((entry) => entry.id === tab);
+    const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: tabs.length - 1 }[event.key];
     if (to === undefined) return;
     event.preventDefault();
     event.stopPropagation();
-    const next = TABS[(to + TABS.length) % TABS.length];
+    const next = tabs[(to + tabs.length) % tabs.length];
     if (next === undefined) return;
     onChange(next.id);
     list.current?.querySelector<HTMLElement>(`#${CSS.escape(tabIds(base, next.id).tab)}`)?.focus();
   };
   return (
     <div ref={list} role="tablist" aria-label="Details" className="flex gap-1 border-b border-line px-3">
-      {TABS.map((entry) => {
+      {tabs.map((entry) => {
         const ids = tabIds(base, entry.id);
         return (
           <button
@@ -282,5 +290,148 @@ export function LogPanel({ seen }: { seen: Inspection | null | undefined }) {
         ))}
       </ol>
     </div>
+  );
+}
+
+// Polls while the torrent runs, and reads once more when it stops.
+export function useTorrentView(download: Download, watching: boolean): TorrentView | null | undefined {
+  const load = useDownloads((s) => s.loadTorrent);
+  const view = useDownloads((s) => (s.torrent?.id === download.id ? s.torrent.data : undefined));
+  const running = download.state === "downloading";
+  useEffect(() => {
+    if (!watching) return;
+    void load(download.id);
+    if (!running) return;
+    const timer = setInterval(() => void load(download.id), INSPECT_EVERY_MS);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [watching, running, download.id, load]);
+  return view;
+}
+
+const NO_LIST = "Tug shows a torrent's files and peers once its peers send its list of files.";
+
+// One choice at a time: each builds on the last saved one, so a second click
+// during a save could tick a file again.
+export function FilesPanel({ download, view }: { download: Download; view: TorrentView | null | undefined }) {
+  const chooseFiles = useDownloads((s) => s.chooseFiles);
+  const [saving, setSaving] = useState(false);
+  const headingId = useId();
+  if (view === undefined) return null;
+  if (view === null) return <Empty>{NO_LIST}</Empty>;
+  const chosen = view.files.filter((file) => file.chosen);
+  const size = chosen.reduce((sum, file) => sum + file.size, 0);
+  const done = download.state === "done";
+  const choose = (files: number[]) => {
+    setSaving(true);
+    void chooseFiles(download.id, files).finally(() => {
+      setSaving(false);
+    });
+  };
+  const files = [...view.files].sort((a, b) => a.path.localeCompare(b.path));
+  return (
+    <section aria-labelledby={headingId} className="px-4 py-4">
+      <Heading id={headingId} end={`${String(chosen.length)} of ${String(view.files.length)} · ${formatBytes(size)}`}>
+        Files
+      </Heading>
+      {!done && chosen.length < view.files.length && (
+        <div className="pb-2">
+          <Button
+            size="sm"
+            variant="quiet"
+            disabled={saving}
+            onClick={() => {
+              choose(view.files.map((file) => file.index));
+            }}
+          >
+            Choose all
+          </Button>
+        </div>
+      )}
+      <ul className="flex flex-col gap-1.5 text-small">
+        {files.map((file) => {
+          const only = file.chosen && chosen.length === 1;
+          return (
+            <li key={file.index} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2">
+              <input
+                type="checkbox"
+                aria-label={file.path}
+                checked={file.chosen}
+                disabled={done || only || saving}
+                title={only ? "A torrent needs at least one file" : undefined}
+                onChange={() => {
+                  choose(chosen.map((c) => c.index).filter((index) => index !== file.index).concat(file.chosen ? [] : [file.index]));
+                }}
+                className="size-4 accent-primary"
+              />
+              <span className={`truncate ${file.chosen ? "text-ink" : "text-ink-muted"}`} title={file.path}>
+                {file.path}
+              </span>
+              <span className="text-mono text-ink-muted">
+                {file.chosen ? `${String(file.size === 0 ? 100 : Math.floor((file.done / file.size) * 100))}% · ` : ""}
+                {formatBytes(file.size)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+export function PeersPanel({ download, view }: { download: Download; view: TorrentView | null | undefined }) {
+  const headingId = useId();
+  if (view === undefined) return null;
+  if (view === null) return <Empty>{NO_LIST}</Empty>;
+  return (
+    <section aria-labelledby={headingId} className="px-4 py-4">
+      <Heading id={headingId} end={`${String(view.peersLive)} connected · ${String(view.peersSeen)} seen`}>
+        Peers
+      </Heading>
+      {view.peers.length === 0 ? (
+        <p className="text-small text-ink-muted">
+          {download.state === "downloading" ? "No peer is connected now." : "Tug shows the peers while the torrent runs."}
+        </p>
+      ) : (
+        <table aria-labelledby={headingId} className="w-full table-fixed border-collapse text-small">
+          <colgroup>
+            <col />
+            <col className="w-20" />
+            <col className="w-16" />
+          </colgroup>
+          <thead>
+            <tr className="text-label text-ink-muted">
+              <th scope="col" className="h-6 text-left font-medium">
+                Peer
+              </th>
+              <th scope="col" className="text-right font-medium">
+                Received
+              </th>
+              <th scope="col" className="text-right font-medium">
+                Sent
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {view.peers.map((peer) => (
+              <tr key={peer.address} className="border-t border-line">
+                <td className="py-1" title={[peer.address, peer.client, peer.transport?.toUpperCase()].filter((part) => part != null).join(" · ")}>
+                  <span className="block truncate text-mono text-ink">{peer.address}</span>
+                  <span className="block truncate text-ink-muted">
+                    {[peer.client ?? "Unknown client", peer.transport?.toUpperCase()].filter((part) => part !== undefined).join(" · ")}
+                  </span>
+                </td>
+                <td className="text-right text-mono text-ink">{formatBytes(peer.received)}</td>
+                <td className="text-right text-mono text-ink-muted">{peer.sent > 0 ? formatBytes(peer.sent) : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="pt-2 text-small text-ink-muted">
+        Sent to peers: <span className="text-mono text-ink">{formatBytes(view.uploaded)}</span>
+      </p>
+    </section>
   );
 }

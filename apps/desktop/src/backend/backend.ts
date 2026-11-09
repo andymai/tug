@@ -11,6 +11,7 @@ import type { Inspection } from "./bindings/Inspection";
 import type { Place } from "./bindings/Place";
 import type { ProgressBatch } from "./bindings/ProgressBatch";
 import type { Settings } from "./bindings/Settings";
+import type { TorrentView } from "./bindings/TorrentView";
 
 export type { AddOptions } from "./bindings/AddOptions";
 export type { Appearance } from "./bindings/Appearance";
@@ -38,6 +39,9 @@ export type { Schedule } from "./bindings/Schedule";
 export type { Segment } from "./bindings/Segment";
 export type { Server } from "./bindings/Server";
 export type { Settings } from "./bindings/Settings";
+export type { TorrentFile } from "./bindings/TorrentFile";
+export type { TorrentPeer } from "./bindings/TorrentPeer";
+export type { TorrentView } from "./bindings/TorrentView";
 
 export type ResizeEdge = "North" | "South" | "East" | "West" | "NorthEast" | "NorthWest" | "SouthEast" | "SouthWest";
 
@@ -59,6 +63,9 @@ export interface Backend {
   setOptions(id: number, connections: number | null, speedLimit: number | null): Promise<Download>;
   // Before it starts it takes the name; after it finishes its file does.
   rename(id: number, name: string): Promise<Download>;
+  // A torrent's files and peers; null until its .torrent is known.
+  torrentView(id: number): Promise<TorrentView | null>;
+  chooseFiles(id: number, files: number[]): Promise<TorrentView | null>;
   // The browser's referrer and User-Agent, and whether cookies go along; never the cookies.
   headers(id: number): Promise<Headers>;
   setHeaders(id: number, referrer: string | null, cookies: CookiesChange, userAgent: string | null): Promise<Headers>;

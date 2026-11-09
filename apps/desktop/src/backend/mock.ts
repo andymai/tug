@@ -12,6 +12,7 @@ import {
   type Headers,
   type Inspection,
   type Place,
+  type TorrentView,
   type ProgressBatch,
   type ProgressUpdate,
   type Settings,
@@ -98,6 +99,44 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   const downloads = new Map<number, Download>();
   const history = new Map<number, DownloadEvent[]>();
   const origins = new Map<number, { referrer: string | null; cookies: string | null; userAgent: string | null }>();
+  const chosenFiles = new Map<number, number[]>();
+  // The whole torrent's size, apart from the chosen files' size the row shows.
+  const fullSizes = new Map<number, number>();
+  // A torrent of three files, the first most of it, as many are.
+  const torrentFiles = (download: Download) => {
+    if (!fullSizes.has(download.id)) fullSizes.set(download.id, download.size ?? 0);
+    const size = fullSizes.get(download.id) ?? 0;
+    const stem = download.name.replace(/\.[^.]+$/, "");
+    return [
+      { index: 0, path: `${stem}.mkv`, size: Math.round(size * 0.97) },
+      { index: 1, path: "Subtitles/en.srt", size: Math.round(size * 0.02) },
+      { index: 2, path: "README.txt", size: size - Math.round(size * 0.97) - Math.round(size * 0.02) },
+    ];
+  };
+  const torrentOf = (download: Download): TorrentView | null => {
+    if (!download.url.startsWith("magnet:")) return null;
+    const chosen = chosenFiles.get(download.id) ?? [0, 1, 2];
+    const files = torrentFiles(download);
+    const wanted = files.filter((file) => chosen.includes(file.index)).reduce((sum, file) => sum + file.size, 0);
+    const share = wanted === 0 ? 0 : download.received / wanted;
+    const running = download.state === "downloading";
+    const clients = ["qBittorrent 5.1", "Transmission 4.0", "Deluge 2.2", null];
+    return {
+      files: files.map((file) => ({ ...file, chosen: chosen.includes(file.index), done: chosen.includes(file.index) ? Math.min(file.size, Math.round(file.size * share)) : 0 })),
+      peers: running
+        ? clients.map((client, at) => ({
+            address: `203.0.113.${String(20 + at)}:6881`,
+            client,
+            received: Math.round(download.received / (at + 2)),
+            sent: at === 0 ? 4 * 1024 * 1024 : 0,
+            transport: at % 2 === 0 ? "tcp" : "utp",
+          }))
+        : [],
+      uploaded: running ? 4 * 1024 * 1024 : 0,
+      peersLive: running ? clients.length : 0,
+      peersSeen: running ? 23 : 0,
+    };
+  };
   const headersOf = (id: number): Headers => {
     const origin = origins.get(id);
     return { referrer: origin?.referrer ?? null, userAgent: origin?.userAgent ?? null, hasCookies: (origin?.cookies ?? null) !== null };
@@ -457,6 +496,19 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         if (next.referrer === null && next.cookies === null && next.userAgent === null) origins.delete(id);
         else origins.set(id, next);
         return headersOf(id);
+      }),
+    torrentView: (id) => attempt(() => torrentOf(find(id))),
+    chooseFiles: (id, files) =>
+      attempt(() => {
+        const download = find(id);
+        if (!download.url.startsWith("magnet:")) throw new BackendError("invalid", "this is not a magnet link or a .torrent file");
+        if (download.state === "done") throw new BackendError("invalid", "a finished torrent's files are there already");
+        const chosen = [...new Set(files)].sort((a, b) => a - b);
+        if (chosen.length === 0 || chosen.some((index) => index < 0 || index > 2)) throw new BackendError("invalid", "choose at least one of the torrent's files");
+        chosenFiles.set(id, chosen);
+        download.size = torrentFiles(download).filter((file) => chosen.includes(file.index)).reduce((sum, file) => sum + file.size, 0);
+        revision += 1;
+        return torrentOf(download);
       }),
     chooseFolder: () => Promise.resolve(options.folder ?? "/home/you/Media/Downloads"),
     pause: (id) =>
