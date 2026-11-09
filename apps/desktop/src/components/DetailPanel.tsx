@@ -375,8 +375,11 @@ function SelectionPanel({ list }: { list: readonly Download[] }) {
   );
 }
 
+const NONE: readonly Download[] = [];
+
 export function DetailPanel() {
-  const list = useDownloads(useShallow((s) => chosen(s)));
+  // Sorting the view on every tick costs, so only for a real multiple selection.
+  const list = useDownloads(useShallow((s) => (s.marked.length > 1 ? chosen(s) : NONE)));
   const download = useDownloads((s) => s.items.find((item) => item.id === s.selected));
   if (list.length > 1) return <SelectionPanel list={list} />;
   if (!download) return null;
