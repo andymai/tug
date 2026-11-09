@@ -49,6 +49,7 @@ function AddForm({ titleId }: { titleId: string }) {
   const connectionsId = useId();
   const limitId = useId();
   const into = folder ?? downloadDir;
+  const savesTo = into === null || into.trim() === "" ? downloadDir : into.trim();
 
   const checks = useMemo(() => checkLinks(adding.text, items), [adding.text, items]);
   const duplicates = checks.filter((check) => check.kind === "duplicate");
@@ -62,13 +63,14 @@ function AddForm({ titleId }: { titleId: string }) {
     if (hrefs.length === 0 || adding.busy) return;
     const own = parseConnections(connections);
     const cap = parseLimit(limit);
-    if (!own.ok || !cap.ok) {
+    const dir = folder?.trim() ?? "";
+    const where = dir === "" || dir.startsWith("/") ? null : "Enter a full path, like /home/you/Downloads.";
+    if (!own.ok || !cap.ok || where !== null) {
       setMore(true);
-      setProblem(own.ok ? (cap.ok ? null : cap.problem) : own.problem);
+      setProblem(where ?? (own.ok ? (cap.ok ? null : cap.problem) : own.problem));
       return;
     }
     setProblem(null);
-    const dir = folder?.trim() ?? "";
     const add = { paused, first, connections: own.value, speedLimit: cap.value };
     void addLinks(hrefs, dir === "" || dir === downloadDir ? { add } : { dir, add });
   };
@@ -244,7 +246,7 @@ function AddForm({ titleId }: { titleId: string }) {
       )}
       <div className="flex items-center justify-between gap-3">
         <p className="min-w-0 truncate text-small text-ink-muted">
-          {into !== null && into.trim() !== "" && `Saves to ${shortDir(into)}`}
+          {savesTo !== null && `Saves to ${shortDir(savesTo)}`}
         </p>
         <div className="flex gap-2">
           <Button onClick={closeAdd}>Cancel</Button>

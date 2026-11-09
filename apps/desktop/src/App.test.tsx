@@ -162,6 +162,12 @@ describe("adding links", () => {
 
     await user.clear(dialog.getByRole("textbox", { name: "Connections" }));
     await user.type(dialog.getByRole("textbox", { name: "Connections" }), "4");
+    await user.clear(dialog.getByRole("textbox", { name: "Folder" }));
+    expect(dialog.getByText("Saves to Downloads"), "an empty folder is Tug's own").toBeInTheDocument();
+    await user.type(dialog.getByRole("textbox", { name: "Folder" }), "Media");
+    await user.click(dialog.getByRole("button", { name: "Add" }));
+    expect(dialog.getByRole("alert")).toHaveTextContent("Enter a full path, like /home/you/Downloads.");
+    expect(add).not.toHaveBeenCalled();
     await user.type(dialog.getByRole("textbox", { name: "Speed limit" }), "2");
     await user.click(dialog.getByRole("button", { name: "Choose…" }));
     expect(await dialog.findByText("Saves to Media/Downloads")).toBeInTheDocument();

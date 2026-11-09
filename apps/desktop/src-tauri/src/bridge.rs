@@ -822,7 +822,12 @@ pub async fn add_with_options(
         )));
     }
     let dir = match dir {
-        Some(dir) => PathBuf::from(dir),
+        Some(dir) if Path::new(dir).is_absolute() => PathBuf::from(dir),
+        Some(dir) => {
+            return Err(CommandError::invalid(format!(
+                "the folder must be a full path, like /home/you/Downloads, not {dir}"
+            )));
+        }
         None => library.settings()?.download_dir,
     };
     let id = if url.scheme() == "magnet" {
@@ -1606,6 +1611,16 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(refused.kind, ErrorKind::Invalid, "{}", refused.message);
+        let relative = add_with_options(
+            &library,
+            "https://example.org/here.iso",
+            Some("Downloads"),
+            &Origin::default(),
+            AddOptions::default(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(relative.kind, ErrorKind::Invalid, "{}", relative.message);
         let json: AddOptionsDto =
             serde_json::from_value(serde_json::json!({"first": true, "speedLimit": 2048})).unwrap();
         assert_eq!(

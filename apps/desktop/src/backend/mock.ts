@@ -352,6 +352,9 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     add: (url, dir, options) =>
       attempt(() => {
         checkOwn(options?.connections ?? null, options?.speedLimit ?? null);
+        if (dir !== undefined && !dir.startsWith("/")) {
+          throw new BackendError("invalid", `the folder must be a full path, like /home/you/Downloads, not ${dir}`);
+        }
         const download = addNow(url, dir);
         if (!url.trim().startsWith("magnet:")) {
           download.connections = options?.connections ?? null;
