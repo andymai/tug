@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -534,6 +535,8 @@ pub struct SettingsDto {
     pub saved_views: Vec<SavedViewDto>,
     pub columns: Vec<String>,
     pub sort: Option<String>,
+    #[ts(type = "Record<string, number>")]
+    pub widths: BTreeMap<String, u32>,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -559,6 +562,7 @@ impl From<&Settings> for SettingsDto {
                 .collect(),
             columns: s.columns.clone(),
             sort: s.sort.clone(),
+            widths: s.widths.clone(),
         }
     }
 }
@@ -601,6 +605,7 @@ impl From<SettingsDto> for Settings {
                 .collect(),
             columns: s.columns,
             sort: s.sort,
+            widths: s.widths,
         }
     }
 }
@@ -1309,6 +1314,7 @@ mod tests {
             saved_views: Vec::new(),
             columns: Vec::new(),
             sort: None,
+            widths: BTreeMap::new(),
         };
         let dto = SettingsDto {
             connections: 4,
@@ -1471,6 +1477,7 @@ mod tests {
             }],
             columns: Vec::new(),
             sort: None,
+            widths: BTreeMap::from([("size".to_owned(), 120)]),
         };
         assert_eq!(Settings::from(SettingsDto::from(&settings)), settings);
         let typed = SettingsDto {

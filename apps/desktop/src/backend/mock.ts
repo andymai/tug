@@ -100,7 +100,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     history.set(id, [...(history.get(id) ?? []), { kind, atMs, bytes, detail }]);
   };
   const listeners = new Set<(batch: ProgressBatch) => void>();
-  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null, slowHours: null, savedViews: [], columns: [], sort: null };
+  let settings: Settings = { downloadDir: "/home/you/Downloads", connections: 8, speedLimit: null, appearance: "system", excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null, slowHours: null, savedViews: [], columns: [], sort: null, widths: {} };
   let scheme = options.colorScheme ?? null;
   const schemeListeners = new Set<(scheme: ColorScheme | null) => void>();
   const noticeListeners = new Set<(message: string) => void>();
@@ -409,6 +409,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           if (start === stop) throw new BackendError("invalid", "a schedule must start and stop at different times");
         }
         if (next.savedViews.length > 50) throw new BackendError("invalid", "Tug keeps at most 50 saved views");
+        for (const [column, px] of Object.entries(next.widths)) {
+          if (!/^[a-z]{1,20}$/.test(column)) throw new BackendError("invalid", `${JSON.stringify(column)} isn't a column`);
+          if (px < 40 || px > 800) throw new BackendError("invalid", `a column is between 40 and 800 pixels wide, not ${String(px)} (${column})`);
+        }
         for (const [at, saved] of next.savedViews.entries()) {
           const plain = (text: string) => text.trim() !== "" && !/\p{Cc}/u.test(text);
           if (!plain(saved.name) || !plain(saved.query) || !/^[a-z]+$/.test(saved.view) || Array.from(saved.name).length > 60) {

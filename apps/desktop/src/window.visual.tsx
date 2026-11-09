@@ -137,6 +137,15 @@ describe("main window", () => {
     await capture(window, "columns");
   });
 
+  it("keeps the column widths the person set", async () => {
+    const { store, window } = await showcase();
+    await act(() => store.getState().saveSettings({ widths: { size: 120, source: 220, progress: 112 } }));
+    act(() => {
+      document.querySelector<HTMLElement>('[role="separator"][aria-label="Width of Size"]')?.focus();
+    });
+    await capture(window, "widths");
+  });
+
   it("shows the downloads of one type", async () => {
     const { store, window } = await showcase();
     act(() => {

@@ -59,10 +59,30 @@ function isColumn(value: string): value is ColumnId {
   return COLUMNS.some((column) => column.id === value);
 }
 
-export function columnsOf(settings: Pick<Settings, "columns"> | null): Column[] {
+// The same bounds as tug_core's MIN_COLUMN_WIDTH and MAX_COLUMN_WIDTH.
+export const MIN_WIDTH = 40;
+export const MAX_WIDTH = 800;
+
+export function clampWidth(px: number): number {
+  return Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, px)));
+}
+
+// The chosen columns, each at the width the person dragged it to, else its own.
+export function columnsOf(settings: (Pick<Settings, "columns"> & Partial<Pick<Settings, "widths">>) | null): Column[] {
   const chosen = (settings?.columns ?? []).filter(isColumn);
   const ids = new Set<ColumnId>(chosen.length === 0 ? DEFAULT_COLUMNS : [...FIXED, ...chosen]);
-  return COLUMNS.filter((column) => ids.has(column.id));
+  const widths = settings?.widths ?? {};
+  return COLUMNS.filter((column) => ids.has(column.id)).map((column) => {
+    const px = widths[column.id];
+    return column.px === undefined || px === undefined ? column : { ...column, px: clampWidth(px) };
+  });
+}
+
+// The widest a column can go while the name keeps its room.
+export function widest(columns: readonly Column[], id: ColumnId, width: number | null): number {
+  if (width === null) return MAX_WIDTH;
+  const others = columns.reduce((sum, column) => sum + (column.id === id ? 0 : (column.px ?? 0)), EDGES);
+  return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width - others - NAME_ROOM));
 }
 
 export function sortOf(settings: Pick<Settings, "sort"> | null): Sort {

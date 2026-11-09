@@ -29,7 +29,7 @@ describe("tauri backend", () => {
     await tauriBackend.events(3);
     await tauriBackend.inspect(3);
     await tauriBackend.settings();
-    const settings = { downloadDir: "/d", connections: 8, speedLimit: null, appearance: "system" as const, excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null, slowHours: null, savedViews: [], columns: [], sort: null };
+    const settings = { downloadDir: "/d", connections: 8, speedLimit: null, appearance: "system" as const, excludedSites: [], confirmCaptures: true, maxActive: 3, schedule: null, slowHours: null, savedViews: [], columns: [], sort: null, widths: {} };
     await tauriBackend.updateSettings(settings);
     await tauriBackend.chooseDownloadFolder();
     await tauriBackend.systemColorScheme();

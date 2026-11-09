@@ -973,6 +973,41 @@ describe("selection", () => {
 });
 
 describe("table", () => {
+  it("sets a column's width with the keys, a drag and a double-click", async () => {
+    const { backend, user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const handle = () => screen.getByRole("separator", { name: "Width of Size" });
+    const saved = async () => (await backend.settings()).widths;
+    expect(handle()).toHaveAttribute("aria-valuenow", "96");
+
+    handle().focus();
+    await user.keyboard("{ArrowRight}");
+    await vi.waitFor(async () => {
+      expect(await saved()).toEqual({ size: 104 });
+    });
+    await user.keyboard("{Shift>}{ArrowLeft}{/Shift}");
+    await vi.waitFor(async () => {
+      expect(await saved()).toEqual({ size: 72 });
+    });
+    expect(handle()).toHaveAttribute("aria-valuenow", "72");
+
+    // jsdom has no PointerEvent, so the pointer's place goes on by hand.
+    const at = (event: Event, x: number) => Object.defineProperty(event, "clientX", { value: x });
+    fireEvent(handle(), at(createEvent.pointerDown(handle(), { pointerId: 1 }), 500));
+    fireEvent(handle(), at(createEvent.pointerMove(handle(), { pointerId: 1 }), 560));
+    expect(handle(), "the column follows the pointer").toHaveAttribute("aria-valuenow", "132");
+    fireEvent(handle(), at(createEvent.pointerUp(handle(), { pointerId: 1 }), 560));
+    await vi.waitFor(async () => {
+      expect(await saved()).toEqual({ size: 132 });
+    });
+
+    await user.dblClick(handle());
+    await vi.waitFor(async () => {
+      expect(await saved()).toEqual({});
+    });
+    expect(handle()).toHaveAttribute("aria-valuenow", "96");
+  });
+
   it("sorts by a column's header, down first for numbers, and keeps the sort", async () => {
     const { backend, user } = open();
     await screen.findByText("fedora-kde-44-x86_64.iso");

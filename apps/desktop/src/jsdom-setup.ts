@@ -11,6 +11,17 @@ if (!("showModal" in HTMLDialogElement.prototype)) {
   });
 }
 
+if (!("setPointerCapture" in Element.prototype)) {
+  Object.assign(Element.prototype, {
+    setPointerCapture() {
+      return undefined;
+    },
+    releasePointerCapture() {
+      return undefined;
+    },
+  });
+}
+
 if (!("scrollIntoView" in Element.prototype)) {
   Object.assign(Element.prototype, {
     scrollIntoView() {
