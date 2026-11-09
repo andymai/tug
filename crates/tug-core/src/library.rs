@@ -131,6 +131,25 @@ impl Library {
         source: TorrentSource,
         dir: &Path,
     ) -> Result<DownloadId, LibraryError> {
+        let id = self.insert_torrent(source, dir, false).await?;
+        self.pump().await?;
+        Ok(id)
+    }
+
+    pub async fn add_torrent_paused(
+        &self,
+        source: TorrentSource,
+        dir: &Path,
+    ) -> Result<DownloadId, LibraryError> {
+        self.insert_torrent(source, dir, true).await
+    }
+
+    async fn insert_torrent(
+        &self,
+        source: TorrentSource,
+        dir: &Path,
+        paused: bool,
+    ) -> Result<DownloadId, LibraryError> {
         if self.swarm.is_none() {
             return Err(LibraryError::NoTorrents);
         }
@@ -142,12 +161,11 @@ impl Library {
         if let Some(twin) = self.unfinished_torrent(&hash)? {
             return Err(LibraryError::DuplicateTorrent(twin.name()));
         }
-        let id = self.insert(url, dir, &Origin::default(), false)?;
+        let id = self.insert(url, dir, &Origin::default(), paused)?;
         if let TorrentSource::File(bytes) = &source {
             self.store()?.set_torrent(id, &hash, bytes)?;
         }
         drop(running);
-        self.pump().await?;
         Ok(id)
     }
 
@@ -339,6 +357,11 @@ impl Library {
     pub async fn remove(&self, id: DownloadId, delete_file: bool) -> Result<(), LibraryError> {
         let mut running = self.running.lock().await;
         let download = self.get(id)?;
+        // Without its session Tug can't tell a torrent's files, so it keeps the
+        // download, unchanged, rather than say they went.
+        if delete_file && download.is_torrent() && self.swarm.is_none() {
+            return Err(LibraryError::NoTorrents);
+        }
         let stopped = running.remove(&id);
         // Held first, so a tick can't start a waiting download while its files go.
         if stopped.is_none() && download.state == DownloadState::Queued {
@@ -649,17 +672,8 @@ impl Library {
         torrent: Option<(String, Vec<u8>)>,
         delete_file: bool,
     ) -> Result<(), LibraryError> {
-        let Some((hash, bytes)) = torrent else {
+        let (Some(swarm), Some((hash, bytes))) = (&self.swarm, torrent) else {
             return Ok(());
-        };
-        // Without its session Tug can't tell a torrent's files, so it keeps the
-        // download rather than say they went.
-        let Some(swarm) = &self.swarm else {
-            return if delete_file {
-                Err(LibraryError::NoTorrents)
-            } else {
-                Ok(())
-            };
         };
         let session = swarm.session().await?;
         if session.has(&hash) {

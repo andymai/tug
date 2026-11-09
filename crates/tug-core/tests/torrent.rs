@@ -2,12 +2,12 @@
 
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use mdm_torrent::{Config, Phase, Torrents};
 use tug_core::{
-    DownloadId, DownloadState, EventKind, Library, LibraryError, Settings, Store, TorrentOptions,
-    TorrentSource,
+    DownloadId, DownloadState, EventKind, Library, LibraryError, NewDownload, Schedule, Settings,
+    Store, TorrentOptions, TorrentSource,
 };
 
 fn bytes(len: u32, step: u32) -> Vec<u8> {
@@ -211,6 +211,45 @@ async fn a_tug_without_torrents_keeps_a_torrent_it_cant_delete() {
     assert!(got.join("kept.bin").exists());
     plain.remove(id, false).await.unwrap();
     assert!(got.join("kept.bin").exists());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_refused_delete_leaves_a_waiting_torrent_as_it_was() {
+    let tmp = tempfile::tempdir().unwrap();
+    let db = tmp.path().join("tug.db");
+    {
+        let library = Library::open(Store::open(&db).unwrap()).await.unwrap();
+        let (_, minute) = tug_core::local_now();
+        let later = |by: u16| (minute + by) % tug_core::MINUTES_PER_DAY;
+        library
+            .update_settings(Settings {
+                schedule: Some(Schedule {
+                    days: Schedule::EVERY_DAY,
+                    start: later(120),
+                    stop: later(180),
+                }),
+                ..library.settings().unwrap()
+            })
+            .unwrap();
+    }
+    let id = Store::open(&db)
+        .unwrap()
+        .insert(&NewDownload {
+            url: "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567"
+                .parse()
+                .unwrap(),
+            dir: tmp.path().to_owned(),
+            added: SystemTime::now(),
+        })
+        .unwrap();
+
+    let plain = Library::open(Store::open(&db).unwrap()).await.unwrap();
+    assert_eq!(plain.get(id).unwrap().state, DownloadState::Queued);
+    assert!(matches!(
+        plain.remove(id, true).await,
+        Err(LibraryError::NoTorrents)
+    ));
+    assert_eq!(plain.get(id).unwrap().state, DownloadState::Queued);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
