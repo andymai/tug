@@ -32,6 +32,7 @@ export const tauriBackend: Backend = {
   list: () => call<Download[]>("list_downloads"),
   add: (url, dir, options) => call<Download>("add_download", { url, dir: dir ?? null, options: options ?? null }),
   setOptions: (id, connections, speedLimit) => call<Download>("set_download_options", { id, connections, speedLimit }),
+  rename: (id, name) => call<Download>("rename_download", { id, name }),
   chooseFolder: (from) => call<string | null>("choose_folder", { from: from ?? null }),
   search: (query) => call<number[]>("search_downloads", { query }),
   diskFree: () => call<number | null>("disk_free"),

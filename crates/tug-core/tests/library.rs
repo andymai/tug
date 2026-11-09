@@ -703,6 +703,79 @@ async fn an_add_can_wait_paused_or_go_first_in_the_queue() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_download_takes_a_name_before_it_starts_and_its_file_one_after_it_finishes() {
+    let lab = LabServer::start(Config::default()).await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let library = Library::open(Store::open_in_memory().unwrap())
+        .await
+        .unwrap();
+
+    let url = lab.url("/gen/1M/server-name.bin?seed=9").parse().unwrap();
+    let id = library
+        .add_with(
+            url,
+            dir.path(),
+            &Origin::default(),
+            AddOptions {
+                paused: true,
+                name: Some(" first-name.bin ".into()),
+                ..AddOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(library.get(id).unwrap().name(), "first-name.bin");
+    library.rename(id, "my-name.bin").await.unwrap();
+    assert_eq!(library.search("my name").unwrap(), [id]);
+    library.resume(id).await.unwrap();
+    tick_until(&library, |l| state_of(l, id) == DownloadState::Done).await;
+    let done = library.get(id).unwrap().file.unwrap();
+    assert_eq!(done, dir.path().join("my-name.bin"));
+    assert_intact(&done, 9, 1 << 20);
+
+    std::fs::write(dir.path().join("taken.bin"), b"mine").unwrap();
+    assert!(matches!(
+        library.rename(id, "taken.bin").await,
+        Err(LibraryError::NameTaken(_))
+    ));
+    assert_eq!(
+        std::fs::read(dir.path().join("taken.bin")).unwrap(),
+        b"mine"
+    );
+    for bad in ["", " ", "..", "a/b.bin"] {
+        assert!(
+            matches!(library.rename(id, bad).await, Err(LibraryError::BadName(_))),
+            "{bad:?}"
+        );
+    }
+    library.rename(id, "final.bin").await.unwrap();
+    let renamed = library.get(id).unwrap();
+    assert_eq!(
+        renamed.file.as_deref(),
+        Some(dir.path().join("final.bin").as_path())
+    );
+    assert_eq!(renamed.name(), "final.bin");
+    assert_intact(&dir.path().join("final.bin"), 9, 1 << 20);
+    assert!(!done.exists());
+
+    let url = lab
+        .url("/gen/8M/busy.bin?seed=10&rate=64K")
+        .parse()
+        .unwrap();
+    let busy = library.add(url, dir.path()).await.unwrap();
+    received_at_least(&library, busy, 64 << 10).await;
+    assert!(matches!(
+        library.rename(busy, "other.bin").await,
+        Err(LibraryError::CantRename)
+    ));
+    library.pause(busy).await.unwrap();
+    assert!(matches!(
+        library.rename(busy, "other.bin").await,
+        Err(LibraryError::CantRename)
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_missing_file_fails_with_the_reason() {
     let lab = LabServer::start(Config::default()).await.unwrap();
     let dir = tempfile::tempdir().unwrap();

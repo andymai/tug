@@ -239,6 +239,7 @@ mod tests {
             position: 1,
             connections: None,
             speed_limit: None,
+            own_name: None,
         }
     }
 

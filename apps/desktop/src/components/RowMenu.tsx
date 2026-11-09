@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Copy, ExternalLink, FolderOpen, ListEnd, ListStart, type LucideIcon, Pause, Play, RotateCw, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, ExternalLink, FolderOpen, ListEnd, ListStart, type LucideIcon, Pause, Pencil, Play, RotateCw, Trash2 } from "lucide-react";
 import { Fragment, type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 
@@ -6,7 +6,7 @@ import type { Download } from "../backend/backend";
 import { focusRow } from "../lib/dom";
 import { ICON } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
-import { chosen, type DownloadsState } from "../state/downloads";
+import { canRename, chosen, type DownloadsState } from "../state/downloads";
 
 interface Entry {
   id: string;
@@ -27,6 +27,17 @@ export function entriesFor(list: readonly Download[], state: DownloadsState): En
   const open: Entry[] = [];
   if (one?.state === "done") open.push({ id: "open", label: "Open", icon: ExternalLink, run: () => void state.openFile(one.id) });
   if (one !== undefined) open.push({ id: "folder", label: "Open folder", icon: FolderOpen, run: () => void state.showInFolder(one.id) });
+  if (one !== undefined && canRename(one)) {
+    open.push({
+      id: "rename",
+      label: "Rename…",
+      icon: Pencil,
+      keepsFocus: true,
+      run: () => {
+        state.startRename(one.id);
+      },
+    });
+  }
   open.push({
     id: "copy",
     label: one === undefined ? "Copy links" : "Copy link",

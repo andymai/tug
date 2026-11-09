@@ -42,8 +42,10 @@ function AddForm({ titleId }: { titleId: string }) {
   const [limit, setLimit] = useState("");
   const [paused, setPaused] = useState(false);
   const [first, setFirst] = useState(false);
+  const [name, setName] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const fieldId = useId();
+  const nameId = useId();
   const optionsId = useId();
   const folderId = useId();
   const connectionsId = useId();
@@ -57,6 +59,8 @@ function AddForm({ titleId }: { titleId: string }) {
     check.kind === "ready" || (check.kind === "duplicate" && again) ? [check.href] : [],
   );
   const label = hrefs.length > 1 ? `Add ${String(hrefs.length)} links` : "Add";
+  // A torrent keeps its own name.
+  const named = hrefs.length === 1 && hrefs[0]?.startsWith("magnet:") === false;
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -71,7 +75,8 @@ function AddForm({ titleId }: { titleId: string }) {
       return;
     }
     setProblem(null);
-    const add = { paused, first, connections: own.value, speedLimit: cap.value };
+    const one = named && name.trim() !== "" ? name.trim() : null;
+    const add = { paused, first, connections: own.value, speedLimit: cap.value, name: one };
     void addLinks(hrefs, dir === "" || dir === downloadDir ? { add } : { dir, add });
   };
 
@@ -149,6 +154,23 @@ function AddForm({ titleId }: { titleId: string }) {
         </button>
         {more && (
           <div id={optionsId} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-small">
+            {named && (
+              <>
+                <label htmlFor={nameId} className="text-ink-muted">
+                  Name
+                </label>
+                <input
+                  id={nameId}
+                  spellCheck={false}
+                  value={name}
+                  placeholder={checks.find((check) => check.kind === "ready")?.name ?? ""}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                  }}
+                  className="h-[30px] min-w-0 rounded-sm border border-control-border bg-surface px-2 text-body text-ink placeholder:text-ink-faint"
+                />
+              </>
+            )}
             <label htmlFor={folderId} className="text-ink-muted">
               Folder
             </label>

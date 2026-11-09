@@ -16,6 +16,7 @@ import {
   Settings,
   type LucideIcon,
   Pause,
+  Pencil,
   Search,
   Play,
   Plus,
@@ -24,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 
-import { chosen, type DownloadsStore, savedViewOf, single, type StateView } from "../state/downloads";
+import { canRename, chosen, type DownloadsStore, savedViewOf, single, type StateView } from "../state/downloads";
 import { CATEGORIES } from "./categories";
 import { focusRow } from "./dom";
 
@@ -245,6 +246,20 @@ export function commands(store: DownloadsStore): Command[] {
     }
     list.push(
       { id: "folder", title: "Open folder", group: "Selected download", icon: FolderOpen, run: () => void state.showInFolder(id) },
+      ...(canRename(selected)
+        ? [
+            {
+              id: "rename",
+              title: "Rename…",
+              group: "Selected download" as const,
+              icon: Pencil,
+              keys: { key: "f2", label: ["F2"] },
+              run: () => {
+                state.startRename(id);
+              },
+            },
+          ]
+        : []),
       {
         id: "copy",
         title: "Copy link",
@@ -351,6 +366,7 @@ export const KEYMAP: readonly { group: string; entries: readonly { title: string
       { title: "Move down in the queue", label: ["Alt", "↓"] },
       { title: "Menu for the selection", label: ["Shift", "F10"] },
       { title: "Pause, resume or retry", label: ["P"] },
+      { title: "Rename", label: ["F2"] },
       { title: "Remove", label: ["Del"] },
       { title: "Open a finished file", label: ["Ctrl", "O"] },
     ],

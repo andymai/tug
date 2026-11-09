@@ -163,6 +163,14 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     if (speedLimit === 0) throw new BackendError("invalid", "a speed limit must be above zero");
   };
 
+  const fileName = (name: string) => {
+    const plain = name.trim();
+    if (plain === "" || plain === "." || plain === ".." || plain.includes("/") || new TextEncoder().encode(plain).length > 255) {
+      throw new BackendError("invalid", `${JSON.stringify(plain)} can't be a file name`);
+    }
+    return plain;
+  };
+
   const queue = () =>
     [...downloads.values()].filter((d) => d.state === "queued").sort((a, b) => a.position - b.position);
 
@@ -352,6 +360,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     add: (url, dir, options) =>
       attempt(() => {
         checkOwn(options?.connections ?? null, options?.speedLimit ?? null);
+        const named = options?.name == null || url.trim().startsWith("magnet:") ? null : fileName(options.name);
         if (dir !== undefined && !dir.startsWith("/")) {
           throw new BackendError("invalid", `the folder must be a full path, like /home/you/Downloads, not ${dir}`);
         }
@@ -359,6 +368,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         if (!url.trim().startsWith("magnet:")) {
           download.connections = options?.connections ?? null;
           download.speedLimit = options?.speedLimit ?? null;
+          if (named !== null) {
+            download.name = named;
+            download.category = categoryOf(named);
+          }
           if (options?.first === true) place(download.id, "first");
         }
         if (options?.paused === true) download.state = "paused";
@@ -371,6 +384,22 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const download = find(id);
         download.connections = connections;
         download.speedLimit = speedLimit;
+        revision += 1;
+        return { ...download };
+      }),
+    rename: (id, name) =>
+      attempt(() => {
+        const download = find(id);
+        const plain = fileName(name);
+        const notStarted = download.file === null && download.state !== "downloading";
+        if (download.url.startsWith("magnet:") || !(notStarted || download.state === "done")) {
+          throw new BackendError("invalid", "Tug renames a download before it starts or after it finishes");
+        }
+        const taken = [...downloads.values()].some((d) => d.id !== id && d.dir === download.dir && d.name === plain && d.state === "done");
+        if (download.state === "done" && taken) throw new BackendError("invalid", `${plain} is in that folder already`);
+        download.name = plain;
+        download.category = categoryOf(plain);
+        if (download.file !== null) download.file = `${download.dir}/${plain}`;
         revision += 1;
         return { ...download };
       }),

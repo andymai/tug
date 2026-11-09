@@ -217,4 +217,12 @@ describe("mock backend", () => {
     expect(seen.at(-1)).toHaveLength(1);
     expect((await backend.list()).find((d) => d.id === first?.id)?.state).toBe("paused");
   });
+  it("refuses a bad name before it adds a row, and a new name brings its type", async () => {
+    const backend = createMockBackend({ seed: [{ url: "https://example.org/fonts.zip", state: "done" }] });
+    await expect(backend.add("https://example.org/a.iso", undefined, { paused: false, first: false, connections: null, speedLimit: null, name: "a/b" })).rejects.toThrow(/can't be a file name/);
+    expect((await backend.list()).map((d) => d.name)).toEqual(["fonts.zip"]);
+    const [fonts] = await backend.list();
+    const renamed = await backend.rename(fonts?.id ?? -1, "fonts.iso");
+    expect(renamed.category).toBe("disk");
+  });
 });
