@@ -137,6 +137,16 @@ describe("main window", () => {
     await capture(window, "settings");
   });
 
+  it("lists the sites Tug leaves to the browser", async () => {
+    const { store, window } = await open(SHOWCASE);
+    await act(async () => {
+      await store.getState().saveSettings({ excludedSites: ["mail.example.org", "bank.example.com"] });
+      store.getState().setPage("settings");
+    });
+    document.getElementById("settings-browsers")?.scrollIntoView({ block: "start" });
+    await capture(window, "settings-sites");
+  });
+
   it("stays dark when the person picks dark, whatever the system says", async () => {
     const { store, window } = await showcase();
     await act(async () => {

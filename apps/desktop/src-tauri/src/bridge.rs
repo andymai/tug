@@ -264,6 +264,7 @@ pub struct SettingsDto {
     #[ts(type = "number | null")]
     pub speed_limit: Option<u64>,
     pub appearance: AppearanceDto,
+    pub excluded_sites: Vec<String>,
 }
 
 impl From<&Settings> for SettingsDto {
@@ -273,6 +274,7 @@ impl From<&Settings> for SettingsDto {
             connections: s.connections,
             speed_limit: s.speed_limit,
             appearance: s.appearance.into(),
+            excluded_sites: s.excluded_sites.clone(),
         }
     }
 }
@@ -295,6 +297,11 @@ impl From<SettingsDto> for Settings {
             connections: s.connections,
             speed_limit: s.speed_limit,
             appearance: s.appearance.into(),
+            excluded_sites: s
+                .excluded_sites
+                .into_iter()
+                .map(|entry| tug_core::site(&entry).unwrap_or(entry))
+                .collect(),
         }
     }
 }
@@ -743,6 +750,7 @@ mod tests {
             connections: 8,
             speed_limit: None,
             appearance: Appearance::System,
+            excluded_sites: Vec::new(),
         };
         let dto = SettingsDto {
             connections: 4,
@@ -846,8 +854,18 @@ mod tests {
             connections: 12,
             speed_limit: Some(1 << 20),
             appearance: Appearance::System,
+            excluded_sites: vec!["example.org".into()],
         };
         assert_eq!(Settings::from(SettingsDto::from(&settings)), settings);
+        let typed = SettingsDto {
+            excluded_sites: vec!["https://Mail.Example.net/inbox".into(), "not a site".into()],
+            ..SettingsDto::from(&settings)
+        };
+        assert_eq!(
+            Settings::from(typed).excluded_sites,
+            vec!["mail.example.net".to_owned(), "not a site".to_owned()],
+            "the store refuses what isn't a site"
+        );
     }
 
     #[tokio::test]

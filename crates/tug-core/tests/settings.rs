@@ -31,6 +31,7 @@ async fn settings_survive_a_reopen() {
         connections: 12,
         speed_limit: Some(3 << 20),
         appearance: Appearance::System,
+        excluded_sites: vec!["example.org".into()],
     };
     Library::open(Store::open(&db).unwrap())
         .await
@@ -72,6 +73,7 @@ async fn the_global_speed_limit_holds_downloads_back() {
             connections: 4,
             speed_limit: Some(1 << 20),
             appearance: Appearance::System,
+            excluded_sites: Vec::new(),
         })
         .unwrap();
 
@@ -96,6 +98,7 @@ async fn lifting_the_limit_speeds_up_a_running_download() {
         connections: 4,
         speed_limit: Some(256 << 10),
         appearance: Appearance::System,
+        excluded_sites: Vec::new(),
     };
     library.update_settings(limited.clone()).unwrap();
 

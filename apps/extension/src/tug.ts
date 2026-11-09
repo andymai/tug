@@ -17,9 +17,10 @@ function reasonOf(failed: unknown): string | undefined {
   return isRecord(first) && typeof first.reason === "string" ? first.reason : "Tug couldn't add the link";
 }
 
-export async function addToTug(api: Api, urls: readonly string[], origin: Origin): Promise<Taken> {
+export async function addToTug(api: Api, urls: readonly string[], origin: Origin, capture: boolean): Promise<Taken> {
   next += 1;
-  const reply = await api.runtime.sendNativeMessage(HOST, { id: next, type: "add", urls, ...origin });
+  const message = { id: next, type: "add", urls, ...origin, ...(capture ? { capture } : {}) };
+  const reply = await api.runtime.sendNativeMessage(HOST, message);
   if (!isRecord(reply)) return { ok: false, reason: "Tug sent an answer it can't read" };
   if (reply.ok !== true) {
     return { ok: false, reason: typeof reply.error === "string" ? reply.error : "Tug refused the link" };

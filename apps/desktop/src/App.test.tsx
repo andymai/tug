@@ -447,6 +447,37 @@ describe("settings page", () => {
     expect(screen.queryByRole("textbox", { name: "Speed limit" })).not.toBeInTheDocument();
   });
 
+  it("keeps a list of sites that Tug leaves to the browser", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    const field = screen.getByRole("textbox", { name: "Sites Tug leaves to the browser" });
+    const add = screen.getByRole("button", { name: "Add" });
+    expect(add).toBeDisabled();
+
+    await user.type(field, "https://Mail.Example.org/inbox{Enter}");
+    expect((await backend.settings()).excludedSites).toEqual(["mail.example.org"]);
+    expect(field).toHaveValue("");
+    await user.type(field, "*.bank.example");
+    await user.click(add);
+    expect((await backend.settings()).excludedSites).toEqual(["mail.example.org", "bank.example"]);
+
+    await user.type(field, "mail.example.org{Enter}");
+    expect((await backend.settings()).excludedSites).toEqual(["mail.example.org", "bank.example"]);
+
+    await user.type(field, "exa mple{Enter}");
+    expect(screen.getByText("Enter a site, like example.org.")).toBeInTheDocument();
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    await user.type(field, "x");
+    expect(screen.queryByText("Enter a site, like example.org.")).not.toBeInTheDocument();
+
+    const list = screen.getByRole("list", { name: "Sites Tug leaves to the browser" });
+    expect(within(list).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["mail.example.org", "bank.example"]);
+    await user.click(screen.getByRole("button", { name: "Remove mail.example.org" }));
+    expect((await backend.settings()).excludedSites).toEqual(["bank.example"]);
+  });
+
   it("goes to a download from the settings page", async () => {
     const { user } = open();
     await screen.findByText("fedora-kde-44-x86_64.iso");

@@ -10,7 +10,7 @@ pub use origin::{Origin, OriginError};
 pub use progress::{
     Batch, MIN_INTERVAL, ProgressStream, Smoother, StreamOptions, Update, time_left,
 };
-pub use settings::{Appearance, DEFAULT_CONNECTIONS, Settings, SettingsError};
+pub use settings::{Appearance, DEFAULT_CONNECTIONS, Settings, SettingsError, site};
 pub use store::{
     Download, DownloadId, DownloadState, Event, EventKind, NewDownload, Store, StoreError,
 };

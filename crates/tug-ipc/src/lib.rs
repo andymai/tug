@@ -73,6 +73,8 @@ pub enum Request {
         urls: Vec<String>,
         #[serde(flatten)]
         origin: Origin,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        capture: bool,
     },
     List,
 }

@@ -34,6 +34,7 @@ describe("capture", () => {
         referrer: "https://example.org/get",
         cookies: "files=2; site=1",
         user_agent: UA,
+        capture: true,
       },
     ]);
     expect(fake.cookieQueries).toEqual([{ url: ISO }]);
@@ -41,6 +42,15 @@ describe("capture", () => {
 
   it.each([
     ["Tug refuses", () => Promise.resolve({ ok: false, error: "Tug didn't start in time" })],
+    [
+      "the site is on Tug's list",
+      () =>
+        Promise.resolve({
+          ok: true,
+          added: [],
+          failed: [{ url: ISO, reason: "Tug leaves downloads from example.org to the browser" }],
+        }),
+    ],
     ["Tug can't add the link", () => Promise.resolve({ ok: true, added: [], failed: [{ url: ISO, reason: "no" }] })],
     ["the host is missing", () => Promise.reject(new Error("Specified native messaging host not found."))],
     ["the answer is unreadable", () => Promise.resolve("?")],
@@ -70,7 +80,7 @@ describe("capture", () => {
   it("sends no referrer that isn't a web page, and no empty cookies", async () => {
     const fake = fakeBrowser();
     await new Capture(fake.api, UA).created(download({ referrer: "about:blank" }));
-    expect(fake.sent[0]).toEqual({ id: expect.any(Number) as number, type: "add", urls: [ISO], user_agent: UA });
+    expect(fake.sent[0]).toEqual({ id: expect.any(Number) as number, type: "add", urls: [ISO], user_agent: UA, capture: true });
   });
 
   it("reads the cookies of the download's own container", async () => {
@@ -99,6 +109,7 @@ describe("Download with Tug", () => {
     );
     expect(outcome).toBe("tug");
     expect(fake.sent[0]).toMatchObject({ urls: [ISO], referrer: "https://example.org/frame" });
+    expect(fake.sent[0]).not.toHaveProperty("capture");
     expect(fake.cookieQueries).toEqual([{ url: ISO, storeId: "firefox-container-1" }]);
     expect(fake.calls).toEqual([`native ${HOST}`]);
   });

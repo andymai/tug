@@ -136,6 +136,7 @@ async fn an_add_carries_the_browser_origin_to_tug() {
             "referrer": "https://example.org/files",
             "cookies": "session=abc",
             "user_agent": "Mozilla/5.0",
+            "capture": true,
         }),
     )
     .await;
@@ -149,6 +150,7 @@ async fn an_add_carries_the_browser_origin_to_tug() {
                 cookies: Some("session=abc".into()),
                 user_agent: Some("Mozilla/5.0".into()),
             },
+            capture: true,
         })
     );
 }

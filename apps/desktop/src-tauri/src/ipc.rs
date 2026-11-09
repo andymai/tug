@@ -2,10 +2,19 @@ use std::future::Future;
 use std::sync::Arc;
 
 use tauri::{AppHandle, Manager, Runtime};
-use tug_core::{Download, DownloadId, Library, Origin};
+use tug_core::{Download, DownloadId, Library, Origin, Settings};
 use tug_ipc::{Endpoint, Entry, Failure, Handler, IpcError, Request, Response, Server};
 
+use url::Url;
+
 use crate::{bridge, tray};
+
+fn declined(settings: &Settings, link: &str, referrer: Option<&Url>) -> Option<String> {
+    let link = Url::parse(link.trim()).ok()?;
+    settings
+        .excluded_site(&link, referrer)
+        .map(|site| format!("Tug leaves downloads from {site} to the browser"))
+}
 
 pub fn entry(d: &Download) -> Entry {
     Entry {
@@ -36,7 +45,11 @@ impl<R: Runtime> Handler for DesktopHandler<R> {
                     }
                     Response::Shown
                 }
-                Request::Add { urls, origin } => {
+                Request::Add {
+                    urls,
+                    origin,
+                    capture,
+                } => {
                     let mut added = Vec::new();
                     let mut failed = Vec::new();
                     let origin = Origin::new(
@@ -44,10 +57,20 @@ impl<R: Runtime> Handler for DesktopHandler<R> {
                         origin.cookies.as_deref(),
                         origin.user_agent.as_deref(),
                     );
+                    let settings = if capture {
+                        library.settings().ok()
+                    } else {
+                        None
+                    };
                     for url in urls {
-                        let result = match &origin {
-                            Ok(origin) => bridge::add(&library, &url, None, origin).await,
-                            Err(e) => Err(bridge::CommandError::invalid(e.to_string())),
+                        let excluded = settings.as_ref().and_then(|settings| {
+                            let referrer = origin.as_ref().ok().and_then(Origin::referrer);
+                            declined(settings, &url, referrer)
+                        });
+                        let result = match (&origin, excluded) {
+                            (_, Some(reason)) => Err(bridge::CommandError::invalid(reason)),
+                            (Ok(origin), None) => bridge::add(&library, &url, None, origin).await,
+                            (Err(e), None) => Err(bridge::CommandError::invalid(e.to_string())),
                         }
                         .and_then(|dto| Ok(library.get(DownloadId::from(dto.id))?));
                         match result {
@@ -96,4 +119,30 @@ pub fn serve<R: Runtime>(app: &AppHandle<R>, library: Arc<Library>, server: Serv
         library,
     });
     tauri::async_runtime::spawn(server.serve(handler));
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+
+    #[test]
+    fn a_capture_from_an_excluded_site_or_page_is_declined_with_the_reason() {
+        let settings = Settings {
+            excluded_sites: vec!["example.org".into()],
+            ..Settings::default()
+        };
+        let page = Url::parse("https://www.example.org/inbox").unwrap();
+        assert_eq!(
+            declined(&settings, "https://files.example.org/a.iso", None).as_deref(),
+            Some("Tug leaves downloads from example.org to the browser")
+        );
+        assert!(declined(&settings, "https://cdn.other.net/a.iso", Some(&page)).is_some());
+        assert_eq!(
+            declined(&settings, "https://cdn.other.net/a.iso", None),
+            None
+        );
+        assert_eq!(declined(&settings, "not a link", Some(&page)), None);
+    }
 }

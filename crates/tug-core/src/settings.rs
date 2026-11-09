@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use mdm_engine::download::MAX_CONNECTIONS;
+use url::Url;
 
 use crate::store::{Store, StoreError};
 
@@ -13,6 +14,7 @@ const DOWNLOAD_DIR: &str = "download_dir";
 const CONNECTIONS: &str = "connections";
 const SPEED_LIMIT: &str = "speed_limit";
 const APPEARANCE: &str = "appearance";
+const EXCLUDED_SITES: &str = "excluded_sites";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Appearance {
@@ -51,6 +53,7 @@ pub struct Settings {
     pub connections: u32,
     pub speed_limit: Option<u64>,
     pub appearance: Appearance,
+    pub excluded_sites: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -61,6 +64,26 @@ pub enum SettingsError {
     ZeroSpeedLimit,
     #[error("the download folder must be an absolute path, not {}", .0.display())]
     RelativeDir(PathBuf),
+    #[error("{0:?} isn't a site, like example.org")]
+    Site(String),
+    #[error("{0} is in the list twice")]
+    DuplicateSite(String),
+}
+
+pub fn site(input: &str) -> Result<String, SettingsError> {
+    let refuse = || SettingsError::Site(input.to_owned());
+    let trimmed = input.trim();
+    let bare = trimmed.strip_prefix("*.").unwrap_or(trimmed);
+    let link = if bare.contains("://") {
+        Url::parse(bare)
+    } else {
+        Url::parse(&format!("https://{bare}"))
+    }
+    .map_err(|_| refuse())?;
+    match link.host_str() {
+        Some(host) if !host.is_empty() => Ok(host.trim_end_matches('.').to_owned()),
+        _ => Err(refuse()),
+    }
 }
 
 impl Default for Settings {
@@ -70,6 +93,7 @@ impl Default for Settings {
             connections: DEFAULT_CONNECTIONS,
             speed_limit: None,
             appearance: Appearance::System,
+            excluded_sites: Vec::new(),
         }
     }
 }
@@ -85,7 +109,32 @@ impl Settings {
         if !self.download_dir.is_absolute() {
             return Err(SettingsError::RelativeDir(self.download_dir.clone()));
         }
+        for (at, entry) in self.excluded_sites.iter().enumerate() {
+            if site(entry).ok().as_ref() != Some(entry) {
+                return Err(SettingsError::Site(entry.clone()));
+            }
+            if self.excluded_sites[..at].contains(entry) {
+                return Err(SettingsError::DuplicateSite(entry.clone()));
+            }
+        }
         Ok(())
+    }
+
+    pub fn excluded_site<'a>(&'a self, link: &Url, referrer: Option<&Url>) -> Option<&'a str> {
+        let hosts: Vec<&str> = [Some(link), referrer]
+            .into_iter()
+            .flatten()
+            .filter_map(Url::host_str)
+            .collect();
+        self.excluded_sites
+            .iter()
+            .find(|entry| {
+                hosts.iter().any(|host| {
+                    host.strip_suffix(entry.as_str())
+                        .is_some_and(|rest| rest.is_empty() || rest.ends_with('.'))
+                })
+            })
+            .map(String::as_str)
     }
 
     pub(crate) fn load(store: &Store) -> Result<Self, StoreError> {
@@ -108,11 +157,20 @@ impl Settings {
             .setting(APPEARANCE)?
             .and_then(|v| v.parse().ok())
             .unwrap_or_default();
+        let mut excluded_sites: Vec<String> = Vec::new();
+        for entry in store.setting(EXCLUDED_SITES)?.unwrap_or_default().lines() {
+            if site(entry).ok().as_deref() == Some(entry)
+                && !excluded_sites.iter().any(|e| e == entry)
+            {
+                excluded_sites.push(entry.to_owned());
+            }
+        }
         Ok(Self {
             download_dir,
             connections,
             speed_limit,
             appearance,
+            excluded_sites,
         })
     }
 
@@ -126,6 +184,11 @@ impl Settings {
             }
         }
         store.set_setting(APPEARANCE, self.appearance.as_str())?;
+        if self.excluded_sites.is_empty() {
+            store.remove_setting(EXCLUDED_SITES)?;
+        } else {
+            store.set_setting(EXCLUDED_SITES, &self.excluded_sites.join("\n"))?;
+        }
         Ok(())
     }
 }
@@ -146,7 +209,89 @@ mod tests {
             connections: 8,
             speed_limit: None,
             appearance: Appearance::System,
+            excluded_sites: Vec::new(),
         }
+    }
+
+    fn sites(entries: &[&str]) -> Settings {
+        Settings {
+            excluded_sites: entries.iter().map(|&e| e.to_owned()).collect(),
+            ..valid()
+        }
+    }
+
+    fn link(text: &str) -> Url {
+        Url::parse(text).unwrap()
+    }
+
+    #[test]
+    fn a_site_is_its_host_however_it_is_typed() {
+        for (typed, host) in [
+            ("example.org", "example.org"),
+            ("  Example.ORG ", "example.org"),
+            ("https://mail.example.org/inbox?x=1", "mail.example.org"),
+            ("*.example.org", "example.org"),
+            ("example.org:8080/files", "example.org"),
+            ("example.org.", "example.org"),
+            ("bücher.example", "xn--bcher-kva.example"),
+            ("127.0.0.1", "127.0.0.1"),
+        ] {
+            assert_eq!(site(typed), Ok(host.to_owned()), "{typed}");
+        }
+        for typed in ["", "   ", "https://", "exa mple.org", "[::1"] {
+            assert_eq!(
+                site(typed),
+                Err(SettingsError::Site(typed.to_owned())),
+                "{typed:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_site_covers_its_subdomains_and_the_pages_on_it() {
+        let settings = sites(&["example.org"]);
+        assert_eq!(
+            settings.excluded_site(&link("https://example.org/a.iso"), None),
+            Some("example.org")
+        );
+        assert_eq!(
+            settings.excluded_site(&link("https://cdn.example.org/a.iso"), None),
+            Some("example.org")
+        );
+        assert_eq!(
+            settings.excluded_site(
+                &link("https://cdn.other.net/a.iso"),
+                Some(&link("https://www.example.org/page"))
+            ),
+            Some("example.org")
+        );
+        assert_eq!(
+            settings.excluded_site(&link("https://badexample.org/a.iso"), None),
+            None
+        );
+        assert_eq!(
+            settings.excluded_site(&link("https://example.org.evil.net/a.iso"), None),
+            None
+        );
+        assert_eq!(
+            sites(&[]).excluded_site(&link("https://example.org/"), None),
+            None
+        );
+    }
+
+    #[test]
+    fn excluded_sites_must_be_clean_and_once() {
+        assert_eq!(
+            sites(&["Example.org"]).validate(),
+            Err(SettingsError::Site("Example.org".into()))
+        );
+        assert_eq!(
+            sites(&["example.org", "example.org"]).validate(),
+            Err(SettingsError::DuplicateSite("example.org".into()))
+        );
+        sites(&["example.org", "mail.example.net"])
+            .validate()
+            .unwrap();
     }
 
     #[test]
@@ -183,12 +328,14 @@ mod tests {
             connections: 16,
             speed_limit: Some(2 << 20),
             appearance: Appearance::Dark,
+            excluded_sites: vec!["example.org".into(), "mail.example.net".into()],
         };
         settings.save(&store).unwrap();
         assert_eq!(Settings::load(&store).unwrap(), settings);
 
         let unlimited = Settings {
             speed_limit: None,
+            excluded_sites: Vec::new(),
             ..settings
         };
         unlimited.save(&store).unwrap();
@@ -200,7 +347,11 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         store.set_setting(CONNECTIONS, "lots").unwrap();
         store.set_setting(SPEED_LIMIT, "0").unwrap();
+        store
+            .set_setting(EXCLUDED_SITES, "example.org\nNot A Site\nexample.org")
+            .unwrap();
         let loaded = Settings::load(&store).unwrap();
+        assert_eq!(loaded.excluded_sites, vec!["example.org".to_owned()]);
         assert_eq!(
             (loaded.connections, loaded.speed_limit),
             (DEFAULT_CONNECTIONS, None)
