@@ -5,6 +5,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
+    "beforeBundleCommand": "cargo build --release --locked -p tug-host",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },
@@ -40,6 +41,11 @@
     "linux": {
       "deb": {
         "desktopTemplate": "../../../packaging/appimage.desktop.hbs"
+      },
+      "appimage": {
+        "files": {
+          "/usr/bin/tug-host": "../../../target/release/tug-host"
+        }
       }
     }
   }
