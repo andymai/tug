@@ -4,9 +4,8 @@ import { useShallow } from "zustand/shallow";
 
 import markDark from "../../../../brand/svg/mark-dark.svg";
 import mark from "../../../../brand/svg/mark.svg";
-import { formatSpeed, sentence } from "../lib/format";
+import { sentence } from "../lib/format";
 import { CATEGORIES, isCategory } from "../lib/categories";
-import { openAt } from "../lib/schedule";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
@@ -15,6 +14,7 @@ import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
 import { WindowControls } from "./WindowControls";
 import { DownloadTable } from "./DownloadTable";
+import { StatusBar } from "./StatusBar";
 
 const TITLES: Record<StateView, string> = {
   all: "All downloads",
@@ -29,34 +29,6 @@ const EMPTY: Record<StateView, { title: string; body: string }> = {
   done: { title: "Nothing done yet", body: "Finished downloads show up here." },
   failed: { title: "Nothing failed", body: "Downloads that fail show up here, with the reason." },
 };
-
-function Summary() {
-  const { count, speed, waiting } = useDownloads(
-    useShallow((s) => {
-      const running = s.items.filter((item) => item.state === "downloading");
-      const schedule = s.settings?.schedule ?? null;
-      return {
-        count: running.length,
-        speed: running.reduce((sum, item) => sum + (s.live[item.id]?.speed ?? 0), 0),
-        waiting: schedule !== null && s.items.some((item) => item.state === "queued") && !openAt(schedule, new Date()),
-      };
-    }),
-  );
-  if (count === 0) {
-    return waiting ? <p className="truncate text-small text-ink-muted @max-xl/main:hidden">Outside the scheduled hours</p> : null;
-  }
-  return (
-    <p className="truncate text-small text-ink-muted @max-xl/main:hidden">
-      {count} downloading
-      {speed > 0 && (
-        <>
-          {" · "}
-          <span className="text-mono">{formatSpeed(speed)}</span>
-        </>
-      )}
-    </p>
-  );
-}
 
 function SearchField() {
   const search = useDownloads((s) => s.search);
@@ -181,7 +153,6 @@ export function DownloadList() {
         </h1>
         <div className="flex min-w-0 items-center gap-4">
           <SearchField />
-          <Summary />
           <Button
             variant="primary"
             icon={Plus}
@@ -211,6 +182,7 @@ export function DownloadList() {
         </div>
         <DetailPanel />
       </div>
+      <StatusBar />
     </main>
   );
 }

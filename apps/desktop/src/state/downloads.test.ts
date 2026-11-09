@@ -257,6 +257,33 @@ describe("downloads store", () => {
     expect(store.getState().notice).toBe("couldn't save the view: the disk is full");
   });
 
+  it("keeps one total speed a second, newest last, for a minute", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const { store } = await ready();
+      const batch = (speed: number) => ({
+        seq: 1,
+        updates: [{ id: 1, phase: "downloading" as const, received: 0, total: null, speed, leftMs: null, connections: 1 }],
+        settled: [],
+        revision: 0,
+        error: null,
+      });
+      store.getState().applyBatch(batch(5));
+      store.getState().applyBatch(batch(7));
+      vi.setSystemTime(Date.now() + 1000);
+      store.getState().applyBatch(batch(9));
+      expect(store.getState().speeds).toEqual([5, 9]);
+      for (let at = 0; at < 70; at++) {
+        vi.setSystemTime(Date.now() + 1000);
+        store.getState().applyBatch(batch(at));
+      }
+      expect(store.getState().speeds).toHaveLength(60);
+      expect(store.getState().speeds.at(-1)).toBe(69);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("retries a failed download", async () => {
     const { store } = await ready();
     const failed = store.getState().items.find((d) => d.state === "failed");

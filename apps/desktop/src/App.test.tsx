@@ -66,7 +66,9 @@ describe("main window", () => {
     const fedora = row("fedora-kde-44-x86_64.iso");
     expect(fedora.getByText("18.4 MB/s")).toBeInTheDocument();
     expect(fedora.getByText(/^\d+:\d{2}$/)).toBeInTheDocument();
-    expect(screen.getByText(/1 downloading/)).toBeInTheDocument();
+    const status = within(screen.getByRole("region", { name: "Status" }));
+    expect(status.getByText("1 running · 1 queued · 1 paused")).toBeInTheDocument();
+    expect(status.getByText("18.4 MB/s")).toBeInTheDocument();
   });
 
   it("filters by view and retries a failed download", async () => {
@@ -629,6 +631,36 @@ describe("types", () => {
     await user.type(bar.getByRole("combobox"), "disk images");
     await user.keyboard("{Enter}");
     expect(screen.getByRole("heading", { level: 1, name: "Disk images" })).toBeInTheDocument();
+  });
+});
+
+describe("status bar", () => {
+  it("shows the free space and turns the speed limit on and off", async () => {
+    const { backend, user } = open();
+    const status = within(await screen.findByRole("region", { name: "Status" }));
+    expect(await status.findByText("412 GB")).toBeInTheDocument();
+    const limit = status.getByRole("button", { name: /No limit/ });
+    expect(limit).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(limit);
+    expect((await backend.settings()).speedLimit).toBe(10 * MB);
+    expect(status.getByRole("button", { name: /Limit 10\.0 MB\/s/ })).toHaveAttribute("aria-pressed", "true");
+    await user.click(status.getByRole("button", { name: /Limit/ }));
+    expect((await backend.settings()).speedLimit).toBeNull();
+  });
+
+  it("says when the slower hours hold the speed down", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const now = new Date();
+    const minute = now.getHours() * 60 + now.getMinutes();
+    await backend.updateSettings({
+      ...(await backend.settings()),
+      speedLimit: 8 * MB,
+      slowHours: { limit: 2 * MB, hours: { days: 0b111_1111, start: (minute + 1380) % 1440, stop: (minute + 60) % 1440 } },
+    });
+    render(<App store={createDownloadsStore(backend)} />);
+    const status = within(await screen.findByRole("region", { name: "Status" }));
+    expect(await status.findByRole("button", { name: /Slower hours 2\.00 MB\/s/ })).toHaveAttribute("aria-pressed", "true");
   });
 });
 

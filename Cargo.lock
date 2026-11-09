@@ -6215,6 +6215,7 @@ dependencies = [
  "mdm-labserver",
  "mdm-torrent",
  "rusqlite",
+ "rustix",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",

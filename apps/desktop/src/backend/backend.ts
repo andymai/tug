@@ -40,6 +40,7 @@ export interface WindowControls {
 export interface Backend {
   list(): Promise<Download[]>;
   search(query: string): Promise<number[]>;
+  diskFree(): Promise<number | null>;
   add(url: string, dir?: string): Promise<Download>;
   pause(id: number): Promise<void>;
   resume(id: number): Promise<void>;
