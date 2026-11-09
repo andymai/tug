@@ -15,6 +15,7 @@ import {
   type Inspection,
   type Place,
   type ProgressBatch,
+  type TorrentView,
   type ProgressUpdate,
   type ResizeEdge,
   type SavedView,
@@ -125,6 +126,9 @@ export interface DownloadsState {
   showInFolder: (id: number) => Promise<void>;
   loadHistory: (id: number) => Promise<void>;
   inspect: (id: number) => Promise<void>;
+  torrent: { id: number; data: TorrentView | null } | null;
+  loadTorrent: (id: number) => Promise<void>;
+  chooseFiles: (id: number, files: number[]) => Promise<void>;
   setInspectorTab: (tab: InspectorTab) => void;
   notify: (message: string) => void;
   dismissNotice: () => void;
@@ -152,7 +156,7 @@ export interface DownloadsState {
 
 export type Overlay = "commands" | "shortcuts" | null;
 
-export type InspectorTab = "overview" | "connections" | "log";
+export type InspectorTab = "overview" | "connections" | "log" | "files" | "peers";
 
 export type Page = "downloads" | "settings";
 
@@ -176,6 +180,7 @@ export function createDownloadsStore(backend: Backend) {
     let disk: Promise<void> | null = null;
     let diskAsked = 0;
     let inspectRequest = 0;
+    let torrentRequest = 0;
     let headersRequest = 0;
 
     // One by one, then one reload, and one notice for what failed.
@@ -277,6 +282,7 @@ export function createDownloadsStore(backend: Backend) {
       fresh: [],
       history: null,
       inspection: null,
+      torrent: null,
       inspectorTab: "overview",
       overlay: null,
       focusRequest: null,
@@ -703,6 +709,28 @@ export function createDownloadsStore(backend: Backend) {
           const failure = BackendError.from(error);
           // A download removed between two polls; its panel closes with it.
           if (failure.kind !== "notFound") set({ notice: failure.message });
+        }
+      },
+
+      loadTorrent: async (id) => {
+        const request = ++torrentRequest;
+        try {
+          const data = await backend.torrentView(id);
+          if (request === torrentRequest && shownId(get()) === id) set({ torrent: { id, data } });
+        } catch (error) {
+          const failure = BackendError.from(error);
+          if (failure.kind !== "notFound") set({ notice: failure.message });
+        }
+      },
+
+      chooseFiles: async (id, files) => {
+        try {
+          const data = await backend.chooseFiles(id, files);
+          ++torrentRequest;
+          if (shownId(get()) === id) set({ torrent: { id, data } });
+          await get().reload();
+        } catch (error) {
+          set({ notice: `couldn't choose the files: ${BackendError.from(error).message}` });
         }
       },
 
