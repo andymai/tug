@@ -1,0 +1,23 @@
+scripts/test_publish_extension.py
+  s_b321718d129a1e::t_ee747c73532ab8 3,107-149
+  s_b321718d129a1e::t_98c25ab3eda6b7 10
+  s_b321718d129a1e::t_09a64adaca0e61 150-151
+scripts/publish-extension.py
+  s_b321718d129a1e::t_98c25ab3eda6b7 84-89,91-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ed5d1accbf63b9f2212ead87ad25cada1e04a032",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
