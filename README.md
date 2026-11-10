@@ -14,7 +14,7 @@ Tug pulls every file over many connections and picks up exactly where it stopped
 [![Rust 1.95+](https://img.shields.io/badge/rust-1.95%2B-orange.svg)](https://www.rust-lang.org/)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](#architecture)
 
-**[Install](#install)** · **[Status](#status)** · **[Highlights](#highlights)** · **[Scope](#scope)** · **[Architecture](#architecture)** · **[Build](#build-from-source)** · **[Contributing](CONTRIBUTING.md)**
+**[Features](#features)** · **[Install](#install)** · **[Status](#status)** · **[Architecture](#architecture)** · **[Build](#build-from-source)** · **[Contributing](CONTRIBUTING.md)**
 
 https://github.com/user-attachments/assets/3fb2281b-990d-42c5-b1bc-299f19bef128
 
@@ -22,7 +22,46 @@ https://github.com/user-attachments/assets/3fb2281b-990d-42c5-b1bc-299f19bef128
 
 The video runs Tug's interface on simulated downloads, from a file's live connections to a download that the browser hands over.
 
-Tug is a download manager made for KDE Plasma first, with a quiet, keyboard-first interface that shows exactly what every download is doing. Underneath, it runs [Mister Download Manager](https://github.com/anefzaoui/misterdownloadmanager)'s download engine.
+Tug is a download manager for Linux, made for KDE Plasma first. Its keyboard-first interface shows what each download does, down to each connection.
+
+## Features
+
+### Downloads that finish
+
+- **Many connections per file.** Up to 128, and 8 by default. When a connection finishes its part, Tug splits the largest part that remains, so every connection stays busy to the end.
+- **Resume after a stop or a crash.** Tug saves its place every 2 seconds, next to the file. The data goes to a `.part` file, and Tug renames it only when the download is complete.
+- **Built for flaky servers.** A failed connection tries again at once, then after a delay that doubles up to 30 seconds. Tug learns how many connections each server accepts.
+
+### Every source in one queue
+
+- **Web links and torrents.** HTTP(S) and FTP(S), and magnet links and `.torrent` files. Tug checks certificates against the system's store. For a torrent, you choose the files and see each peer.
+- **From the browser.** The extension hands each download to Tug with its referrer, cookies and User-Agent, so a signed-in download works. By default, Tug asks first, and it leaves the sites that you list to the browser.
+- **From anywhere else.** Paste or drop links into the window, or run `tug add <link>` in a terminal. The system can open magnet links and `.torrent` files with Tug.
+
+### You set the pace
+
+- **A queue.** Set how many downloads run at once, and drag them into the order you want.
+- **Speed and time.** Turn a speed limit on in one click. Set a lower limit for the hours you choose, or let downloads run only on a schedule.
+- **Options for each download.** Give a download its own folder, connections, speed limit, name and headers when you add it.
+
+### See everything
+
+- **The inspector.** A map of the file's parts, each connection's speed, bytes and status, the server's address, round trip and CDN, and the engine's log.
+- **A dense table.** Pick the columns, sort on any of them, and set their widths. Search, saved views and file types narrow the list.
+- **Many downloads at once.** Select with Shift and Ctrl, then pause, resume, remove or move them in one action.
+- **The keyboard.** Ctrl+K opens the command bar, and the keyboard shortcuts dialog lists the rest.
+
+### At home on Plasma
+
+- A tray icon with a progress ring. Close the window, and Tug stays in the tray.
+- Notifications with **Open** and **Show in folder**, and download progress on the task manager.
+- Light and dark themes that follow the system.
+
+### A hardened build
+
+- Rust with `unsafe` forbidden. CI pins each action by SHA, and cargo-deny, cargo-audit and OSV scans gate every change.
+- Tug pins the engine to one reviewed commit, and the engine's tests run offline against a local server that injects faults.
+- Details are in [SECURITY.md](SECURITY.md).
 
 ## Install
 
@@ -71,46 +110,45 @@ By default, Tug asks before it takes a download from the browser. To change that
 
 ## Status
 
-Tug is in early development. The engine layer, `tug-core`, works and is tested. The desktop app, built with Tauri 2 and React, is in progress.
-
-## Highlights
-
-- **Many connections per file.** Up to 128 (8 by default). When a connection finishes its part, the largest part still remaining is split in half and shared, so every connection stays busy to the end.
-- **Resume after a stop or a crash.** Resume state is saved every 2 seconds next to the file, and data goes to a `.part` file that is renamed only when the download is complete.
-- **Built for flaky servers.** A failed connection retries at once, then with a doubling delay up to 30 seconds, and the engine learns how many connections each server accepts.
-- **HTTP(S) and FTP(S).** Certificates are checked against the system's certificate store.
-- **Tested without the internet.** Engine tests run against a local server with injected faults: several connections, stop and resume, and dropped connections, in under 2 seconds.
-- **A hardened build.** `unsafe` is forbidden; actions are pinned by SHA; cargo-deny, cargo-audit and OSV scans gate every change; the engine is pinned to one reviewed commit. Details in [SECURITY.md](SECURITY.md).
-
-## Scope
-
-Tug deliberately does not:
-
-- **Copy another download manager's layout.** Its interface is its own, designed for a modern Linux desktop.
-- **Target Windows or macOS first.** Linux and Plasma come first.
-- **Maintain its own download engine.** The engine is Mister Download Manager's, used as Rust crates pinned to one commit; Tug owns everything above it.
+Tug is before 1.0. Each merged feature or fix cuts a release, so releases come often.
 
 ## Architecture
 
 ```
-desktop app (Tauri 2, React)  ──►  tug-core  ──►  mdm-engine (pinned)
+browser extension ──► tug-host ──► local socket ──┐
+                                                  ▼
+               desktop app (Tauri 2, React) ──► tug-core ──► download engine (pinned)
 ```
 
 | Path | Role |
 |---|---|
-| `crates/tug-core` | Tug's app layer. The only crate that reaches the engine; it maps the engine's types into Tug's own, so engine changes stop at one module. |
-| `brand/` | The T-handle mark, app and tray icons, and the drawn wordmark. `build.py` draws every SVG from one geometry; `export.sh` renders the PNG sizes. |
-| `scripts/check-deps.py` | Enforces the engine gate and the single engine pin, including `Cargo.lock`. |
+| `crates/tug-core` | Transfers, the library, the queue, settings and the SQLite store. It is the only crate that reaches the engine, and it maps the engine's types into Tug's own. |
+| `apps/desktop` | The React interface and the Tauri shell, which builds the `tug` binary. |
+| `crates/tug-ipc` | The local socket. It keeps one Tug for each session, and it serves `tug add` and `tug list`. |
+| `crates/tug-host` | The browser's native messaging host. It passes the extension's downloads to Tug over the socket. |
+| `apps/extension` | The browser extension, from one source for Chromium browsers and Firefox. |
+| `design/`, `brand/` | The design system's tokens, and the mark, icons and wordmark. |
 
 ## Build from source
 
-```bash
-git clone https://github.com/andymai/tug
-cd tug
-cargo nextest run --workspace    # or: cargo test --workspace
+You need Rust (`rust-toolchain.toml` pins the version), a C compiler, and Node.js 24 or later with pnpm. You also need the development packages for WebKitGTK and GTK. On Ubuntu:
+
+```sh
+sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
+  libjavascriptcoregtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 
-You need Rust (the version is pinned in `rust-toolchain.toml`) and a C compiler. See [CONTRIBUTING.md](CONTRIBUTING.md) for the commit hooks and the checks CI runs.
+Then build and start Tug:
+
+```sh
+git clone https://github.com/andymai/tug
+cd tug
+pnpm install
+pnpm --filter @tug/desktop exec tauri build --no-bundle
+./target/release/tug
+```
+
+To build the browser extension, run `pnpm --filter @tug/extension build`. It writes `apps/extension/dist/chromium` and `apps/extension/dist/firefox`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the tests, the commit hooks and the checks that CI runs.
 
 ## License
 
