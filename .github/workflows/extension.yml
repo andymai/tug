@@ -69,8 +69,8 @@ jobs:
     if: inputs.tag && vars.CWS_ITEM_ID != ''
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
-      id-token: write
+      contents: read # the checkout, and the older package from its release
+      id-token: write # the token that Workload Identity Federation trades for Google's
     concurrency:
       group: chrome-web-store
       cancel-in-progress: false
