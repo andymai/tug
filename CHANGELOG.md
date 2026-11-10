@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.0](https://github.com/andymai/tug/compare/v0.39.0...v0.40.0) (2026-11-10)
+
+
+### Features
+
+* **extension:** send each release to the Chrome Web Store ([#164](https://github.com/andymai/tug/issues/164)) ([177a93c](https://github.com/andymai/tug/commit/177a93ce352635f644c6e8aedfdaed40059a1e45))
+
 ## [0.39.0](https://github.com/andymai/tug/compare/v0.38.0...v0.39.0) (2026-11-10)
 
 
