@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.39.0](https://github.com/andymai/tug/compare/v0.38.0...v0.39.0) (2026-11-10)
+
+
+### Features
+
+* **extension:** attach the extension to each release, with install steps in the README ([#161](https://github.com/andymai/tug/issues/161)) ([2230013](https://github.com/andymai/tug/commit/2230013b4ee6561f0223b8409ddbcea7d0494287))
+
 ## [0.38.0](https://github.com/andymai/tug/compare/v0.37.3...v0.38.0) (2026-11-10)
 
 
