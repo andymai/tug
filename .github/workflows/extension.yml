@@ -8,6 +8,11 @@ on:
         type: string
         required: true
   workflow_dispatch:
+    inputs:
+      tag:
+        description: A release tag to build, upload to, and send to the Chrome Web Store
+        type: string
+        required: false
   pull_request:
     paths:
       - .github/workflows/extension.yml
@@ -37,9 +42,9 @@ jobs:
       - name: Zip each browser's build
         run: |
           set -euo pipefail
-          for browser in chromium firefox; do
-            (cd "apps/extension/dist/$browser" && zip -qrX "$GITHUB_WORKSPACE/tug-extension-$browser.zip" .)
-            unzip -Z1 "tug-extension-$browser.zip" | grep -qx manifest.json
+          for build in chromium firefox chrome-web-store; do
+            (cd "apps/extension/dist/$build" && zip -qrX "$GITHUB_WORKSPACE/tug-extension-$build.zip" .)
+            unzip -Z1 "tug-extension-$build.zip" | grep -qx manifest.json
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -52,3 +57,45 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         run: gh release upload "$TAG" tug-extension-chromium.zip tug-extension-firefox.zip --clobber --repo "$GITHUB_REPOSITORY"
+
+  # The API can't create the item, and the store needs its listing first: until the
+  # one-time setup in apps/extension/store/README.md sets these variables, this job skips.
+  store:
+    name: Chrome Web Store
+    needs: extension
+    if: inputs.tag && vars.CWS_ITEM_ID != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: chrome-web-store
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.tag }}
+          # The tags, to compare the extension with the version in the store.
+          fetch-depth: 0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: extension
+      # A short-lived token through Workload Identity Federation: no key to leak, and only
+      # this workflow on main can get one.
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        id: google
+        with:
+          workload_identity_provider: ${{ vars.CWS_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          access_token_lifetime: 900s
+          create_credentials_file: false
+          export_environment_variables: false
+      - name: Send the new version for review
+        env:
+          CWS_TOKEN: ${{ steps.google.outputs.access_token }}
+          CWS_ITEM: publishers/${{ vars.CWS_PUBLISHER_ID }}/items/${{ vars.CWS_ITEM_ID }}
+          TAG: ${{ inputs.tag }}
+        run: python3 scripts/publish-extension.py tug-extension-chrome-web-store.zip "$TAG"

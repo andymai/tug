@@ -24,6 +24,12 @@ describe("manifests", () => {
     expect(manifest("chromium", "1.2.3")).toMatchObject({ key: CHROMIUM_KEY });
   });
 
+  it("the store's package is the Chromium one without the key", () => {
+    const { key, ...chromium } = manifest("chromium", "1.2.3");
+    expect(key).toBe(CHROMIUM_KEY);
+    expect(manifest("chrome-web-store", "1.2.3")).toEqual(chromium);
+  });
+
   it("the Firefox ID and the host name match Tug's registration", () => {
     expect(registration).toContain(`"${FIREFOX_ID}"`);
     expect(registration).toContain(`pub const HOST_NAME: &str = "${HOST}";`);
