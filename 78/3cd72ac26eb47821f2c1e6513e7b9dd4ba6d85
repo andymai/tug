@@ -1,0 +1,26 @@
+apps/desktop/src-tauri/src/browsers.rs
+  s_b321718d129a1e::t_e39c49dbeffa36 13-17,461-464
+apps/extension/test/manifest.test.ts
+  s_b321718d129a1e::t_faa585d60157ae 27-30
+  s_b321718d129a1e::t_e047a90aad5dd4 7
+apps/extension/store/README.md
+  s_b321718d129a1e::t_3995f2fdbfac1f 45,55,64
+apps/extension/src/manifest.ts
+  s_b321718d129a1e::t_0e18ce377d13f9 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "783cd72ac26eb47821f2c1e6513e7b9dd4ba6d85",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
