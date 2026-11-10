@@ -19,10 +19,15 @@ thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
 
+[features]
+# Fail points for the race tests (src/points.rs); the tests turn it on below.
+test-points = []
+
 [dev-dependencies]
 librqbit.workspace = true
 mdm-labserver.workspace = true
 tempfile.workspace = true
+tug-core = {path = ".", features = ["test-points"]}
 
 [lints]
 workspace = true
