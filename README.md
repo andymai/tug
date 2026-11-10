@@ -145,8 +145,11 @@ git clone https://github.com/andymai/tug
 cd tug
 pnpm install
 pnpm --filter @tug/desktop exec tauri build --no-bundle
+cargo build --release --locked -p tug-host
 ./target/release/tug
 ```
+
+`tug-host` connects the browser extension to Tug, and Tug looks for it next to `tug`.
 
 To build the browser extension, run `pnpm --filter @tug/extension build`. It writes `apps/extension/dist/chromium` and `apps/extension/dist/firefox`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the tests, the commit hooks and the checks that CI runs.
 
