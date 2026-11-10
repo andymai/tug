@@ -16,7 +16,11 @@ Tug pulls every file over many connections and picks up exactly where it stopped
 
 **[Status](#status)** · **[Highlights](#highlights)** · **[Scope](#scope)** · **[Architecture](#architecture)** · **[Build](#build-from-source)** · **[Contributing](CONTRIBUTING.md)**
 
+https://github.com/user-attachments/assets/3fb2281b-990d-42c5-b1bc-299f19bef128
+
 </div>
+
+The video runs Tug's interface on simulated downloads, from a file's live connections to a download that the browser hands over.
 
 Tug is a download manager made for KDE Plasma first, with a quiet, keyboard-first interface that shows exactly what every download is doing. Underneath, it runs [Mister Download Manager](https://github.com/anefzaoui/misterdownloadmanager)'s download engine.
 
