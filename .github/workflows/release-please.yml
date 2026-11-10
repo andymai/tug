@@ -122,3 +122,13 @@ jobs:
     permissions:
       contents: write
 
+  extension:
+    name: Extension
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/extension.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    permissions:
+      contents: write
+
