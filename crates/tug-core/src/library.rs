@@ -117,6 +117,12 @@ struct News {
     changed: Vec<DownloadId>,
 }
 
+struct Ended {
+    last: Progress,
+    outcome: Result<Finished, TransferError>,
+    learned: Option<(String, Vec<u8>)>,
+}
+
 struct Running {
     transfer: Transfer,
     file_recorded: bool,
@@ -128,12 +134,17 @@ pub struct Library {
     settings: Mutex<Settings>,
     limiter: Arc<Limiter>,
     news: Mutex<News>,
-    // Downloads that the schedule stops, with the state each settles as when its
-    // transfer ends. Pause and resume change it under the run lock in that time.
+    // Downloads whose transfer is ending while their row still says downloading,
+    // with the state each settles as. Pause and resume change it under the run lock
+    // in that time, and the other calls treat these downloads as busy.
     stopping: Mutex<HashMap<DownloadId, DownloadState>>,
+    // Wakes a call that waits for a download to settle.
+    settled: tokio::sync::Notify,
     swarm: Option<Arc<Swarm>>,
     // The last inspection of each transfer that ended in this session, newest last.
     ended: Mutex<VecDeque<(DownloadId, Inspection)>>,
+    #[cfg(feature = "test-points")]
+    points: crate::points::Points,
 }
 
 const KEPT_INSPECTIONS: usize = 64;
@@ -141,6 +152,12 @@ const KEPT_INSPECTIONS: usize = 64;
 impl Library {
     pub async fn open(store: Store) -> Result<Self, LibraryError> {
         Self::open_with(store, None).await
+    }
+
+    // Holds the next task that gets to the named point until the hold is released.
+    #[cfg(feature = "test-points")]
+    pub fn hold_at(&self, name: &'static str) -> crate::points::Hold {
+        self.points.arm(name)
     }
 
     pub async fn open_with(
@@ -155,8 +172,11 @@ impl Library {
             running: tokio::sync::Mutex::default(),
             news: Mutex::default(),
             stopping: Mutex::default(),
+            settled: tokio::sync::Notify::new(),
             swarm: torrents.map(|options| Arc::new(Swarm::new(options))),
             ended: Mutex::default(),
+            #[cfg(feature = "test-points")]
+            points: crate::points::Points::default(),
         };
         {
             let store = library.store()?;
@@ -225,7 +245,9 @@ impl Library {
                     }
                 }
             }
-            (None, _) if !running.contains_key(&id) => self.store()?.set_name(id, name)?,
+            (None, _) if !running.contains_key(&id) && !self.stopping().contains_key(&id) => {
+                self.store()?.set_name(id, name)?;
+            }
             _ => return Err(LibraryError::CantRename),
         }
         drop(running);
@@ -577,7 +599,7 @@ impl Library {
     pub async fn pause(&self, id: DownloadId) -> Result<(), LibraryError> {
         let mut running = self.running.lock().await;
         let download = self.get(id)?;
-        let Some(entry) = running.remove(&id) else {
+        let Some(entry) = self.take(&mut running, id, DownloadState::Paused) else {
             if download.state == DownloadState::Queued {
                 self.hold(&download)?;
             } else if let Some(target) = self.stopping().get_mut(&id) {
@@ -588,7 +610,7 @@ impl Library {
         };
         drop(running);
         entry.transfer.stop();
-        let settled = self.settle(id, entry.transfer, DownloadState::Paused).await;
+        let settled = self.settle(id, entry.transfer).await;
         self.changed(id);
         settled?;
         self.pump().await
@@ -601,13 +623,15 @@ impl Library {
             *target = DownloadState::Paused;
         }
         let stopped: Vec<(DownloadId, Running)> = running.drain().collect();
+        self.stopping()
+            .extend(stopped.iter().map(|(id, _)| (*id, DownloadState::Paused)));
         drop(running);
         for (_, entry) in &stopped {
             entry.transfer.stop();
         }
         let mut first = held.err();
         for (id, entry) in stopped {
-            if let Err(e) = self.settle(id, entry.transfer, DownloadState::Paused).await {
+            if let Err(e) = self.settle(id, entry.transfer).await {
                 first.get_or_insert(e);
             }
             self.changed(id);
@@ -667,7 +691,7 @@ impl Library {
     // Under the run lock to the end, so no tick, resume or Resume all can start
     // the download while its files go.
     pub async fn remove(&self, id: DownloadId, delete_file: bool) -> Result<(), LibraryError> {
-        let mut running = self.running.lock().await;
+        let mut running = self.lock_settled(id).await;
         let download = self.get(id)?;
         // Without its session Tug can't tell a torrent's files, so it keeps the
         // download, unchanged, rather than say they went.
@@ -676,9 +700,10 @@ impl Library {
         }
         // Settled as paused, so a removal that fails below leaves a true state,
         // and the file that the run learned is known to the delete.
-        if let Some(entry) = running.remove(&id) {
+        if let Some(entry) = self.take(&mut running, id, DownloadState::Paused) {
             entry.transfer.stop();
-            let settled = self.settle(id, entry.transfer, DownloadState::Paused).await;
+            let ended = self.end(id, entry.transfer).await;
+            let settled = self.record_end(id, ended);
             self.changed(id);
             settled?;
         }
@@ -734,13 +759,16 @@ impl Library {
         }
         let finished: Vec<(DownloadId, Running)> = ended
             .iter()
-            .filter_map(|id| running.remove(id).map(|r| (*id, r)))
+            .filter_map(|&id| {
+                self.take(&mut running, id, DownloadState::Failed)
+                    .map(|r| (id, r))
+            })
             .collect();
         drop(running);
         let mut settled = Vec::with_capacity(finished.len());
         let mut error = None;
         for (id, entry) in finished {
-            if let Err(e) = self.settle(id, entry.transfer, DownloadState::Failed).await {
+            if let Err(e) = self.settle(id, entry.transfer).await {
                 error.get_or_insert_with(|| e.to_string());
             }
             settled.push(id);
@@ -846,19 +874,7 @@ impl Library {
     async fn end_stop(&self, stopped: Vec<(DownloadId, Running)>) -> Result<(), LibraryError> {
         let mut first = None;
         for (id, entry) in stopped {
-            let last = entry.transfer.progress();
-            self.keep_inspection(id, entry.transfer.inspect());
-            let (outcome, learned) = entry.transfer.end().await;
-            if let Err(e) = self.keep_learned(id, learned) {
-                first.get_or_insert(e);
-            }
-            let running = self.running.lock().await;
-            let target = self.stopping().remove(&id).unwrap_or(DownloadState::Queued);
-            let recorded = self
-                .store()
-                .and_then(|store| record(&store, id, &last, outcome, target));
-            drop(running);
-            if let Err(e) = recorded {
+            if let Err(e) = self.settle(id, entry.transfer).await {
                 first.get_or_insert(e);
             }
             self.changed(id);
@@ -1051,17 +1067,67 @@ impl Library {
         Ok(())
     }
 
-    async fn settle(
+    // Under the run lock: the download leaves the run and settles as `target`,
+    // unless a pause or resume changes that before its transfer ends.
+    fn take(
         &self,
+        running: &mut HashMap<DownloadId, Running>,
         id: DownloadId,
-        transfer: Transfer,
-        unfinished: DownloadState,
-    ) -> Result<(), LibraryError> {
+        target: DownloadState,
+    ) -> Option<Running> {
+        let entry = running.remove(&id)?;
+        self.stopping().insert(id, target);
+        Some(entry)
+    }
+
+    async fn settle(&self, id: DownloadId, transfer: Transfer) -> Result<(), LibraryError> {
+        let ended = self.end(id, transfer).await;
+        let running = self.running.lock().await;
+        let recorded = self.record_end(id, ended);
+        drop(running);
+        recorded
+    }
+
+    // Can take a while, and the row still says downloading in that time.
+    async fn end(&self, id: DownloadId, transfer: Transfer) -> Ended {
+        point!(self, "settle");
         let last = transfer.progress();
         self.keep_inspection(id, transfer.inspect());
         let (outcome, learned) = transfer.end().await;
-        self.keep_learned(id, learned)?;
-        record(&*self.store()?, id, &last, outcome, unfinished)
+        Ended {
+            last,
+            outcome,
+            learned,
+        }
+    }
+
+    // Under the run lock, so a pause or resume can't change the state in between.
+    fn record_end(&self, id: DownloadId, ended: Ended) -> Result<(), LibraryError> {
+        let learned = self.keep_learned(id, ended.learned);
+        let target = self.stopping().remove(&id).unwrap_or(DownloadState::Paused);
+        let recorded = self
+            .store()
+            .and_then(|store| record(&store, id, &ended.last, ended.outcome, target));
+        self.settled.notify_waiters();
+        learned.and(recorded)
+    }
+
+    // The run lock, once the download isn't settling: a call that changes its row
+    // or its files waits for the end of its transfer.
+    async fn lock_settled(
+        &self,
+        id: DownloadId,
+    ) -> tokio::sync::MutexGuard<'_, HashMap<DownloadId, Running>> {
+        loop {
+            let running = self.running.lock().await;
+            if !self.stopping().contains_key(&id) {
+                return running;
+            }
+            let settled = self.settled.notified();
+            drop(running);
+            point!(self, "remove waits");
+            settled.await;
+        }
     }
 
     fn ended(&self) -> MutexGuard<'_, VecDeque<(DownloadId, Inspection)>> {

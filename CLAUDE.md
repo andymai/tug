@@ -33,7 +33,7 @@ Design tokens: `design/tokens.json`. Brand sources: `brand/`.
 Run `/code-review high` on the branch, and fix what it finds before you open the PR. It is Claude Code's own review of the branch's diff, at its high effort. Without Claude Code, read the diff yourself. Then check the change against each item below. Each one is a fault that review found more than once:
 
 - **A late answer.** An answer that arrives after the person moved on must not overwrite newer state. Keep it only if its request is still the newest and its download is still the one on screen. A field keeps text typed after its save started.
-- **Check, then act.** A check and the write that it allows happen under one lock. Between them, no `await` happens unless the run lock holds. A row that says `downloading` with no transfer in `running` still settles, so treat it as busy.
+- **Check, then act.** A check and the write that it allows happen under one lock. Between them, no `await` happens unless the run lock holds. A download in `stopping` still settles (its row says `downloading`), so treat it as busy. A fix comes with a race test (see Race tests).
 - **The mock.** The mock refuses what Rust refuses, before it inserts a row, and it cleans up values (trims, URL cleanup) as Rust does. Its sizes and types follow a change as Rust's do. When a check in Rust changes, add a case to `src-tauri/src/bridge/contract.rs`: `cargo test` writes the cases from Rust's own checks to `src/backend/contract`, and `contract.test.ts` runs the mock on each.
 - **Lists.** A new variant reaches every list that names the variants: command groups, tabs, error kinds, the keyboard map.
 - **Unmount.** State that a component owns (a menu, a drag, a draft) ends when the component goes.
@@ -85,3 +85,7 @@ With **Ask before each browser download** on (`Settings::confirm_captures`, the 
 ## Engine tests
 
 `crates/tug-core/tests/engine.rs` drives the engine against MDM's `mdm-labserver`: generated files whose bytes `content::fill` reproduces, fault injection through query parameters (`rate`, `drop_after`, `drop_every`, `max_conns`, `no_range`), and a request log. They run offline. Add one for every engine behavior Tug relies on.
+
+## Race tests
+
+`crates/tug-core/tests/races.rs` holds a task at a named point in the library (`point!` in the code, `Library::hold_at` in the test), and calls into the gap while the task waits, so the race happens on every run. The points exist only with the `test-points` feature, which tug-core's own tests turn on. Each library keeps its own points, so tests that run at once don't share them.

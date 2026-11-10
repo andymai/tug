@@ -1,8 +1,19 @@
+// A place where a test can hold the task (see points.rs); nothing without the
+// `test-points` feature.
+macro_rules! point {
+    ($library:expr, $name:literal) => {
+        #[cfg(feature = "test-points")]
+        $library.points.reach($name).await;
+    };
+}
+
 mod category;
 mod disk;
 mod inspect;
 mod library;
 mod origin;
+#[cfg(feature = "test-points")]
+mod points;
 mod progress;
 mod schedule;
 mod settings;
@@ -15,6 +26,8 @@ pub use disk::free_space;
 pub use inspect::{Connection, ConnectionStatus, Inspection, LogLine, Segment, Server};
 pub use library::{AddOptions, Cookies, Library, LibraryError, Tick, check_name};
 pub use origin::{Origin, OriginError};
+#[cfg(feature = "test-points")]
+pub use points::Hold;
 pub use progress::{
     Batch, MIN_INTERVAL, ProgressStream, Smoother, StreamOptions, Update, time_left,
 };
