@@ -1,0 +1,5 @@
+# The Mutants job in CI runs cargo-mutants on the Rust lines that a pull request changes.
+test_tool = "nextest"
+# A main only starts its program, and a Tauri command replaced as a whole is noticed
+# only by driving the window; each command calls code that the tests cover.
+exclude_re = ["replace main -> ", "CommandError> with "]

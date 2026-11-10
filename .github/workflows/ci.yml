@@ -172,6 +172,47 @@ jobs:
           tool: cargo-audit
       - run: cargo audit
 
+  # Mutates the Rust lines that a pull request changes. A mutant that no test catches
+  # fails the job; .cargo/mutants.toml lists what it leaves alone, and why.
+  mutants:
+    name: Mutants
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Find the changed Rust lines
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git diff "$BASE...HEAD" -- '*.rs' > "$RUNNER_TEMP/pr.diff"
+          if [ -s "$RUNNER_TEMP/pr.diff" ]; then echo "rust=true" >> "$GITHUB_OUTPUT"; fi
+      # The test job builds the same targets, so its cache is the warm one.
+      - if: steps.diff.outputs.rust == 'true'
+        uses: ./.github/actions/setup
+        with:
+          cache-key: test
+      - if: steps.diff.outputs.rust == 'true'
+        uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.62.30
+        with:
+          tool: cargo-mutants@27.1.0,nextest
+      # Exit code 3 means timeouts only: the tests hung on a mutant, so they noticed it.
+      - if: steps.diff.outputs.rust == 'true'
+        name: Mutate the changed lines
+        run: |
+          status=0
+          cargo mutants --in-diff "$RUNNER_TEMP/pr.diff" --in-place --no-shuffle || status=$?
+          if [ -s mutants.out/missed.txt ]; then
+            { echo "### Mutants that no test caught"; echo '```'; cat mutants.out/missed.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "$status" -ne 0 ] && [ "$status" -ne 3 ]; then exit "$status"; fi
+
   machete:
     name: Unused Dependencies
     runs-on: ubuntu-24.04
@@ -223,7 +264,7 @@ jobs:
   ci-pass:
     name: CI Pass
     if: ${{ !cancelled() }}
-    needs: [fmt, clippy, test, msrv, docs, deps, frontend, deny, audit, machete, taplo, packaging]
+    needs: [fmt, clippy, test, msrv, docs, deps, frontend, deny, audit, mutants, machete, taplo, packaging]
     runs-on: ubuntu-24.04
     steps:
       - name: Check all jobs
