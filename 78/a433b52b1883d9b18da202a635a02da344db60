@@ -1,0 +1,38 @@
+crates/tug-core/Cargo.toml
+  s_b321718d129a1e::t_118d322e4fdf06 22-25
+  s_b321718d129a1e::t_2c726b768e0dcf 30
+crates/tug-core/src/points.rs
+  s_b321718d129a1e::t_118d322e4fdf06 21-29
+  s_b321718d129a1e::t_f817362f176e21 1-10,12-20,30-34,36-43,45-75
+  s_b321718d129a1e::t_d4893daf202564 11,35,44
+CLAUDE.md
+  s_b321718d129a1e::t_fd3a06cdee00a2 36,88-91
+crates/tug-core/tests/races.rs
+  s_b321718d129a1e::t_f5fb4fe789f089 161
+  s_b321718d129a1e::t_22f5d837316b0d 1-51,57-74,80-100,106-132,138-156,162-191,197
+  s_b321718d129a1e::t_759e5c908cf199 52-56,75-79,101-105,133-137,157-160,192-196
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_249e1bdbdf4f68 705,1084,1092,1107
+  s_b321718d129a1e::t_3a6dbf93e87443 120-125,137-139,141-142,175,248-250,602,613,626-627,634,694,703,706,762-765,771,877,1070-1072,1074,1076-1083,1085-1091,1097-1106,1108-1130
+  s_b321718d129a1e::t_4d2475c4720b1c 146-147,157-162,178-179,1093
+crates/tug-core/src/lib.rs
+  s_b321718d129a1e::t_118d322e4fdf06 1-9,15-16,29-30
+Cargo.lock
+  s_b321718d129a1e::t_b98ceeeb40ea8c 6222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "78a433b52b1883d9b18da202a635a02da344db60",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
