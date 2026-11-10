@@ -1,8 +1,8 @@
 # The Chrome Web Store
 
-The `Extension` workflow sends each release's `dist/chrome-web-store` build to the Chrome Web Store with `scripts/publish-extension.py`. A version goes to the store only when the extension's files changed since the store's version, and only when no other version waits for review. The store reviews each version before users get it.
+The `Extension` workflow sends each release's `dist/chrome-web-store` build to the Chrome Web Store with `scripts/publish-extension.py`. A version goes to the store only when its package differs from the package of the store's version, which each release keeps as an asset. It waits while the store holds another version back. The store reviews each version before users get it.
 
-The store's API can't make a new item. So the first version goes up by hand, once, with the steps below. Until the repository variables in step 3 exist, the workflow skips the store.
+The store's API can't make a new item. So the first version goes up by hand, once, with the steps below. Until the repository variables in step 3 exist, the workflow skips the store. Do the steps in order: a store version that goes public before Tug lets in the store's ID can't reach Tug.
 
 ## 1. Make the item
 
@@ -17,7 +17,7 @@ The store's API can't make a new item. So the first version goes up by hand, onc
 
 4. Click **Add new item**, and upload `apps/extension/dist/tug-extension-chrome-web-store.zip`.
 5. Fill in the **Store listing**, **Privacy** and **Distribution** tabs from [listing.md](listing.md), with the images in this folder.
-6. Click **Submit for review**.
+6. Click **Save draft**. Don't submit the item yet.
 
 ## 2. Give the release builds the store's ID
 
@@ -25,11 +25,13 @@ The store gives the item its own ID. The zip on each release must have the same 
 
 1. On the item's **Package** tab, click **View public key**.
 2. Put the key, on one line without the `BEGIN` and `END` lines, in `CHROMIUM_KEY` in `apps/extension/src/manifest.ts`.
-3. Put the item's ID in `CHROMIUM_ID` there, and add it to `CHROMIUM_ORIGINS` in `apps/desktop/src-tauri/src/browsers.rs`. Keep the old ID in `CHROMIUM_ORIGINS`, so the extensions that people loaded from a zip still reach Tug.
+3. Change the comment above `CHROMIUM_KEY`: the store holds the private half now.
+4. Put the item's ID in `CHROMIUM_ID` there, and add it to `CHROMIUM_ORIGINS` in `apps/desktop/src-tauri/src/browsers.rs`. Keep the old ID in `CHROMIUM_ORIGINS`, so the extensions that people loaded from a zip still reach Tug.
+5. Merge the change, and wait for its release.
 
 ## 3. Let the workflow publish
 
-The workflow gets a short-lived token through Workload Identity Federation, so no key goes into the repository. Only `extension.yml` on `main` can get the token.
+The workflow gets a short-lived token through Workload Identity Federation, so no key goes into the repository. Only `extension.yml`, run from `main`, can get the token, and it sends only a commit on `main`.
 
 1. Open [Cloud Shell](https://shell.cloud.google.com), and run these commands. Change `PROJECT` to a new, unique project ID.
 
@@ -44,7 +46,7 @@ The workflow gets a short-lived token through Workload Identity Federation, so n
      --display-name="andymai/tug" \
      --issuer-uri="https://token.actions.githubusercontent.com" \
      --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
-     --attribute-condition="assertion.job_workflow_ref == 'andymai/tug/.github/workflows/extension.yml@refs/heads/main'"
+     --attribute-condition="assertion.job_workflow_ref == 'andymai/tug/.github/workflows/extension.yml@refs/heads/main' && assertion.ref == 'refs/heads/main'"
    NUMBER=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
    gcloud iam service-accounts add-iam-policy-binding "publisher@$PROJECT.iam.gserviceaccount.com" \
      --role=roles/iam.workloadIdentityUser \
@@ -64,4 +66,6 @@ The workflow gets a short-lived token through Workload Identity Federation, so n
    gh variable set CWS_ITEM_ID --body "ITEM_ID"
    ```
 
-To send a release by hand, for example the newest release after step 3, run `gh workflow run extension.yml -f tag=vX.Y.Z`. The store takes only a version above the last one that it got.
+## 4. Submit the first version
+
+In the Developer Dashboard, click **Submit for review**. After that, each release with a changed package goes to the store by itself. Only release-please sends a tag to the workflow, so a person can't send a tag that skipped review.

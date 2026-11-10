@@ -1,6 +1,5 @@
 import importlib.util
 import json
-import subprocess
 import tempfile
 import threading
 import unittest
@@ -26,7 +25,15 @@ def never(_: str) -> bool:
 class Decide(unittest.TestCase):
     def test_a_version_in_review_holds_back_the_next(self):
         status = {"publishedItemRevisionStatus": revision("PUBLISHED", "1.0.0"), "submittedItemRevisionStatus": revision("PENDING_REVIEW", "1.1.0")}
-        self.assertIn("1.1.0 waits for review", publish.decide(status, "1.2.0", never))
+        skip = publish.decide(status, "1.2.0", never)
+        self.assertIn("1.1.0 waits for review", skip.reason)
+        self.assertTrue(skip.held)
+
+    def test_a_staged_version_waits_for_a_person(self):
+        status = {"submittedItemRevisionStatus": revision("STAGED", "1.1.0")}
+        skip = publish.decide(status, "1.2.0", never)
+        self.assertIn("1.1.0 waits for someone to publish it", skip.reason)
+        self.assertTrue(skip.held)
 
     def test_a_rejected_submission_compares_with_the_published_version(self):
         status = {"publishedItemRevisionStatus": revision("PUBLISHED", "1.0.0"), "submittedItemRevisionStatus": revision("REJECTED", "1.1.0")}
@@ -37,44 +44,62 @@ class Decide(unittest.TestCase):
 
     def test_the_same_or_an_older_version_stays_out(self):
         status = {"publishedItemRevisionStatus": revision("PUBLISHED", "1.10.0")}
-        self.assertIn("has 1.10.0 already", publish.decide(status, "1.10.0", never))
-        self.assertIn("has 1.10.0 already", publish.decide(status, "1.9.0", never))
+        self.assertEqual(publish.decide(status, "1.10.0", never), publish.Skip("the store has 1.10.0 already"))
+        self.assertEqual(publish.decide(status, "1.9.0", never), publish.Skip("the store has 1.10.0 already"))
 
-    def test_an_unchanged_extension_stays_out(self):
+    def test_an_unchanged_extension_stays_out_quietly(self):
         status = {"publishedItemRevisionStatus": revision("PUBLISHED", "1.0.0")}
-        self.assertIn("the same as 1.0.0", publish.decide(status, "1.1.0", lambda _: False))
+        skip = publish.decide(status, "1.1.0", lambda _: False)
+        self.assertIn("the same as 1.0.0", skip.reason)
+        self.assertFalse(skip.held)
         self.assertIsNone(publish.decide(status, "1.1.0", lambda _: True))
 
     def test_a_taken_down_item_gets_nothing(self):
-        self.assertIn("took the item down", publish.decide({"takenDown": True}, "1.0.0", never))
+        self.assertIn("took the item down", publish.decide({"takenDown": True}, "1.0.0", never).reason)
 
 
-def git(root: Path, *args: str) -> None:
-    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=root, check=True, capture_output=True)
+def package(folder: Path, manifest: dict, files: dict[str, str] | None = None, name: str = "store.zip") -> Path:
+    path = folder / name
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("manifest.json", json.dumps(manifest))
+        for file, text in (files or {"main.js": ""}).items():
+            archive.writestr(file, text)
+    return path
 
 
-def commit(root: Path, files: dict[str, str], tag: str) -> None:
-    for name, text in files.items():
-        (root / name).parent.mkdir(parents=True, exist_ok=True)
-        (root / name).write_text(text)
-    git(root, "add", "-A")
-    git(root, "commit", "-qm", tag)
-    git(root, "tag", tag)
+class ChangedFrom(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.root = Path(self.folder.name)
+        self.asked = []
 
+    def tearDown(self):
+        self.folder.cleanup()
 
-class ChangedSince(unittest.TestCase):
-    def test_only_the_package_files_count(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            git(root, "init", "-q")
-            commit(root, {"apps/extension/src/main.ts": "a", "apps/extension/package.json": "1.0.0", "README.md": "a"}, "v1.0.0")
-            commit(root, {"apps/extension/package.json": "1.1.0", "README.md": "b"}, "v1.1.0")
-            commit(root, {"brand/png/tug-128.png": "icon"}, "v1.2.0")
-            commit(root, {"apps/extension/src/main.ts": "b"}, "v1.3.0")
-            self.assertFalse(publish.changed_since(root, "v1.1.0")("1.0.0"))
-            self.assertTrue(publish.changed_since(root, "v1.2.0")("1.1.0"))
-            self.assertTrue(publish.changed_since(root, "v1.3.0")("1.2.0"))
-            self.assertTrue(publish.changed_since(root, "v1.3.0")("0.9.0"))
+    def changed(self, new: Path, old: Path | None) -> bool:
+        def fetch(tag: str, path: Path) -> bool:
+            self.asked.append(tag)
+            if old is None:
+                return False
+            path.write_bytes(old.read_bytes())
+            return True
+
+        return publish.changed_from(new, fetch)("1.0.0")
+
+    def test_only_the_version_moved(self):
+        old = package(self.root, {"name": "Tug", "version": "1.0.0"}, {"main.js": "a", "icons/16.png": "i"}, "old.zip")
+        new = package(self.root, {"version": "1.1.0", "name": "Tug"}, {"icons/16.png": "i", "main.js": "a"})
+        self.assertFalse(self.changed(new, old))
+        self.assertEqual(self.asked, ["v1.0.0"])
+
+    def test_a_changed_file_or_manifest_counts(self):
+        old = package(self.root, {"name": "Tug", "version": "1.0.0"}, {"main.js": "a"}, "old.zip")
+        self.assertTrue(self.changed(package(self.root, {"name": "Tug", "version": "1.1.0"}, {"main.js": "b"}), old))
+        self.assertTrue(self.changed(package(self.root, {"name": "Tug 2", "version": "1.1.0"}, {"main.js": "a"}), old))
+        self.assertTrue(self.changed(package(self.root, {"name": "Tug", "version": "1.1.0"}, {"main.js": "a", "x.js": ""}), old))
+
+    def test_a_release_without_the_package_counts_as_changed(self):
+        self.assertTrue(self.changed(package(self.root, {"version": "1.1.0"}), None))
 
 
 class Stub(BaseHTTPRequestHandler):
@@ -95,14 +120,6 @@ class Stub(BaseHTTPRequestHandler):
 
     do_GET = answer
     do_POST = answer
-
-
-def package(folder: Path, manifest: dict) -> Path:
-    path = folder / "store.zip"
-    with zipfile.ZipFile(path, "w") as archive:
-        archive.writestr("manifest.json", json.dumps(manifest))
-        archive.writestr("main.js", "")
-    return path
 
 
 class Send(unittest.TestCase):
@@ -128,7 +145,7 @@ class Send(unittest.TestCase):
             (200, {"state": "PENDING_REVIEW", "warningInfo": {"warnings": []}}),
         ]
         said = publish.send(self.store, zip_path, "v1.1.0", lambda _: True, pause=0)
-        self.assertEqual(said, "Sent 1.1.0 to the store: PENDING_REVIEW.")
+        self.assertEqual(said, ("notice", "Sent 1.1.0 to the store: PENDING_REVIEW."))
         calls = [(method, path) for method, path, _, _ in self.server.seen]
         self.assertEqual(
             calls,
@@ -148,7 +165,15 @@ class Send(unittest.TestCase):
         zip_path = package(Path(self.folder.name), {"version": "1.1.0"})
         self.server.replies = [(200, {"publishedItemRevisionStatus": revision("PUBLISHED", "1.0.0")})]
         said = publish.send(self.store, zip_path, "v1.1.0", lambda _: False, pause=0)
-        self.assertEqual(said, "Skipped 1.1.0: the extension is the same as 1.0.0, the version in the store.")
+        self.assertEqual(said, ("notice", "Skipped 1.1.0: the extension is the same as 1.0.0, the version in the store."))
+        self.assertEqual(len(self.server.seen), 1)
+
+    def test_a_held_version_is_a_warning(self):
+        zip_path = package(Path(self.folder.name), {"version": "1.2.0"})
+        self.server.replies = [(200, {"submittedItemRevisionStatus": revision("PENDING_REVIEW", "1.1.0")})]
+        level, said = publish.send(self.store, zip_path, "v1.2.0", never, pause=0)
+        self.assertEqual(level, "warning")
+        self.assertIn("1.1.0 waits for review", said)
         self.assertEqual(len(self.server.seen), 1)
 
     def test_a_failed_upload_stops_before_review(self):
@@ -166,9 +191,9 @@ class Send(unittest.TestCase):
 
     def test_only_the_store_package_for_the_tag_goes(self):
         folder = Path(self.folder.name)
-        with self.assertRaisesRegex(SystemExit, "version 1.0.0"):
+        with self.assertRaisesRegex(SystemExit, "has version 1.0.0, not the version of v1.1.0"):
             publish.send(self.store, package(folder, {"version": "1.0.0"}), "v1.1.0", never, pause=0)
-        with self.assertRaisesRegex(SystemExit, "isn't the store's package"):
+        with self.assertRaisesRegex(SystemExit, "carries a key"):
             publish.send(self.store, package(folder, {"version": "1.1.0", "key": "k"}), "v1.1.0", never, pause=0)
         self.assertEqual(self.server.seen, [])
 
