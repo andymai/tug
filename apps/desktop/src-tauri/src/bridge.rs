@@ -963,7 +963,9 @@ fn read_torrent(path: &Path) -> Result<Vec<u8>, CommandError> {
     let file = std::fs::File::from(
         rustix::fs::open(
             path,
-            OFlags::RDONLY | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            OFlags::RDONLY
+                .union(OFlags::NONBLOCK)
+                .union(OFlags::CLOEXEC),
             Mode::empty(),
         )
         .map_err(|e| unreadable(e.into()))?,
