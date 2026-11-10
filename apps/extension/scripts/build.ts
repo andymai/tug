@@ -9,7 +9,7 @@ const compiled = join(dist, "js");
 const brand = join(root, "..", "..", "brand", "png");
 const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string };
 
-for (const target of ["chromium", "firefox"] satisfies Target[]) {
+for (const target of ["chromium", "chrome-web-store", "firefox"] satisfies Target[]) {
   const out = join(dist, target);
   rmSync(out, { recursive: true, force: true });
   mkdirSync(join(out, "icons"), { recursive: true });

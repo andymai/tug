@@ -1,4 +1,4 @@
-export type Target = "chromium" | "firefox";
+export type Target = "chromium" | "chrome-web-store" | "firefox";
 
 // The public half of the key that fixes the Chromium extension ID; no private
 // half exists, because Chrome on Linux loads only store and unpacked extensions.
@@ -19,13 +19,14 @@ export function manifest(target: Target, version: string): Record<string, unknow
     permissions: ["contextMenus", "cookies", "downloads", "nativeMessaging", "storage", "webRequest"],
     host_permissions: ["<all_urls>"],
   };
-  if (target === "chromium") {
-    return {
+  if (target !== "firefox") {
+    const chromium = {
       ...common,
-      key: CHROMIUM_KEY,
       minimum_chrome_version: "120",
       background: { service_worker: "main.js", type: "module" },
     };
+    // The store gives its item an ID of its own, so the store's package carries no key.
+    return target === "chromium" ? { ...chromium, key: CHROMIUM_KEY } : chromium;
   }
   return {
     ...common,
