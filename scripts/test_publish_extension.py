@@ -1,11 +1,13 @@
 import importlib.util
 import json
+import os
 import tempfile
 import threading
 import unittest
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest import mock
 
 SPEC = importlib.util.spec_from_file_location("publish_extension", Path(__file__).with_name("publish-extension.py"))
 publish = importlib.util.module_from_spec(SPEC)
@@ -100,6 +102,51 @@ class ChangedFrom(unittest.TestCase):
 
     def test_a_release_without_the_package_counts_as_changed(self):
         self.assertTrue(self.changed(package(self.root, {"version": "1.1.0"}), None))
+
+
+FAKE_GH = """#!/usr/bin/env python3
+import os, sys
+from pathlib import Path
+mode = os.environ["FAKE_GH"]
+args = sys.argv[1:]
+if args[:2] == ["release", "view"]:
+    if mode == "no release":
+        sys.exit("release not found")
+    if mode == "denied":
+        sys.exit("HTTP 401: Bad credentials")
+    print("tug-extension-chromium.zip")
+    if mode != "no asset":
+        print("tug-extension-chrome-web-store.zip")
+elif args[:2] == ["release", "download"]:
+    if mode == "broken download":
+        sys.exit("connection reset")
+    folder = Path(args[args.index("--dir") + 1])
+    (folder / "tug-extension-chrome-web-store.zip").write_bytes(b"zip")
+"""
+
+
+class ReleaseAsset(unittest.TestCase):
+    def fetch(self, mode: str) -> tuple[bool, Path]:
+        with tempfile.TemporaryDirectory() as tools, tempfile.TemporaryDirectory() as folder:
+            fake = Path(tools) / "gh"
+            fake.write_text(FAKE_GH)
+            fake.chmod(0o755)
+            path = Path(folder) / publish.ASSET
+            with mock.patch.dict(os.environ, {"PATH": f"{tools}{os.pathsep}{os.environ['PATH']}", "FAKE_GH": mode}):
+                return publish.release_asset("v1.0.0", path), path.is_file()
+
+    def test_the_release_package_comes_down(self):
+        self.assertEqual(self.fetch("ok"), (True, True))
+
+    def test_a_release_or_an_asset_that_isnt_there_is_no_package(self):
+        self.assertEqual(self.fetch("no release"), (False, False))
+        self.assertEqual(self.fetch("no asset"), (False, False))
+
+    def test_any_other_error_stops_the_job(self):
+        with self.assertRaisesRegex(SystemExit, "couldn't read the release v1.0.0: HTTP 401"):
+            self.fetch("denied")
+        with self.assertRaisesRegex(SystemExit, "couldn't download .* from v1.0.0: connection reset"):
+            self.fetch("broken download")
 
 
 class Stub(BaseHTTPRequestHandler):

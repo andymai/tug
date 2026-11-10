@@ -81,13 +81,24 @@ def changed_from(package: Path, fetch: Callable[[str, Path], bool]) -> Callable[
     return changed
 
 
+def gh(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["gh", *args], capture_output=True, text=True, check=False)
+
+
+# Only a release or an asset that doesn't exist means "no package": any other error stops the
+# job, because a guess of "changed" would start a review for nothing.
 def release_asset(tag: str, path: Path) -> bool:
-    done = subprocess.run(
-        ["gh", "release", "download", tag, "--pattern", ASSET, "--dir", str(path.parent)],
-        capture_output=True,
-        check=False,
-    )
-    return done.returncode == 0 and path.is_file()
+    listed = gh("release", "view", tag, "--json", "assets", "--jq", ".assets[].name")
+    if listed.returncode != 0:
+        if "release not found" in listed.stderr:
+            return False
+        raise SystemExit(f"couldn't read the release {tag}: {listed.stderr.strip()}")
+    if ASSET not in listed.stdout.split():
+        return False
+    fetched = gh("release", "download", tag, "--pattern", ASSET, "--dir", str(path.parent))
+    if fetched.returncode != 0 or not path.is_file():
+        raise SystemExit(f"couldn't download {ASSET} from {tag}: {fetched.stderr.strip()}")
+    return True
 
 
 class Store:
