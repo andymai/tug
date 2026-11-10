@@ -21,12 +21,14 @@ The store's API can't make a new item. So the first version goes up by hand, onc
 
 ## 2. Give the release builds the store's ID
 
-The store gives the item its own ID. The zip on each release must have the same ID, because Tug's native messaging manifest names the IDs that it lets in.
+The store gives the item its own ID, `CHROME_WEB_STORE_ID` in `apps/extension/src/manifest.ts`. Tug's native messaging manifest lets in only the IDs in `CHROMIUM_ORIGINS` in `apps/desktop/src-tauri/src/browsers.rs`, and that list has the store's ID beside the release zip's ID.
+
+The zip on each release must get the store's ID too. With two IDs, one browser can hold both copies, and each copy sends the same download to Tug.
 
 1. On the item's **Package** tab, click **View public key**.
-2. Put the key, on one line without the `BEGIN` and `END` lines, in `CHROMIUM_KEY` in `apps/extension/src/manifest.ts`.
+2. Put the key, on one line without the `BEGIN` and `END` lines, in `CHROMIUM_KEY`.
 3. Change the comment above `CHROMIUM_KEY`: the store holds the private half now.
-4. Put the item's ID in `CHROMIUM_ID` there, and add it to `CHROMIUM_ORIGINS` in `apps/desktop/src-tauri/src/browsers.rs`. Keep the old ID in `CHROMIUM_ORIGINS`, so the extensions that people loaded from a zip still reach Tug.
+4. Set `CHROMIUM_ID` to the store's ID. Keep the old ID in `CHROMIUM_ORIGINS`, so the extensions that people loaded from a zip still reach Tug.
 5. Merge the change, and wait for its release.
 
 ## 3. Let the workflow publish
@@ -42,7 +44,7 @@ The workflow gets a short-lived token through Workload Identity Federation, so n
    gcloud services enable chromewebstore.googleapis.com iamcredentials.googleapis.com sts.googleapis.com
    gcloud iam service-accounts create publisher --display-name="Tug's Chrome Web Store releases"
    gcloud iam workload-identity-pools create github --location=global --display-name="GitHub Actions"
-   gcloud iam workload-identity-pools providers create-oidc tug --location=global --workload-identity-pool=github \
+   gcloud iam workload-identity-pools providers create-oidc tug-extension --location=global --workload-identity-pool=github \
      --display-name="andymai/tug" \
      --issuer-uri="https://token.actions.githubusercontent.com" \
      --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
@@ -52,7 +54,7 @@ The workflow gets a short-lived token through Workload Identity Federation, so n
      --role=roles/iam.workloadIdentityUser \
      --member="principalSet://iam.googleapis.com/projects/$NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/andymai/tug"
    echo "CWS_SERVICE_ACCOUNT=publisher@$PROJECT.iam.gserviceaccount.com"
-   echo "CWS_WORKLOAD_IDENTITY_PROVIDER=projects/$NUMBER/locations/global/workloadIdentityPools/github/providers/tug"
+   echo "CWS_WORKLOAD_IDENTITY_PROVIDER=projects/$NUMBER/locations/global/workloadIdentityPools/github/providers/tug-extension"
    ```
 
 2. In the Developer Dashboard, go to **Account**, and add the service account's email.
@@ -61,7 +63,7 @@ The workflow gets a short-lived token through Workload Identity Federation, so n
 
    ```sh
    gh variable set CWS_SERVICE_ACCOUNT --body "publisher@PROJECT.iam.gserviceaccount.com"
-   gh variable set CWS_WORKLOAD_IDENTITY_PROVIDER --body "projects/NUMBER/locations/global/workloadIdentityPools/github/providers/tug"
+   gh variable set CWS_WORKLOAD_IDENTITY_PROVIDER --body "projects/NUMBER/locations/global/workloadIdentityPools/github/providers/tug-extension"
    gh variable set CWS_PUBLISHER_ID --body "PUBLISHER_ID"
    gh variable set CWS_ITEM_ID --body "ITEM_ID"
    ```

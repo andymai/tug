@@ -10,7 +10,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde_json::{Map, Value};
 
 pub const HOST_NAME: &str = "io.github.andymai.tug";
-const CHROMIUM_ORIGINS: &[&str] = &["chrome-extension://adkjolghaomejbdpmjgloncdniplghfg/"];
+// The zip's ID comes from its key, and the Chrome Web Store gives its item another:
+// both copies must reach Tug.
+const CHROMIUM_ORIGINS: &[&str] = &[
+    "chrome-extension://adkjolghaomejbdpmjgloncdniplghfg/",
+    "chrome-extension://jcglgdndkaeckbefkdochpgihlnnfoib/",
+];
 const FIREFOX_EXTENSIONS: &[&str] = &["tug@andymai.github.io"];
 const FIREFOX_FLATPAK: &str = "org.mozilla.firefox";
 // Each writer stages its own file: a release start and `tug browsers` can
@@ -454,7 +459,10 @@ mod tests {
                 "description": "Tug",
                 "path": HOST,
                 "type": "stdio",
-                "allowed_origins": ["chrome-extension://adkjolghaomejbdpmjgloncdniplghfg/"],
+                "allowed_origins": [
+                    "chrome-extension://adkjolghaomejbdpmjgloncdniplghfg/",
+                    "chrome-extension://jcglgdndkaeckbefkdochpgihlnnfoib/",
+                ],
             })
         );
         let firefox = read(
