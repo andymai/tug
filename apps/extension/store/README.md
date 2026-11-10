@@ -42,7 +42,7 @@ The workflow gets a short-lived token through Workload Identity Federation, so n
    gcloud services enable chromewebstore.googleapis.com iamcredentials.googleapis.com sts.googleapis.com
    gcloud iam service-accounts create publisher --display-name="Tug's Chrome Web Store releases"
    gcloud iam workload-identity-pools create github --location=global --display-name="GitHub Actions"
-   gcloud iam workload-identity-pools providers create-oidc tug --location=global --workload-identity-pool=github \
+   gcloud iam workload-identity-pools providers create-oidc tug-extension --location=global --workload-identity-pool=github \
      --display-name="andymai/tug" \
      --issuer-uri="https://token.actions.githubusercontent.com" \
      --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
@@ -52,7 +52,7 @@ The workflow gets a short-lived token through Workload Identity Federation, so n
      --role=roles/iam.workloadIdentityUser \
      --member="principalSet://iam.googleapis.com/projects/$NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/andymai/tug"
    echo "CWS_SERVICE_ACCOUNT=publisher@$PROJECT.iam.gserviceaccount.com"
-   echo "CWS_WORKLOAD_IDENTITY_PROVIDER=projects/$NUMBER/locations/global/workloadIdentityPools/github/providers/tug"
+   echo "CWS_WORKLOAD_IDENTITY_PROVIDER=projects/$NUMBER/locations/global/workloadIdentityPools/github/providers/tug-extension"
    ```
 
 2. In the Developer Dashboard, go to **Account**, and add the service account's email.
@@ -61,7 +61,7 @@ The workflow gets a short-lived token through Workload Identity Federation, so n
 
    ```sh
    gh variable set CWS_SERVICE_ACCOUNT --body "publisher@PROJECT.iam.gserviceaccount.com"
-   gh variable set CWS_WORKLOAD_IDENTITY_PROVIDER --body "projects/NUMBER/locations/global/workloadIdentityPools/github/providers/tug"
+   gh variable set CWS_WORKLOAD_IDENTITY_PROVIDER --body "projects/NUMBER/locations/global/workloadIdentityPools/github/providers/tug-extension"
    gh variable set CWS_PUBLISHER_ID --body "PUBLISHER_ID"
    gh variable set CWS_ITEM_ID --body "ITEM_ID"
    ```

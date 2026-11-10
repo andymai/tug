@@ -5,6 +5,7 @@ export type Target = "chromium" | "chrome-web-store" | "firefox";
 export const CHROMIUM_KEY =
   "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5X+RWQ2/oLo2gLwVmvOWU/mNiiNE+D93g2KK70NKtzUxIUNGHaB8QvMpkEHNLx7D49yctOohS+vuaoNBdy/cAoczwaCiSPk0rsYtruGoSCQqc1W7TC9Tu4DnQ49KhLo0erD8q+N5PWzWTfz25fL+ptPdkBZsw5W4bTaDf8XALqTpGVDoGG59yjGxjDQkQr6sM9r+ODAxq7cy5x4unWRy0L3QQmuQnqR7LbvyZ4ZF/xOp0ScIW5z0dwY4e4H921a/c81wDHPsH48aIh270NSXxNSOOQJd9oJxmc4wWwz+NQd2a3F9JNI6C9yZelVQsIVPvCOy00lvr6DrznPzqtWE8QIDAQAB";
 export const CHROMIUM_ID = "adkjolghaomejbdpmjgloncdniplghfg";
+export const CHROME_WEB_STORE_ID = "jcglgdndkaeckbefkdochpgihlnnfoib";
 export const FIREFOX_ID = "tug@andymai.github.io";
 
 const ICONS = { 16: "icons/16.png", 32: "icons/32.png", 48: "icons/48.png", 128: "icons/128.png" };

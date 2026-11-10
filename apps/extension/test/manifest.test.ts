@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { CHROMIUM_ID, CHROMIUM_KEY, FIREFOX_ID, manifest } from "../src/manifest.ts";
+import { CHROME_WEB_STORE_ID, CHROMIUM_ID, CHROMIUM_KEY, FIREFOX_ID, manifest } from "../src/manifest.ts";
 import { HOST } from "../src/tug.ts";
 
 const registration = readFileSync(
@@ -22,6 +22,10 @@ describe("manifests", () => {
     expect(extensionId(CHROMIUM_KEY)).toBe(CHROMIUM_ID);
     expect(registration).toContain(`"chrome-extension://${CHROMIUM_ID}/"`);
     expect(manifest("chromium", "1.2.3")).toMatchObject({ key: CHROMIUM_KEY });
+  });
+
+  it("Tug's host manifest also allows the store's ID", () => {
+    expect(registration).toContain(`"chrome-extension://${CHROME_WEB_STORE_ID}/"`);
   });
 
   it("the store's package is the Chromium one without the key", () => {
