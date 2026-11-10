@@ -10,7 +10,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde_json::{Map, Value};
 
 pub const HOST_NAME: &str = "io.github.andymai.tug";
-// The release zip's ID, then the Chrome Web Store's.
+// The zip's ID comes from its key, and the Chrome Web Store gives its item another:
+// both copies must reach Tug.
 const CHROMIUM_ORIGINS: &[&str] = &[
     "chrome-extension://adkjolghaomejbdpmjgloncdniplghfg/",
     "chrome-extension://jcglgdndkaeckbefkdochpgihlnnfoib/",
