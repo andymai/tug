@@ -221,6 +221,44 @@ async fn a_torrent_downloads_only_the_files_chosen_for_it() {
     ));
 }
 
+// Held at a fail point (Library::hold_at): the choice lands while the torrent settles.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_file_choice_while_a_torrent_settles_is_refused() {
+    let tmp = tempfile::tempdir().unwrap();
+    let seeder = seeder(
+        tmp.path(),
+        vec![
+            ("a.bin", bytes(64 * 1024, 251)),
+            ("b.bin", bytes(64 * 1024, 13)),
+        ],
+    )
+    .await;
+    let library = leecher(tmp.path(), Some(&seeder)).await;
+    let id = library
+        .add_torrent(
+            TorrentSource::File(seeder.torrent.clone()),
+            &tmp.path().join("got"),
+        )
+        .await
+        .unwrap();
+
+    let settle = library.hold_at("settle");
+    let raced = tokio::time::timeout(Duration::from_secs(30), async {
+        tokio::join!(library.pause(id), async {
+            settle.reached().await;
+            let chosen = library.choose_files(id, &[0]).await;
+            settle.release();
+            chosen
+        })
+    });
+    let (paused, chosen) = raced.await.unwrap();
+    paused.unwrap();
+    assert!(
+        matches!(chosen, Err(LibraryError::TorrentBusy)),
+        "{chosen:?}"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_finished_torrent_takes_its_empty_folder_along() {
     let tmp = tempfile::tempdir().unwrap();

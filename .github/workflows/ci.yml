@@ -42,6 +42,8 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      # tug-core's tests turn on its fail points, so the build above has them; this is the one Tug ships.
+      - run: cargo clippy -p tug-core -- -D warnings
 
   test:
     name: Test

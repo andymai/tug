@@ -123,6 +123,23 @@ struct Ended {
     learned: Option<(String, Vec<u8>)>,
 }
 
+// A download out of the run whose row hasn't settled yet. Dropped before it settles
+// (its task cancelled), it leaves `stopping`, so the download isn't busy for good.
+struct Settling<'a> {
+    library: &'a Library,
+    id: DownloadId,
+    settled: bool,
+}
+
+impl Drop for Settling<'_> {
+    fn drop(&mut self) {
+        if !self.settled {
+            self.library.stopping().remove(&self.id);
+            self.library.settled.notify_waiters();
+        }
+    }
+}
+
 struct Running {
     transfer: Transfer,
     file_recorded: bool,
@@ -154,7 +171,7 @@ impl Library {
         Self::open_with(store, None).await
     }
 
-    // Holds the next task that gets to the named point until the hold is released.
+    // Holds every task that gets to the named point until the hold is released or dropped.
     #[cfg(feature = "test-points")]
     pub fn hold_at(&self, name: &'static str) -> crate::points::Hold {
         self.points.arm(name)
@@ -222,7 +239,7 @@ impl Library {
     // Tug renames the file. In between, the engine's state file holds the path.
     pub async fn rename(&self, id: DownloadId, name: &str) -> Result<(), LibraryError> {
         let name = check_name(name)?;
-        let running = self.running.lock().await;
+        let running = self.lock_settled(id).await;
         let download = self.get(id)?;
         if download.is_torrent() {
             return Err(LibraryError::CantRename);
@@ -245,9 +262,7 @@ impl Library {
                     }
                 }
             }
-            (None, _) if !running.contains_key(&id) && !self.stopping().contains_key(&id) => {
-                self.store()?.set_name(id, name)?;
-            }
+            (None, _) if !running.contains_key(&id) => self.store()?.set_name(id, name)?,
             _ => return Err(LibraryError::CantRename),
         }
         drop(running);
@@ -356,9 +371,9 @@ impl Library {
         let session = swarm.session().await?;
         let changes = swarm.changes.lock().await;
         // A running transfer outside the session is still adding the torrent, with
-        // the choice it began with, or has finished it; a row that still says
-        // downloading with no transfer is settling. A new choice would be lost.
-        let settling = download.state == DownloadState::Downloading && !running.contains_key(&id);
+        // the choice it began with, or has finished it; a stopping one is settling.
+        // A new choice would be lost.
+        let settling = self.stopping().contains_key(&id);
         if settling || (running.contains_key(&id) && !session.has(&hash)) {
             return Err(LibraryError::TorrentBusy);
         }
@@ -599,18 +614,18 @@ impl Library {
     pub async fn pause(&self, id: DownloadId) -> Result<(), LibraryError> {
         let mut running = self.running.lock().await;
         let download = self.get(id)?;
-        let Some(entry) = self.take(&mut running, id, DownloadState::Paused) else {
+        let Some((entry, settling)) = self.take(&mut running, id, DownloadState::Paused) else {
             if download.state == DownloadState::Queued {
                 self.hold(&download)?;
-            } else if let Some(target) = self.stopping().get_mut(&id) {
-                *target = DownloadState::Paused;
+            } else {
+                self.retarget(id, DownloadState::Paused);
             }
             drop(running);
             return Ok(());
         };
         drop(running);
         entry.transfer.stop();
-        let settled = self.settle(id, entry.transfer).await;
+        let settled = self.settle(settling, entry.transfer).await;
         self.changed(id);
         settled?;
         self.pump().await
@@ -620,23 +635,29 @@ impl Library {
         let mut running = self.running.lock().await;
         let held = self.hold_queue();
         for target in self.stopping().values_mut() {
-            *target = DownloadState::Paused;
+            if *target != DownloadState::Failed {
+                *target = DownloadState::Paused;
+            }
         }
-        let stopped: Vec<(DownloadId, Running)> = running.drain().collect();
-        self.stopping()
-            .extend(stopped.iter().map(|(id, _)| (*id, DownloadState::Paused)));
+        let stopped: Vec<(Running, Settling<'_>)> = running
+            .drain()
+            .map(|(id, entry)| (entry, self.settling(id, DownloadState::Paused)))
+            .collect();
         drop(running);
-        for (_, entry) in &stopped {
+        for (entry, _) in &stopped {
             entry.transfer.stop();
         }
         let mut first = held.err();
-        for (id, entry) in stopped {
-            if let Err(e) = self.settle(id, entry.transfer).await {
+        for (entry, settling) in stopped {
+            let id = settling.id;
+            if let Err(e) = self.settle(settling, entry.transfer).await {
                 first.get_or_insert(e);
             }
             self.changed(id);
         }
-        first.map_or(Ok(()), Err)
+        // A resume while the transfers ended queued its download again.
+        let pumped = self.pump().await;
+        first.map_or(pumped, Err)
     }
 
     pub async fn resume_all(&self) -> Result<Vec<DownloadId>, LibraryError> {
@@ -674,8 +695,7 @@ impl Library {
         if download.state == DownloadState::Done || running.contains_key(&id) {
             return Ok(());
         }
-        if let Some(target) = self.stopping().get_mut(&id) {
-            *target = DownloadState::Queued;
+        if self.retarget(id, DownloadState::Queued) {
             return Ok(());
         }
         if download.state != DownloadState::Queued {
@@ -700,10 +720,10 @@ impl Library {
         }
         // Settled as paused, so a removal that fails below leaves a true state,
         // and the file that the run learned is known to the delete.
-        if let Some(entry) = self.take(&mut running, id, DownloadState::Paused) {
+        if let Some((entry, settling)) = self.take(&mut running, id, DownloadState::Paused) {
             entry.transfer.stop();
             let ended = self.end(id, entry.transfer).await;
-            let settled = self.record_end(id, ended);
+            let settled = self.record_end(settling, ended);
             self.changed(id);
             settled?;
         }
@@ -757,18 +777,16 @@ impl Library {
                 live.push((id, progress));
             }
         }
-        let finished: Vec<(DownloadId, Running)> = ended
+        let finished: Vec<(Running, Settling<'_>)> = ended
             .iter()
-            .filter_map(|&id| {
-                self.take(&mut running, id, DownloadState::Failed)
-                    .map(|r| (id, r))
-            })
+            .filter_map(|&id| self.take(&mut running, id, DownloadState::Failed))
             .collect();
         drop(running);
         let mut settled = Vec::with_capacity(finished.len());
         let mut error = None;
-        for (id, entry) in finished {
-            if let Err(e) = self.settle(id, entry.transfer).await {
+        for (entry, settling) in finished {
+            let id = settling.id;
+            if let Err(e) = self.settle(settling, entry.transfer).await {
                 error.get_or_insert_with(|| e.to_string());
             }
             settled.push(id);
@@ -859,22 +877,24 @@ impl Library {
         self.end_stop(stopped).await
     }
 
-    async fn begin_stop(&self) -> Vec<(DownloadId, Running)> {
+    async fn begin_stop(&self) -> Vec<(Running, Settling<'_>)> {
         let mut running = self.running.lock().await;
-        let stopped: Vec<(DownloadId, Running)> = running.drain().collect();
-        self.stopping()
-            .extend(stopped.iter().map(|(id, _)| (*id, DownloadState::Queued)));
+        let stopped: Vec<(Running, Settling<'_>)> = running
+            .drain()
+            .map(|(id, entry)| (entry, self.settling(id, DownloadState::Queued)))
+            .collect();
         drop(running);
-        for (_, entry) in &stopped {
+        for (entry, _) in &stopped {
             entry.transfer.stop();
         }
         stopped
     }
 
-    async fn end_stop(&self, stopped: Vec<(DownloadId, Running)>) -> Result<(), LibraryError> {
+    async fn end_stop(&self, stopped: Vec<(Running, Settling<'_>)>) -> Result<(), LibraryError> {
         let mut first = None;
-        for (id, entry) in stopped {
-            if let Err(e) = self.settle(id, entry.transfer).await {
+        for (entry, settling) in stopped {
+            let id = settling.id;
+            if let Err(e) = self.settle(settling, entry.transfer).await {
                 first.get_or_insert(e);
             }
             self.changed(id);
@@ -1067,23 +1087,45 @@ impl Library {
         Ok(())
     }
 
-    // Under the run lock: the download leaves the run and settles as `target`,
-    // unless a pause or resume changes that before its transfer ends.
+    // Under the run lock: the download settles as `target`, unless a pause or resume
+    // changes that before its transfer ends.
+    fn settling(&self, id: DownloadId, target: DownloadState) -> Settling<'_> {
+        self.stopping().insert(id, target);
+        Settling {
+            library: self,
+            id,
+            settled: false,
+        }
+    }
+
     fn take(
         &self,
         running: &mut HashMap<DownloadId, Running>,
         id: DownloadId,
         target: DownloadState,
-    ) -> Option<Running> {
+    ) -> Option<(Running, Settling<'_>)> {
         let entry = running.remove(&id)?;
-        self.stopping().insert(id, target);
-        Some(entry)
+        Some((entry, self.settling(id, target)))
     }
 
-    async fn settle(&self, id: DownloadId, transfer: Transfer) -> Result<(), LibraryError> {
-        let ended = self.end(id, transfer).await;
+    // A stop's target follows a later pause or resume, but a transfer that failed on
+    // its own keeps that outcome and its reason. False when the download isn't stopping.
+    fn retarget(&self, id: DownloadId, to: DownloadState) -> bool {
+        let mut stopping = self.stopping();
+        let Some(target) = stopping.get_mut(&id) else {
+            return false;
+        };
+        if *target != DownloadState::Failed {
+            *target = to;
+        }
+        drop(stopping);
+        true
+    }
+
+    async fn settle(&self, settling: Settling<'_>, transfer: Transfer) -> Result<(), LibraryError> {
+        let ended = self.end(settling.id, transfer).await;
         let running = self.running.lock().await;
-        let recorded = self.record_end(id, ended);
+        let recorded = self.record_end(settling, ended);
         drop(running);
         recorded
     }
@@ -1102,7 +1144,9 @@ impl Library {
     }
 
     // Under the run lock, so a pause or resume can't change the state in between.
-    fn record_end(&self, id: DownloadId, ended: Ended) -> Result<(), LibraryError> {
+    fn record_end(&self, mut settling: Settling<'_>, ended: Ended) -> Result<(), LibraryError> {
+        settling.settled = true;
+        let id = settling.id;
         let learned = self.keep_learned(id, ended.learned);
         let target = self.stopping().remove(&id).unwrap_or(DownloadState::Paused);
         let recorded = self
@@ -1125,7 +1169,7 @@ impl Library {
             }
             let settled = self.settled.notified();
             drop(running);
-            point!(self, "remove waits");
+            point!(self, "waits");
             settled.await;
         }
     }
