@@ -1,0 +1,25 @@
+scripts/flatpak-repo-test.sh
+  s_b321718d129a1e::t_9d21fb708a7aea 1-52
+.github/workflows/flatpak.yml
+  s_b321718d129a1e::t_a48c20dcd62381 22,119-133
+CLAUDE.md
+  s_b321718d129a1e::t_990e90e04d3a51 75
+scripts/flatpak-repo.sh
+  s_b321718d129a1e::t_74e47f451cf71c 38-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0fbc232c3ee9752776be2185dfe767b6c16f6f1f",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
