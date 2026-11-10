@@ -1,0 +1,19 @@
+.github/workflows/extension.yml
+  s_b321718d129a1e::t_b145def03ca927 72-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1fd1b03a118ab7fe81386d223be14bbce324af8d",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
