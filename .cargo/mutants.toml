@@ -1,0 +1,11 @@
+# The Mutants job in CI runs cargo-mutants on the Rust lines that a pull request changes.
+# It sets RUSTFLAGS=--cap-lints=warn, so a mutant that leaves a name unused still builds.
+# Each crate's own tests must catch the mutants in its code.
+exclude_re = [
+  # A main only starts its program.
+  "replace main( -> .*)? with ",
+  # Only driving the window notices a Tauri command replaced as a whole; each one calls
+  # code that the tests cover. scripts/check-commands.py keeps this list current.
+  "^apps/desktop/src-tauri/src/.*: replace (add_download|answer_capture|choose_download_folder|choose_folder|choose_torrent_files|disk_free|download_events|download_headers|get_settings|inspect_download|list_downloads|open_file|pause_download|pending_captures|place_download|remove_download|rename_download|resume_download|search_downloads|set_download_headers|set_download_options|show_in_folder|system_color_scheme|torrent_view|update_settings)( -> .*)? with ",
+]
+test_tool = "nextest"

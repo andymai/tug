@@ -1,6 +1,12 @@
 name: Setup build environment
 description: Install the libraries Tauri links against on Linux and restore the cargo cache
 
+inputs:
+  cache-key:
+    description: Another job's id, to restore that job's cargo cache when this job builds the same targets
+    required: false
+    default: ""
+
 runs:
   using: composite
   steps:
@@ -16,3 +22,4 @@ runs:
     - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
       with:
         save-if: ${{ github.ref == 'refs/heads/main' }}
+        shared-key: ${{ inputs.cache-key }}

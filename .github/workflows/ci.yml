@@ -172,6 +172,78 @@ jobs:
           tool: cargo-audit
       - run: cargo audit
 
+  # Mutates the Rust lines that a pull request changes, in two shards. A mutant that no
+  # test catches fails the job; .cargo/mutants.toml lists what it leaves alone, and why.
+  mutants:
+    name: Mutants ${{ matrix.shard }}/2
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+    # A mutant that leaves a name unused must still build to be tested.
+    env:
+      RUSTFLAGS: --cap-lints=warn
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      # The checkout is the merge commit, so its first parent is the base.
+      - name: Find the changed Rust lines
+        id: diff
+        run: |
+          git diff --no-renames --diff-filter=AM HEAD^1 HEAD -- '*.rs' > "$RUNNER_TEMP/pr.diff"
+          if [ -s "$RUNNER_TEMP/pr.diff" ]; then echo "rust=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.diff.outputs.rust == 'true'
+        uses: ./.github/actions/setup
+        with:
+          cache-key: mutants
+      - if: steps.diff.outputs.rust == 'true'
+        uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.62.30
+        with:
+          tool: cargo-mutants@27.1.0,nextest
+      # cargo-mutants exits 3 when a mutant timed out, even when others were missed, so
+      # the job reads missed.txt. A timeout alone passes: the tests hung, so they noticed.
+      - if: steps.diff.outputs.rust == 'true'
+        name: Mutate the changed lines
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          status=0
+          cargo mutants --in-diff "$RUNNER_TEMP/pr.diff" --in-place --no-shuffle --shard "$SHARD/2" || status=$?
+          if [ -s mutants.out/missed.txt ]; then
+            { echo "### Mutants that no test caught"; echo '```'; cat mutants.out/missed.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 2
+          fi
+          if [ "$status" -ne 0 ] && [ "$status" -ne 3 ]; then exit "$status"; fi
+
+  # Builds each package as cargo-mutants does, with the Mutants job's flags, and saves
+  # the cache that the job starts from.
+  mutants-cache:
+    name: Mutants cache
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      RUSTFLAGS: --cap-lints=warn
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          cache-key: mutants
+      - uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2.62.30
+        with:
+          tool: nextest
+      - run: for package in tug-core tug-ipc tug-host tug-desktop; do cargo nextest run --package "$package" --no-run; done
+
   machete:
     name: Unused Dependencies
     runs-on: ubuntu-24.04
@@ -223,7 +295,7 @@ jobs:
   ci-pass:
     name: CI Pass
     if: ${{ !cancelled() }}
-    needs: [fmt, clippy, test, msrv, docs, deps, frontend, deny, audit, machete, taplo, packaging]
+    needs: [fmt, clippy, test, msrv, docs, deps, frontend, deny, audit, mutants, machete, taplo, packaging]
     runs-on: ubuntu-24.04
     steps:
       - name: Check all jobs
