@@ -7,11 +7,18 @@ on:
         description: The release tag to build and upload to
         type: string
         required: true
+    secrets:
+      FLATPAK_SIGNING_KEY:
+        description: The armored GPG secret key, without a passphrase, that signs the Flatpak repository
+        # Not required, so a missing key fails only the repository, not the bundle.
+        required: false
   workflow_dispatch:
   pull_request:
     paths:
       - .github/workflows/flatpak.yml
       - packaging/**
+      - scripts/flatpak-repo.sh
+      - scripts/flatpak-repo-check.sh
 
 permissions: {}
 
@@ -67,3 +74,66 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         run: gh release upload "$TAG" ./*.flatpak --clobber --repo "$GITHUB_REPOSITORY"
+
+  # Tug's own Flatpak repository on GitHub Pages: after one `flatpak remote-add`,
+  # Bazaar and other Flatpak stores list Tug and update it. A job of its own, so
+  # the build's npm and cargo code never runs where the signing key is.
+  repo:
+    name: Flatpak repository
+    needs: flatpak
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.tag || github.ref }}
+      # flatpak-builder's own artifact name; a release run also holds the AppImage's.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: io.github.andymai.Tug-x86_64.flatpak
+          path: bundle
+      - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends flatpak ostree
+      # A release signs with Tug's key, the one in tug-repo.asc: with another key, every
+      # client that added the remote would refuse the update. Other runs sign with a
+      # throwaway key and publish nothing.
+      - name: Import the signing key
+        env:
+          TAG: ${{ inputs.tag }}
+          KEY: ${{ inputs.tag && secrets.FLATPAK_SIGNING_KEY || '' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TAG" ]; then
+            gpg --batch --passphrase '' --quick-gen-key "Tug test key" rsa4096 sign never
+            exit 0
+          fi
+          [ -n "$KEY" ] || { echo "::error::FLATPAK_SIGNING_KEY is empty"; exit 1; }
+          printf '%s\n' "$KEY" | gpg --batch --import
+          want=$(gpg --batch --show-keys --with-colons packaging/flatpak/tug-repo.asc | awk -F: '$1 == "fpr" { print $10; exit }')
+          gpg --batch --list-secret-keys --with-colons | grep -q "^fpr:*:$want:" ||
+            { echo "::error::FLATPAK_SIGNING_KEY is not the key in packaging/flatpak/tug-repo.asc"; exit 1; }
+      - run: scripts/flatpak-repo.sh bundle/io.github.andymai.Tug.flatpak site https://andymai.github.io/tug
+      - run: scripts/flatpak-repo-check.sh site
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: inputs.tag
+        with:
+          path: site
+
+  pages:
+    name: Publish the Flatpak repository
+    needs: [repo, upload]
+    if: inputs.tag
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write # the deployment
+      id-token: write # the token that proves the deployment comes from this workflow
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        id: deploy
