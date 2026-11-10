@@ -12,6 +12,11 @@ use tug_core::{DownloadId, DownloadState, EventKind, Library, LibraryError, Stor
 
 const WAIT: Duration = Duration::from_secs(20);
 
+// A race that never ends fails the test, rather than hang it.
+async fn within<T>(race: impl Future<Output = T>) -> T {
+    tokio::time::timeout(WAIT, race).await.unwrap()
+}
+
 async fn open() -> Library {
     Library::open(Store::open_in_memory().unwrap())
         .await
@@ -88,11 +93,14 @@ async fn a_resume_while_a_pause_settles_starts_the_download_again() {
     received_some(&library, id).await;
 
     let settle = library.hold_at("settle");
-    let (paused, ()) = tokio::join!(library.pause(id), async {
-        settle.reached().await;
-        library.resume(id).await.unwrap();
-        settle.release();
-    });
+    let (paused, ()) = within(async {
+        tokio::join!(library.pause(id), async {
+            settle.reached().await;
+            library.resume(id).await.unwrap();
+            settle.release();
+        })
+    })
+    .await;
     paused.unwrap();
     assert_eq!(
         state_of(&library, id),
@@ -114,11 +122,14 @@ async fn a_resume_while_pause_all_settles_queues_the_download_again() {
     received_some(&library, id).await;
 
     let settle = library.hold_at("settle");
-    let (paused, ()) = tokio::join!(library.pause_all(), async {
-        settle.reached().await;
-        library.resume(id).await.unwrap();
-        settle.release();
-    });
+    let (paused, ()) = within(async {
+        tokio::join!(library.pause_all(), async {
+            settle.reached().await;
+            library.resume(id).await.unwrap();
+            settle.release();
+        })
+    })
+    .await;
     paused.unwrap();
     assert_eq!(
         state_of(&library, id),
@@ -146,12 +157,15 @@ async fn a_failure_keeps_its_reason_when_a_resume_lands_while_it_settles() {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     };
-    tokio::join!(ticks, async {
-        settle.reached().await;
-        library.resume(id).await.unwrap();
-        library.pause(id).await.unwrap();
-        settle.release();
-    });
+    within(async {
+        tokio::join!(ticks, async {
+            settle.reached().await;
+            library.resume(id).await.unwrap();
+            library.pause(id).await.unwrap();
+            settle.release();
+        })
+    })
+    .await;
     let failed = library.get(id).unwrap();
     assert_eq!(failed.state, DownloadState::Failed);
     assert!(failed.error.is_some());
@@ -177,19 +191,22 @@ async fn a_rename_while_a_download_settles_waits_and_then_sees_the_file_it_learn
 
     let settle = library.hold_at("settle");
     let waits = library.hold_at("waits");
-    let (paused, renamed, waited) = tokio::join!(
-        library.pause(id),
-        async {
-            settle.reached().await;
-            library.rename(id, "other.mp4").await
-        },
-        async {
-            let waited = tokio::time::timeout(Duration::from_secs(5), waits.reached()).await;
-            waits.release();
-            settle.release();
-            waited.is_ok()
-        },
-    );
+    let (paused, renamed, waited) = within(async {
+        tokio::join!(
+            library.pause(id),
+            async {
+                settle.reached().await;
+                library.rename(id, "other.mp4").await
+            },
+            async {
+                let waited = tokio::time::timeout(Duration::from_secs(5), waits.reached()).await;
+                waits.release();
+                settle.release();
+                waited.is_ok()
+            },
+        )
+    })
+    .await;
     assert!(waited, "the rename went on while the download settled");
     paused.unwrap();
     assert!(
@@ -209,17 +226,17 @@ async fn a_cancelled_settle_leaves_the_download_free_to_remove() {
     received_some(&library, id).await;
 
     let settle = library.hold_at("settle");
-    let held = tokio::select! {
-        _ = library.pause(id) => false,
-        () = settle.reached() => true,
-    };
+    let held = within(async {
+        tokio::select! {
+            _ = library.pause(id) => false,
+            () = settle.reached() => true,
+        }
+    })
+    .await;
     assert!(held, "the pause settled while held");
     settle.release();
 
-    tokio::time::timeout(WAIT, library.remove(id, true))
-        .await
-        .unwrap()
-        .unwrap();
+    within(library.remove(id, true)).await.unwrap();
     assert!(matches!(library.get(id), Err(LibraryError::Unknown(_))));
 }
 
@@ -237,9 +254,7 @@ async fn a_dropped_hold_lets_its_task_go() {
         settle.reached().await;
         drop(settle);
     };
-    let (paused, ()) = tokio::time::timeout(WAIT, async { tokio::join!(library.pause(id), held) })
-        .await
-        .unwrap();
+    let (paused, ()) = within(async { tokio::join!(library.pause(id), held) }).await;
     paused.unwrap();
     assert_eq!(state_of(&library, id), DownloadState::Paused);
 }
@@ -255,19 +270,22 @@ async fn a_remove_while_a_pause_settles_waits_for_it_and_leaves_no_files() {
 
     let settle = library.hold_at("settle");
     let waits = library.hold_at("waits");
-    let (paused, removed, waited) = tokio::join!(
-        library.pause(id),
-        async {
-            settle.reached().await;
-            library.remove(id, true).await
-        },
-        async {
-            let waited = tokio::time::timeout(Duration::from_secs(5), waits.reached()).await;
-            waits.release();
-            settle.release();
-            waited.is_ok()
-        },
-    );
+    let (paused, removed, waited) = within(async {
+        tokio::join!(
+            library.pause(id),
+            async {
+                settle.reached().await;
+                library.remove(id, true).await
+            },
+            async {
+                let waited = tokio::time::timeout(Duration::from_secs(5), waits.reached()).await;
+                waits.release();
+                settle.release();
+                waited.is_ok()
+            },
+        )
+    })
+    .await;
     assert!(waited, "the removal went on while the download settled");
     paused.unwrap();
     removed.unwrap();

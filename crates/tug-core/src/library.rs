@@ -1163,11 +1163,13 @@ impl Library {
         id: DownloadId,
     ) -> tokio::sync::MutexGuard<'_, HashMap<DownloadId, Running>> {
         loop {
+            // Made before the check: a dropped Settling leaves `stopping` without the
+            // run lock, and its wake-up reaches only a waiter that exists by then.
+            let settled = self.settled.notified();
             let running = self.running.lock().await;
             if !self.stopping().contains_key(&id) {
                 return running;
             }
-            let settled = self.settled.notified();
             drop(running);
             point!(self, "waits");
             settled.await;
