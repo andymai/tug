@@ -225,7 +225,8 @@ describe("mock backend", () => {
   it("adds a .torrent file as Tug does: once, as a torrent with its own name", async () => {
     const backend = createMockBackend();
     const file = "file:///home/you/Downloads/Fedora%2044.iso.torrent";
-    const options = { paused: true, first: true, connections: null, speedLimit: null, name: "other.iso", referrer: null, cookies: null, userAgent: null };
+    // Rust gives a torrent only paused, so it never checks the rest.
+    const options = { paused: true, first: true, connections: 0, speedLimit: 0, name: "other.iso", referrer: null, cookies: null, userAgent: null };
     const added = await backend.add(file, undefined, options);
     expect(added).toMatchObject({ name: "Fedora 44.iso", state: "paused" });
     expect(added.url).toMatch(/^magnet:\?xt=urn:btih:[0-9a-f]{40}&/);

@@ -1,4 +1,5 @@
 import type { Download } from "../backend/backend";
+import { trimmed } from "./rust";
 
 // A file link names a .torrent on this computer.
 export const SCHEMES = new Set(["http:", "https:", "ftp:", "ftps:", "magnet:", "file:"]);
@@ -11,7 +12,7 @@ export type LinkCheck =
   | { kind: "notLink"; input: string };
 
 export function nameOf(url: URL): string {
-  if (url.protocol === "magnet:") return url.searchParams.get("dn")?.trim() || "magnet link";
+  if (url.protocol === "magnet:") return url.searchParams.getAll("dn").find((name) => trimmed(name) !== "") ?? "magnet link";
   const segment = url.pathname.split("/").filter(Boolean).at(-1);
   if (!segment) return url.hostname;
   try {
@@ -56,9 +57,16 @@ function trimProse(token: string): string {
   }
 }
 
+// A pasted or dropped file is a link only when it is a .torrent.
 function downloadable(link: string): boolean {
   const url = parse(link);
-  return url !== null && SCHEMES.has(url.protocol);
+  return url !== null && SCHEMES.has(url.protocol) && (url.protocol !== "file:" || isTorrentFile(url));
+}
+
+// A file link reads best as its file's name.
+export function shownLink(href: string): string {
+  const url = parse(href);
+  return url !== null && url.protocol === "file:" ? nameOf(url) : href;
 }
 
 function hostOf(url: URL): string {

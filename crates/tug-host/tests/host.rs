@@ -163,35 +163,49 @@ async fn a_browser_cant_hand_tug_a_file_link() {
     tokio::spawn(server.serve(Arc::clone(&tug)));
     let host = Host::new(endpoint, CantStart, Duration::from_secs(1));
 
-    for link in [
+    let refused = [
         "file:///home/u/a.torrent",
         " FILE:///home/u/a.torrent",
         "fi\tle:///home/u/a.torrent",
-        "magnet:?xt=urn:btih:00",
         "/home/u/a.torrent",
-    ] {
-        let reply = ask(
-            &host,
-            json!({"id": 1, "type": "add", "urls": ["https://example.org/a.iso", link]}),
-        )
-        .await;
-        assert_eq!(reply["ok"], false, "{link}");
-        assert!(
-            reply["error"]
-                .as_str()
-                .unwrap()
-                .starts_with("the browser can hand Tug only web links"),
-            "{reply}"
-        );
-    }
+    ];
+    let reply = ask(&host, json!({"id": 1, "type": "add", "urls": refused})).await;
+    assert_eq!(reply["ok"], true, "{reply}");
+    assert_eq!(reply["failed"].as_array().unwrap().len(), refused.len());
     assert!(tug.0.lock().unwrap().is_empty(), "Tug saw a refused link");
 
-    let reply = ask(
-        &host,
-        json!({"id": 2, "type": "add", "urls": [" HTTPS://example.org/a.iso", "http://example.org/b"]}),
-    )
-    .await;
-    assert_eq!(reply["ok"], true);
+    let sent = [
+        " HTTPS://example.org/a.iso",
+        "ftp://example.org/b",
+        "magnet:?xt=urn:btih:00",
+    ];
+    let urls: Vec<&str> = sent.iter().chain(&refused).copied().collect();
+    let reply = ask(&host, json!({"id": 2, "type": "add", "urls": urls})).await;
+    let failed: Vec<&str> = reply["failed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|failure| failure["url"].as_str().unwrap())
+        .collect();
+    assert_eq!(failed, refused);
+    assert_eq!(
+        reply["failed"][0]["reason"],
+        "a browser can't hand Tug this kind of link"
+    );
+    let urls = tug
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .find_map(|request| match request {
+            Request::Add { urls, .. } => Some(urls.clone()),
+            _ => None,
+        });
+    assert_eq!(
+        urls,
+        Some(sent.map(String::from).to_vec()),
+        "Tug gets the other links"
+    );
 }
 
 #[tokio::test]
@@ -206,13 +220,13 @@ async fn messages_reach_a_running_tug_and_keep_their_id() {
     );
     let added = ask(
         &host,
-        json!({"id": "a", "type": "add", "urls": ["https://example.org/a.iso", "https://example.org/b"]}),
+        json!({"id": "a", "type": "add", "urls": ["https://example.org/a.iso", "nope"]}),
     )
     .await;
     assert_eq!(added["ok"], true);
     assert_eq!(added["id"], "a");
     assert_eq!(added["added"][0]["name"], "a.iso");
-    assert_eq!(added["failed"][0]["url"], "https://example.org/b");
+    assert_eq!(added["failed"][0]["url"], "nope");
     assert_eq!(
         ask(&host, json!({"type": "list"})).await["downloads"][0]["state"],
         "downloading"

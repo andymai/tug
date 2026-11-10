@@ -56,9 +56,7 @@ fn starts_with(text: &str, prefix: &str) -> bool {
 }
 
 fn torrent_file(arg: &str) -> bool {
-    Path::new(arg)
-        .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("torrent"))
+    crate::bridge::names_a_torrent(Path::new(arg))
 }
 
 // A file manager hands Tug a file as a path or as a file URI.
@@ -66,9 +64,16 @@ fn handed(arg: &str) -> bool {
     starts_with(arg, "magnet:") || starts_with(arg, "file:") || torrent_file(arg)
 }
 
-// Tug runs in another folder, so a path becomes a file URI from this one.
+// Tug runs in another folder, so a path becomes a file URI from this one. A
+// file name can look like a link with a scheme ("ubuntu:24.04.torrent").
 pub fn link_of(arg: &str, cwd: &Path) -> String {
-    if Url::parse(arg).is_err()
+    let link = Url::parse(arg).is_ok_and(|url| {
+        matches!(
+            url.scheme(),
+            "http" | "https" | "ftp" | "ftps" | "magnet" | "file"
+        )
+    });
+    if !link
         && torrent_file(arg)
         && let Ok(url) = Url::from_file_path(cwd.join(arg))
     {
@@ -360,6 +365,14 @@ mod tests {
     }
 
     #[test]
+    fn a_usage_problem_exits_with_two() {
+        assert_eq!(
+            run(Command::Usage("unknown command x".into())),
+            ExitCode::from(2)
+        );
+    }
+
+    #[test]
     fn a_torrent_path_becomes_a_file_uri_from_this_folder() {
         let cwd = Path::new("/home/u/My Torrents");
         assert_eq!(
@@ -371,11 +384,17 @@ mod tests {
             "file:///srv/a.TORRENT",
             "a full path keeps its own folder"
         );
+        assert_eq!(
+            link_of("ubuntu:24.04.torrent", cwd),
+            "file:///home/u/My%20Torrents/ubuntu:24.04.torrent",
+            "a name with a colon is still a file"
+        );
         for kept in [
             "https://example.org/a.torrent",
             "file:///srv/b.torrent",
             "magnet:?xt=urn:btih:00",
             "example.org/a.iso",
+            "notes:1.txt",
         ] {
             assert_eq!(link_of(kept, cwd), kept);
         }

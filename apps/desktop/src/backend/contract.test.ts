@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { type AddOptions, BackendError, type Settings } from "./backend";
 import headerCases from "./contract/headers.json";
+import linkCases from "./contract/links.json";
 import nameCases from "./contract/names.json";
 import ownCases from "./contract/own.json";
 import settingsCases from "./contract/settings.json";
@@ -52,6 +53,13 @@ describe("the mock keeps Tug's contract", () => {
       return null;
     });
     expect(added, "add").toEqual(outcome);
+  });
+
+  it("adds each link as Tug does, in order on one list", async () => {
+    const backend = createMockBackend();
+    for (const { link, outcome } of linkCases) {
+      expect(await settle(async () => (await backend.add(link, "/tmp", NONE)).name), link).toEqual(outcome);
+    }
   });
 
   it("starts from the defaults the cases build on", async () => {

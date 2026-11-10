@@ -506,6 +506,8 @@ describe("downloads store", () => {
       busy: false,
       error: "couldn't add https://example.org/a.iso: the disk is full",
     });
+    await store.getState().addLinks(["file:///home/you/My%20Torrents/Fedora%2044.torrent"]);
+    expect(store.getState().adding.error, "a file link reads as its file's name").toBe("couldn't add Fedora 44.torrent: the disk is full");
   });
 
   it("closes the dialog and leaves a notice when only some links fail", async () => {

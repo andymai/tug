@@ -24,6 +24,7 @@ import {
 import { isCategory } from "../lib/categories";
 import { covering } from "../lib/covering";
 import { queueRanks, sortItems, sortOf } from "../lib/columns";
+import { shownLink } from "../lib/links";
 
 export type StateView = "all" | "active" | "done" | "failed";
 // A function patch reads the settings it lands on, so a change to a list never
@@ -787,7 +788,7 @@ export function createDownloadsStore(backend: Backend) {
           first === undefined
             ? null
             : failed.length === 1
-              ? `couldn't add ${first.href}: ${first.message}`
+              ? `couldn't add ${shownLink(first.href)}: ${first.message}`
               : `couldn't add ${String(failed.length)} links: ${first.message}`;
         if (added.length === 0) {
           if (ours()) set({ adding: { ...get().adding, busy: false, error: reason } });

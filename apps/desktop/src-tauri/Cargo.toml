@@ -18,6 +18,7 @@ tauri-build.workspace = true
 ashpd.workspace = true
 futures-util.workspace = true
 ksni.workspace = true
+rustix.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri.workspace = true

@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tug_ipc::{Client, Endpoint, Origin, Request, Response};
+use tug_ipc::{Client, Endpoint, Failure, Origin, Request, Response};
 
 pub const MAX_MESSAGE: u32 = 4 << 20;
 pub const MAX_REPLY: usize = 1 << 20;
@@ -54,11 +54,13 @@ enum Command {
     List,
 }
 
-// Tug reads a file link from this computer, and the extension sends only web
-// links, so no other link gets through from a browser.
-fn web(link: &str) -> bool {
+// Tug reads a file link's .torrent from this computer, so only the links that Tug
+// downloads from the network get through from a browser.
+fn remote(link: &str) -> bool {
     link.trim().split_once(':').is_some_and(|(scheme, _)| {
-        scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https")
+        ["http", "https", "ftp", "ftps", "magnet"]
+            .iter()
+            .any(|known| scheme.eq_ignore_ascii_case(known))
     })
 }
 
@@ -205,13 +207,33 @@ impl<L: Launcher> Host<L> {
         if matches!(command, Command::Ping) {
             return Ok(json!({ "type": "pong", "running": self.connect().await.is_some() }));
         }
-        if let Command::Add { urls, .. } = &command
-            && let Some(link) = urls.iter().find(|link| !web(link))
-        {
-            return Err(format!(
-                "the browser can hand Tug only web links, not {link}"
-            ));
-        }
+        let mut refused = Vec::new();
+        let command = match command {
+            Command::Add {
+                urls,
+                origin,
+                capture,
+            } => {
+                let (urls, others): (Vec<_>, Vec<_>) =
+                    urls.into_iter().partition(|link| remote(link));
+                refused = others
+                    .into_iter()
+                    .map(|url| Failure {
+                        url,
+                        reason: "a browser can't hand Tug this kind of link".into(),
+                    })
+                    .collect();
+                if urls.is_empty() {
+                    return Ok(json!({ "type": "added", "added": [], "failed": refused }));
+                }
+                Command::Add {
+                    urls,
+                    origin,
+                    capture,
+                }
+            }
+            other => other,
+        };
         let mut client = match command {
             Command::List => self.connect().await.ok_or("Tug isn't running")?,
             _ => self.running_or_started().await?,
@@ -232,7 +254,8 @@ impl<L: Launcher> Host<L> {
         };
         match Self::ask(&mut client, request).await? {
             Response::Shown => Ok(json!({ "type": "shown" })),
-            Response::Added { added, failed } => {
+            Response::Added { added, mut failed } => {
+                failed.append(&mut refused);
                 Ok(json!({ "type": "added", "added": added, "failed": failed }))
             }
             Response::List { downloads } => Ok(json!({ "type": "list", "downloads": downloads })),

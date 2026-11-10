@@ -73,6 +73,7 @@ describe("checkLinks", () => {
     const magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Fedora%2044";
     expect(checkLinks(magnet, [])).toEqual([{ kind: "ready", input: magnet, href: magnet, name: "Fedora 44", host: "torrent" }]);
     expect(checkLinks("magnet:?xt=urn:btih:00", [])[0]).toMatchObject({ kind: "ready", name: "magnet link" });
+    expect(checkLinks("magnet:?xt=urn:btih:00&dn=%20&dn=Second", [])[0], "the first name that isn't blank").toMatchObject({ name: "Second" });
     expect(findLinks(`get it here: ${magnet}.`)).toEqual([magnet]);
   });
 
@@ -83,7 +84,7 @@ describe("checkLinks", () => {
       { kind: "notTorrent", input: "file:///home/you/notes.txt", name: "notes.txt" },
       { kind: "notTorrent", input: "file:///home/you/.torrent", name: ".torrent" },
     ]);
-    expect(findLinks(`dropped ${file}`)).toEqual([file]);
+    expect(findLinks(`dropped ${file} file:///home/you/pic.jpg`), "a pasted photo isn't a link").toEqual([file]);
     expect([file, "MAGNET:?xt=urn:btih:00", "https://example.org/a.torrent"].map(isTorrent)).toEqual([true, true, false]);
   });
 
@@ -122,5 +123,9 @@ describe("findLinks", () => {
     ).toEqual(["https://example.org/a.iso", "https://example.org/tool_(linux)."]);
     expect(linksFromTransfer(transfer({ "text/plain": "https://example.org/b.iso" }))).toEqual(["https://example.org/b.iso"]);
     expect(linksFromTransfer(transfer({ "text/plain": "just words" }))).toEqual([]);
+    expect(
+      linksFromTransfer(transfer({ "text/uri-list": "file:///home/you/a.torrent\r\nfile:///home/you/pic.jpg" })),
+      "a dropped file is a link only when it is a .torrent",
+    ).toEqual(["file:///home/you/a.torrent"]);
   });
 });

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use rustix::fs::{Mode, OFlags};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
@@ -939,14 +940,16 @@ pub async fn add(
 // file into memory only to find that it isn't one.
 const MAX_TORRENT_FILE: u64 = 16 << 20;
 
+pub fn names_a_torrent(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("torrent"))
+}
+
 fn torrent_path(url: &Url) -> Result<PathBuf, CommandError> {
     let path = url
         .to_file_path()
         .map_err(|()| CommandError::invalid(format!("{url} is not a file on this computer")))?;
-    if path
-        .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("torrent"))
-    {
+    if names_a_torrent(&path) {
         Ok(path)
     } else {
         Err(CommandError::invalid("Tug opens only .torrent files"))
@@ -956,17 +959,23 @@ fn torrent_path(url: &Url) -> Result<PathBuf, CommandError> {
 fn read_torrent(path: &Path) -> Result<Vec<u8>, CommandError> {
     let unreadable =
         |e: std::io::Error| CommandError::invalid(format!("couldn't read {}: {e}", path.display()));
-    // Before the open, which waits for a writer when the path is a pipe.
-    if !std::fs::metadata(path).map_err(unreadable)?.is_file() {
+    // A plain open of a pipe waits for a writer.
+    let file = std::fs::File::from(
+        rustix::fs::open(
+            path,
+            OFlags::RDONLY | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| unreadable(e.into()))?,
+    );
+    if !file.metadata().map_err(unreadable)?.is_file() {
         return Err(CommandError::invalid(format!(
             "{} is not a file",
             path.display()
         )));
     }
     let mut bytes = Vec::new();
-    std::fs::File::open(path)
-        .map_err(unreadable)?
-        .take(MAX_TORRENT_FILE + 1)
+    file.take(MAX_TORRENT_FILE + 1)
         .read_to_end(&mut bytes)
         .map_err(unreadable)?;
     if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_TORRENT_FILE {
