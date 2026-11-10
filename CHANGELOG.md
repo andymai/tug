@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.3](https://github.com/andymai/tug/compare/v0.37.2...v0.37.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* **core:** a resume, rename or remove while a download stops no longer races its settle ([#156](https://github.com/andymai/tug/issues/156)) ([cddbd98](https://github.com/andymai/tug/commit/cddbd984aa03862beacae7ad24723eb61707fd43))
+
 ## [0.37.2](https://github.com/andymai/tug/compare/v0.37.1...v0.37.2) (2026-11-09)
 
 
