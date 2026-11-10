@@ -1,0 +1,54 @@
+name: Extension
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release tag to build and upload to
+        type: string
+        required: true
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/extension.yml
+      - apps/extension/**
+
+permissions: {}
+
+jobs:
+  extension:
+    name: Extension
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @tug/extension build
+      # Fixed names, so the README can link the newest release's copy.
+      - name: Zip each browser's build
+        run: |
+          set -euo pipefail
+          for browser in chromium firefox; do
+            (cd "apps/extension/dist/$browser" && zip -qrX "$GITHUB_WORKSPACE/tug-extension-$browser.zip" .)
+            unzip -Z1 "tug-extension-$browser.zip" | grep -qx manifest.json
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: extension
+          path: tug-extension-*.zip
+          retention-days: 7
+      - name: Upload to the release
+        if: inputs.tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" tug-extension-chromium.zip tug-extension-firefox.zip --clobber --repo "$GITHUB_REPOSITORY"

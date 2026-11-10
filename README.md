@@ -14,7 +14,7 @@ Tug pulls every file over many connections and picks up exactly where it stopped
 [![Rust 1.95+](https://img.shields.io/badge/rust-1.95%2B-orange.svg)](https://www.rust-lang.org/)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](#architecture)
 
-**[Status](#status)** · **[Highlights](#highlights)** · **[Scope](#scope)** · **[Architecture](#architecture)** · **[Build](#build-from-source)** · **[Contributing](CONTRIBUTING.md)**
+**[Install](#install)** · **[Status](#status)** · **[Highlights](#highlights)** · **[Scope](#scope)** · **[Architecture](#architecture)** · **[Build](#build-from-source)** · **[Contributing](CONTRIBUTING.md)**
 
 https://github.com/user-attachments/assets/3fb2281b-990d-42c5-b1bc-299f19bef128
 
@@ -23,6 +23,51 @@ https://github.com/user-attachments/assets/3fb2281b-990d-42c5-b1bc-299f19bef128
 The video runs Tug's interface on simulated downloads, from a file's live connections to a download that the browser hands over.
 
 Tug is a download manager made for KDE Plasma first, with a quiet, keyboard-first interface that shows exactly what every download is doing. Underneath, it runs [Mister Download Manager](https://github.com/anefzaoui/misterdownloadmanager)'s download engine.
+
+## Install
+
+Tug runs on 64-bit Linux. Each [release](https://github.com/andymai/tug/releases/latest) has an AppImage and a Flatpak bundle. To use the browser extension, install the AppImage: from inside its sandbox, the Flatpak can't connect a browser to Tug.
+
+### AppImage
+
+1. Download `Tug_<version>_amd64.AppImage` from the [newest release](https://github.com/andymai/tug/releases/latest).
+2. Make it executable, and start it:
+
+   ```sh
+   chmod +x Tug_*_amd64.AppImage
+   ./Tug_*_amd64.AppImage
+   ```
+
+### Flatpak
+
+The bundle uses the GNOME 51 runtime from Flathub, which `flatpak install` gets for you.
+
+```sh
+curl -LO https://github.com/andymai/tug/releases/latest/download/io.github.andymai.Tug.flatpak
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user ./io.github.andymai.Tug.flatpak
+flatpak run io.github.andymai.Tug
+```
+
+### Browser extension
+
+The extension hands your browser's downloads to Tug, with the cookies that a signed-in download needs. It also adds **Download with Tug** to the menu of each link.
+
+For Chrome, Chromium, Brave, Vivaldi or Edge (version 120 or later):
+
+1. Download [`tug-extension-chromium.zip`](https://github.com/andymai/tug/releases/latest/download/tug-extension-chromium.zip), and unzip it into a folder that you keep.
+2. Open the browser's extensions page, for example `chrome://extensions`, and turn on **Developer mode**.
+3. Click **Load unpacked**, and choose the folder.
+4. Run `./Tug_*_amd64.AppImage browsers` once. It connects Tug to each browser that ran at least once, and Tug does the same at each start.
+
+To update the extension, unzip the new release into the same folder. Then click the reload button on the extension's card. A browser from Flatpak also needs permission to reach Tug outside its sandbox: the `browsers` command prints the `flatpak override` command that gives it.
+
+Firefox (version 128 or later) keeps an add-on after a restart only when Mozilla signed it. To try the extension until the next restart:
+
+1. Download [`tug-extension-firefox.zip`](https://github.com/andymai/tug/releases/latest/download/tug-extension-firefox.zip).
+2. Open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on…**, and choose the zip.
+
+By default, Tug asks before it takes a download from the browser. To change that, use **Ask before each browser download** in **Settings → Browsers**. The extension leaves downloads from private windows, and files under 1 MiB, to the browser.
 
 ## Status
 
