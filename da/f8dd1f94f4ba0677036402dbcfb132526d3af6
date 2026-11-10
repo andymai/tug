@@ -1,0 +1,22 @@
+crates/tug-core/tests/races.rs
+  s_b321718d129a1e::t_e187bf0beaad81 96-103,125-132,160-168,194-209,229-235,239,257,273-288
+  s_b321718d129a1e::t_8bcd9c2714f7b1 15-19
+crates/tug-core/src/library.rs
+  s_b321718d129a1e::t_8bcd9c2714f7b1 1166-1168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "daf8dd1f94f4ba0677036402dbcfb132526d3af6",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
