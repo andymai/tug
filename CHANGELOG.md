@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.0](https://github.com/andymai/tug/compare/v0.40.0...v0.41.0) (2026-11-10)
+
+
+### Features
+
+* **desktop:** let the Chrome Web Store's extension reach Tug ([#166](https://github.com/andymai/tug/issues/166)) ([99dac92](https://github.com/andymai/tug/commit/99dac9257ab3991c299318b78a8e0531215b4f46))
+
 ## [0.40.0](https://github.com/andymai/tug/compare/v0.39.0...v0.40.0) (2026-11-10)
 
 
