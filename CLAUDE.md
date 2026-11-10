@@ -51,7 +51,7 @@ distrobox enter dev -- bash -lc 'cd ~/Git/tug && PKG_CONFIG=/usr/bin/pkg-config 
 
 - `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`
 - `python3 scripts/check-deps.py`, `python3 scripts/check-commands.py` (each Tauri command is registered, and async unless its `SYNC` entry gives a reason), `taplo fmt --check`, `cargo machete`, `cargo deny check`, `cargo audit`
-- `git diff main... -- '*.rs' > pr.diff && cargo mutants --in-diff pr.diff`: CI's Mutants job runs it on each pull request and fails on a mutant that no test catches. Add a test for it, or, for a mutant that no test can tell apart, a line in `.cargo/mutants.toml` with the reason
+- `git fetch && git diff --no-renames --diff-filter=AM origin/main... -- '*.rs' > /tmp/pr.diff && cargo mutants --in-diff /tmp/pr.diff`: CI's Mutants job runs it on each pull request and fails on a mutant that no test catches. Add a test in the mutant's own crate, or, for a mutant that no test can tell apart, a line in `.cargo/mutants.toml` with the reason
 - `brand/export.sh` after changing `brand/build.py`; `python3 scripts/gen-tokens.py` after changing `design/tokens.json`
 - `scripts/install-data.sh <prefix>` installs the desktop file, the AppStream metainfo and the hicolor icons (`packaging/`, `brand/`); CI validates them with `desktop-file-validate` and `appstreamcli validate`
 - Frontend, on the host with pnpm: `pnpm install`, then `pnpm --filter @tug/desktop dev | typecheck | lint | test | test:visual | build`

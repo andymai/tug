@@ -66,6 +66,32 @@ class CheckCommands(unittest.TestCase):
         self.assertIn("bridge::a: two commands with this path", found)
         self.assertIn("bridge::gone: registered, but no #[tauri::command] has this path", found)
 
+    def test_the_mutants_config_lists_exactly_the_registered_commands(self):
+        files = {
+            "main.rs": handler("bridge::a", "bridge::get_settings", "notify::b"),
+            "bridge.rs": "#[tauri::command]\nasync fn a() {}\n#[tauri::command]\nfn get_settings() {}\n",
+            "notify.rs": "#[tauri::command(async)]\nfn b() {}\n",
+        }
+        good = check.commands_pattern({"a", "b", "get_settings"})
+        self.assertEqual(problems_with_mutants(files, [good]), [])
+        stale = check.commands_pattern({"a", "get_settings"})
+        for patterns in ([stale], [], [good, good]):
+            found = problems_with_mutants(files, patterns)
+            self.assertEqual(len(found), 1, found)
+            self.assertIn(good, found[0])
+
+
+def problems_with_mutants(files: dict[str, str], patterns: list[str]) -> list[str]:
+    with tempfile.TemporaryDirectory() as root:
+        src = Path(root) / "src"
+        for name, text in files.items():
+            (src / name).parent.mkdir(parents=True, exist_ok=True)
+            (src / name).write_text(text)
+        mutants = Path(root) / "mutants.toml"
+        listed = ", ".join('"' + p.replace("\\", "\\\\") + '"' for p in patterns)
+        mutants.write_text(f'exclude_re = ["replace main( -> .*)? with ", {listed}]\n')
+        return check.problems_in(src, mutants)
+
 
 if __name__ == "__main__":
     unittest.main()
