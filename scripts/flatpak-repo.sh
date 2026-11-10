@@ -35,11 +35,18 @@ repo=$site/repo
 mkdir -p "$site"
 ostree init --mode=archive-z2 --repo="$repo"
 
-if curl -sfL -o /dev/null "$url/repo/summary"; then
-  ostree remote add --repo="$repo" --gpg-import="$published_key" published "$url/repo/"
-  ostree pull --repo="$repo" --mirror --depth="$parents" published "$ref"
-  ostree remote delete --repo="$repo" published
-fi
+# Only a missing repository starts a new one: without the old commits, a client
+# that read a cached summary would find nothing to pull.
+status=$(curl -sL --retry 3 -o /dev/null -w '%{http_code}' "$url/repo/summary") || status=000
+case $status in
+  200)
+    ostree remote add --repo="$repo" --gpg-import="$published_key" published "$url/repo/"
+    ostree pull --repo="$repo" --mirror --depth="$parents" published "$ref"
+    ostree remote delete --repo="$repo" published
+    ;;
+  404) echo "nothing published at $url yet: a new repository" ;;
+  *) echo "can't read $url/repo/summary (HTTP $status)" >&2; exit 1 ;;
+esac
 
 ostree init --mode=archive-z2 --repo="$work/bundle"
 flatpak build-import-bundle "$work/bundle" "$bundle"

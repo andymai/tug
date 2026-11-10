@@ -19,6 +19,7 @@ on:
       - packaging/**
       - scripts/flatpak-repo.sh
       - scripts/flatpak-repo-check.sh
+      - scripts/flatpak-repo-test.sh
 
 permissions: {}
 
@@ -115,6 +116,21 @@ jobs:
             { echo "::error::FLATPAK_SIGNING_KEY is not the key in packaging/flatpak/tug-repo.asc"; exit 1; }
       - run: scripts/flatpak-repo.sh bundle/io.github.andymai.Tug.flatpak site https://andymai.github.io/tug
       - run: scripts/flatpak-repo-check.sh site
+      # The last two releases through the scripts, as two releases in a row would go.
+      - name: Test an update from one release to the next
+        if: ${{ !inputs.tag }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t tags < <(gh release list --repo "$GITHUB_REPOSITORY" --limit 2 \
+            --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName')
+          for tag in "${tags[@]}"; do
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+              --pattern io.github.andymai.Tug.flatpak --dir "releases/$tag"
+          done
+          scripts/flatpak-repo-test.sh "releases/${tags[1]}/io.github.andymai.Tug.flatpak" \
+            "releases/${tags[0]}/io.github.andymai.Tug.flatpak"
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         if: inputs.tag
         with:
