@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.38.0](https://github.com/andymai/tug/compare/v0.37.3...v0.38.0) (2026-11-10)
+
+
+### Features
+
+* **desktop:** add .torrent files from the add dialog, tug and a file manager ([#158](https://github.com/andymai/tug/issues/158)) ([1ecd038](https://github.com/andymai/tug/commit/1ecd038cc8ffce1e52b82db6f8d31ca0ad94db2e))
+
 ## [0.37.3](https://github.com/andymai/tug/compare/v0.37.2...v0.37.3) (2026-11-10)
 
 
