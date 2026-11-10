@@ -147,6 +147,8 @@ export interface DownloadsState {
   // The saved headers, or null when the save failed.
   setHeaders: (id: number, referrer: string | null, cookies: CookiesChange, userAgent: string | null) => Promise<Headers | null>;
   pickFolder: (from?: string) => Promise<string | null>;
+  // Adds the chosen .torrent files to the open dialog's links.
+  chooseTorrents: () => Promise<void>;
   settleFresh: (id: number) => void;
   answerCapture: (id: number, answer: CaptureAnswer) => Promise<void>;
   minimizeWindow: () => void;
@@ -846,6 +848,21 @@ export function createDownloadsStore(backend: Backend) {
           set({ notice: BackendError.from(error).message });
           return null;
         }
+      },
+
+      chooseTorrents: async () => {
+        const { session } = get().adding;
+        let files: string[];
+        try {
+          files = await backend.chooseTorrents();
+        } catch (error) {
+          set({ notice: BackendError.from(error).message });
+          return;
+        }
+        const { adding } = get();
+        if (!adding.open || adding.session !== session || adding.busy || files.length === 0) return;
+        const text = [adding.text.trimEnd(), ...files].filter((part) => part !== "").join("\n");
+        set({ adding: { ...adding, text, error: null } });
       },
 
       settleFresh: (id) => {

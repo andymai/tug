@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -934,7 +935,64 @@ pub async fn add(
     add_with_options(library, url, dir, origin, options).await
 }
 
+// Far above the .torrent of any real torrent. It keeps Tug from reading a large
+// file into memory only to find that it isn't one.
+const MAX_TORRENT_FILE: u64 = 16 << 20;
+
+fn torrent_path(url: &Url) -> Result<PathBuf, CommandError> {
+    let path = url
+        .to_file_path()
+        .map_err(|()| CommandError::invalid(format!("{url} is not a file on this computer")))?;
+    if path
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("torrent"))
+    {
+        Ok(path)
+    } else {
+        Err(CommandError::invalid("Tug opens only .torrent files"))
+    }
+}
+
+fn read_torrent(path: &Path) -> Result<Vec<u8>, CommandError> {
+    let unreadable =
+        |e: std::io::Error| CommandError::invalid(format!("couldn't read {}: {e}", path.display()));
+    // Before the open, which waits for a writer when the path is a pipe.
+    if !std::fs::metadata(path).map_err(unreadable)?.is_file() {
+        return Err(CommandError::invalid(format!(
+            "{} is not a file",
+            path.display()
+        )));
+    }
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .map_err(unreadable)?
+        .take(MAX_TORRENT_FILE + 1)
+        .read_to_end(&mut bytes)
+        .map_err(unreadable)?;
+    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_TORRENT_FILE {
+        return Err(CommandError::invalid(format!(
+            "{} is too big for a .torrent file",
+            path.display()
+        )));
+    }
+    Ok(bytes)
+}
+
+async fn add_torrent(
+    library: &Library,
+    source: TorrentSource,
+    dir: &Path,
+    paused: bool,
+) -> Result<DownloadId, CommandError> {
+    Ok(if paused {
+        library.add_torrent_paused(source, dir).await?
+    } else {
+        library.add_torrent(source, dir).await?
+    })
+}
+
 // A torrent takes only `paused`; the other options are for one server's file.
+// A file link names a .torrent on this computer.
 pub async fn add_with_options(
     library: &Library,
     url: &str,
@@ -944,7 +1002,10 @@ pub async fn add_with_options(
 ) -> Result<DownloadDto, CommandError> {
     let url = Url::parse(url.trim())
         .map_err(|e| CommandError::invalid(format!("{url} is not a link: {e}")))?;
-    if !matches!(url.scheme(), "http" | "https" | "ftp" | "ftps" | "magnet") {
+    if !matches!(
+        url.scheme(),
+        "http" | "https" | "ftp" | "ftps" | "magnet" | "file"
+    ) {
         return Err(CommandError::invalid(format!(
             "Tug can't download {} links",
             url.scheme()
@@ -959,15 +1020,17 @@ pub async fn add_with_options(
         }
         None => library.settings()?.download_dir,
     };
-    let id = if url.scheme() == "magnet" {
-        let source = TorrentSource::Magnet(url.to_string());
-        if options.paused {
-            library.add_torrent_paused(source, &dir).await?
-        } else {
-            library.add_torrent(source, &dir).await?
+    let id = match url.scheme() {
+        "magnet" => {
+            let source = TorrentSource::Magnet(url.to_string());
+            add_torrent(library, source, &dir, options.paused).await?
         }
-    } else {
-        library.add_with(url, &dir, origin, options).await?
+        "file" => {
+            let path = torrent_path(&url)?;
+            let bytes = off_window(move || read_torrent(&path)).await?;
+            add_torrent(library, TorrentSource::File(bytes), &dir, options.paused).await?
+        }
+        _ => library.add_with(url, &dir, origin, options).await?,
     };
     Ok(DownloadDto::from(&library.get(id)?))
 }
@@ -1294,33 +1357,64 @@ pub fn folder_from_uri(uri: &str) -> Result<PathBuf, CommandError> {
         .ok_or_else(|| CommandError::invalid(format!("{uri} is not a local folder")))
 }
 
+fn chooser_failed(e: &ashpd::Error) -> CommandError {
+    CommandError {
+        kind: ErrorKind::Internal,
+        message: format!("the file chooser failed: {e}"),
+    }
+}
+
+// The URIs the person chose, none when they cancel.
+async fn choose(
+    request: Result<ashpd::desktop::file_chooser::OpenFileRequest, ashpd::Error>,
+) -> Result<Vec<String>, CommandError> {
+    let request = request
+        .map_err(|e| chooser_failed(&e))?
+        .send()
+        .await
+        .map_err(|e| chooser_failed(&e))?;
+    match request.response() {
+        Ok(files) => Ok(files.uris().iter().map(ToString::to_string).collect()),
+        Err(ashpd::Error::Response(ashpd::desktop::ResponseError::Cancelled)) => Ok(Vec::new()),
+        Err(e) => Err(chooser_failed(&e)),
+    }
+}
+
 async fn pick_folder(title: &str, from: &Path) -> Result<Option<PathBuf>, CommandError> {
     use ashpd::desktop::file_chooser::SelectedFiles;
 
-    let portal = |e: ashpd::Error| CommandError {
-        kind: ErrorKind::Internal,
-        message: format!("the folder chooser failed: {e}"),
-    };
     let request = SelectedFiles::open_file()
         .title(title)
         .accept_label("Choose")
         .modal(true)
         .directory(true)
-        .current_folder(from)
-        .map_err(portal)?
-        .send()
-        .await
-        .map_err(portal)?;
-    let files = match request.response() {
-        Ok(files) => files,
-        Err(ashpd::Error::Response(ashpd::desktop::ResponseError::Cancelled)) => return Ok(None),
-        Err(e) => return Err(portal(e)),
-    };
-    files
-        .uris()
+        .current_folder(from);
+    choose(request)
+        .await?
         .first()
-        .map(|uri| folder_from_uri(uri.as_str()))
+        .map(|uri| folder_from_uri(uri))
         .transpose()
+}
+
+// The portal hands back file URIs, which `add_download` takes as links.
+#[tauri::command]
+pub async fn choose_torrents(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<String>, CommandError> {
+    use ashpd::desktop::file_chooser::{FileFilter, SelectedFiles};
+
+    let from = state.library.settings()?.download_dir;
+    let torrents = FileFilter::new("Torrent files")
+        .mimetype("application/x-bittorrent")
+        .glob("*.torrent");
+    let request = SelectedFiles::open_file()
+        .title("Choose .torrent files")
+        .accept_label("Choose")
+        .modal(true)
+        .multiple(true)
+        .filter(torrents)
+        .current_folder(from);
+    choose(request).await
 }
 
 // A folder for the downloads being added; Tug's own folder stays.
@@ -1910,6 +2004,104 @@ mod tests {
         assert!(list(&library).unwrap().is_empty());
     }
 
+    async fn torrent_library(state: &Path) -> Library {
+        Library::open_with(
+            Store::open_in_memory().unwrap(),
+            Some(TorrentOptions {
+                local_only: true,
+                ..TorrentOptions::new(state.to_owned())
+            }),
+        )
+        .await
+        .unwrap()
+    }
+
+    fn torrent_bytes(name: &str) -> Vec<u8> {
+        let info = format!(
+            "d6:lengthi5e4:name{}:{name}12:piece lengthi16384e6:pieces20:{}e",
+            name.len(),
+            "a".repeat(20)
+        );
+        format!("d4:info{info}e").into_bytes()
+    }
+
+    #[tokio::test]
+    async fn a_torrent_file_on_this_computer_becomes_a_torrent_download() {
+        let state = tempfile::tempdir().unwrap();
+        let torrents = torrent_library(state.path()).await;
+        let files = tempfile::tempdir().unwrap();
+        let link = |name: &str| {
+            Url::from_file_path(files.path().join(name))
+                .unwrap()
+                .to_string()
+        };
+        std::fs::write(
+            files.path().join("Fedora 44.TORRENT"),
+            torrent_bytes("Fedora-44.iso"),
+        )
+        .unwrap();
+
+        let dto = add(
+            &torrents,
+            &link("Fedora 44.TORRENT"),
+            Some("/tmp"),
+            &Origin::default(),
+            true,
+        )
+        .await
+        .unwrap();
+        assert_eq!(dto.name, "Fedora-44.iso");
+        assert!(dto.url.starts_with("magnet:?xt=urn:btih:"), "{}", dto.url);
+        assert_eq!(dto.state, StateDto::Paused);
+
+        std::fs::write(files.path().join("notes.txt"), torrent_bytes("n.iso")).unwrap();
+        std::fs::write(files.path().join("junk.torrent"), b"not bencode").unwrap();
+        std::fs::create_dir(files.path().join("folder.torrent")).unwrap();
+        let sized = |name: &str, len: u64| {
+            std::fs::File::create(files.path().join(name))
+                .unwrap()
+                .set_len(len)
+                .unwrap();
+        };
+        sized("largest.torrent", MAX_TORRENT_FILE);
+        sized("too-big.torrent", MAX_TORRENT_FILE + 1);
+        let fifo = std::process::Command::new("mkfifo")
+            .arg(files.path().join("pipe.torrent"))
+            .status()
+            .unwrap();
+        assert!(fifo.success());
+        for (link, refusal) in [
+            (link("notes.txt"), "Tug opens only .torrent files"),
+            (link("missing.torrent"), "couldn't read"),
+            (link("folder.torrent"), "is not a file"),
+            (link("pipe.torrent"), "is not a file"),
+            (link("too-big.torrent"), "is too big for a .torrent file"),
+            (
+                link("junk.torrent"),
+                "this is not a magnet link or a .torrent file",
+            ),
+            (
+                link("largest.torrent"),
+                "this is not a magnet link or a .torrent file",
+            ),
+            (
+                "file://server/a.torrent".to_owned(),
+                "is not a file on this computer",
+            ),
+        ] {
+            let err = tokio::time::timeout(
+                Duration::from_secs(10),
+                add(&torrents, &link, Some("/tmp"), &Origin::default(), false),
+            )
+            .await
+            .unwrap()
+            .unwrap_err();
+            assert_eq!(err.kind, ErrorKind::Invalid, "{link}: {}", err.message);
+            assert!(err.message.contains(refusal), "{link}: {}", err.message);
+        }
+        assert_eq!(list(&torrents).unwrap().len(), 1);
+    }
+
     #[tokio::test]
     async fn a_magnet_link_becomes_a_torrent_download() {
         let magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Fedora%2044";
@@ -1920,15 +2112,7 @@ mod tests {
         assert_eq!(err.kind, ErrorKind::Engine);
 
         let state = tempfile::tempdir().unwrap();
-        let torrents = Library::open_with(
-            Store::open_in_memory().unwrap(),
-            Some(TorrentOptions {
-                local_only: true,
-                ..TorrentOptions::new(state.path().to_owned())
-            }),
-        )
-        .await
-        .unwrap();
+        let torrents = torrent_library(state.path()).await;
         let dto = add(&torrents, magnet, Some("/tmp"), &Origin::default(), false)
             .await
             .unwrap();

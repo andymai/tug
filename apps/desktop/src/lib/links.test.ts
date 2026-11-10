@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Download } from "../backend/backend";
-import { checkLinks, findLinks, linksFromTransfer, splitLinks } from "./links";
+import { checkLinks, findLinks, isTorrent, linksFromTransfer, splitLinks } from "./links";
 
 const done: Download = {
   id: 4,
@@ -74,6 +74,17 @@ describe("checkLinks", () => {
     expect(checkLinks(magnet, [])).toEqual([{ kind: "ready", input: magnet, href: magnet, name: "Fedora 44", host: "torrent" }]);
     expect(checkLinks("magnet:?xt=urn:btih:00", [])[0]).toMatchObject({ kind: "ready", name: "magnet link" });
     expect(findLinks(`get it here: ${magnet}.`)).toEqual([magnet]);
+  });
+
+  it("takes a .torrent file on this computer and names it after the file", () => {
+    const file = "file:///home/you/My%20Torrents/Fedora%2044.TORRENT";
+    expect(checkLinks(`${file}\nfile:///home/you/notes.txt\nfile:///home/you/.torrent`, [])).toEqual([
+      { kind: "ready", input: file, href: file, name: "Fedora 44.TORRENT", host: "torrent file" },
+      { kind: "notTorrent", input: "file:///home/you/notes.txt", name: "notes.txt" },
+      { kind: "notTorrent", input: "file:///home/you/.torrent", name: ".torrent" },
+    ]);
+    expect(findLinks(`dropped ${file}`)).toEqual([file]);
+    expect([file, "MAGNET:?xt=urn:btih:00", "https://example.org/a.torrent"].map(isTorrent)).toEqual([true, true, false]);
   });
 
   it("keeps one of two spellings of the same link", () => {

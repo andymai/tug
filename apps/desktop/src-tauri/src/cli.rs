@@ -1,16 +1,18 @@
 use std::io::{self, Write};
 use std::os::unix::process::CommandExt;
+use std::path::Path;
 use std::process::{Command as Process, ExitCode, Stdio};
 use std::time::{Duration, Instant};
 
 use tug_ipc::{Client, Endpoint, Entry, Request, Response};
+use url::Url;
 
 use crate::format::format_bytes;
 
 pub const USAGE: &str = "Usage:
   tug                  Open Tug
-  tug add <link>...    Download each link
-  tug <magnet link>    Download a torrent (how the system hands Tug a magnet link)
+  tug add <link>...    Download each link or .torrent file
+  tug <torrent>...     Download a magnet link or a .torrent file (how the system hands one to Tug)
   tug list [--json]    Show every download
   tug browsers         Connect Tug to each browser
 ";
@@ -48,6 +50,33 @@ pub enum Command {
     Usage(String),
 }
 
+fn starts_with(text: &str, prefix: &str) -> bool {
+    text.get(..prefix.len())
+        .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+}
+
+fn torrent_file(arg: &str) -> bool {
+    Path::new(arg)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("torrent"))
+}
+
+// A file manager hands Tug a file as a path or as a file URI.
+fn handed(arg: &str) -> bool {
+    starts_with(arg, "magnet:") || starts_with(arg, "file:") || torrent_file(arg)
+}
+
+// Tug runs in another folder, so a path becomes a file URI from this one.
+pub fn link_of(arg: &str, cwd: &Path) -> String {
+    if Url::parse(arg).is_err()
+        && torrent_file(arg)
+        && let Ok(url) = Url::from_file_path(cwd.join(arg))
+    {
+        return url.into();
+    }
+    arg.to_owned()
+}
+
 pub fn parse(args: &[String]) -> Command {
     match args {
         [] => Command::Open,
@@ -61,13 +90,7 @@ pub fn parse(args: &[String]) -> Command {
         [command] if command == "list" => Command::List { json: false },
         [command, flag] if command == "list" && flag == "--json" => Command::List { json: true },
         [command] if command == "browsers" => Command::Browsers,
-        [link, ..]
-            if link
-                .get(..7)
-                .is_some_and(|scheme| scheme.eq_ignore_ascii_case("magnet:")) =>
-        {
-            Command::Add(args.to_vec())
-        }
+        [link, ..] if handed(link) => Command::Add(args.to_vec()),
         [flag] if matches!(flag.as_str(), "-h" | "--help" | "help") => Command::Help,
         [other, ..] => Command::Usage(format!("unknown command {other}")),
     }
@@ -261,9 +284,13 @@ pub fn run(command: Command) -> ExitCode {
             let _written = write!(io::stderr().lock(), "{problem}\n\n{USAGE}");
             return ExitCode::from(2);
         }
-        Command::Add(urls) => Endpoint::from_env()
-            .map_err(|e| e.to_string())
-            .and_then(|endpoint| tauri::async_runtime::block_on(add(&endpoint, urls, LIMITS))),
+        Command::Add(args) => {
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let urls = args.iter().map(|arg| link_of(arg, &cwd)).collect();
+            Endpoint::from_env()
+                .map_err(|e| e.to_string())
+                .and_then(|endpoint| tauri::async_runtime::block_on(add(&endpoint, urls, LIMITS)))
+        }
         Command::List { json } => Endpoint::from_env()
             .map_err(|e| e.to_string())
             .and_then(|endpoint| tauri::async_runtime::block_on(list(&endpoint, json, LIMITS))),
@@ -333,6 +360,28 @@ mod tests {
     }
 
     #[test]
+    fn a_torrent_path_becomes_a_file_uri_from_this_folder() {
+        let cwd = Path::new("/home/u/My Torrents");
+        assert_eq!(
+            link_of("fedora.torrent", cwd),
+            "file:///home/u/My%20Torrents/fedora.torrent"
+        );
+        assert_eq!(
+            link_of("/srv/a.TORRENT", cwd),
+            "file:///srv/a.TORRENT",
+            "a full path keeps its own folder"
+        );
+        for kept in [
+            "https://example.org/a.torrent",
+            "file:///srv/b.torrent",
+            "magnet:?xt=urn:btih:00",
+            "example.org/a.iso",
+        ] {
+            assert_eq!(link_of(kept, cwd), kept);
+        }
+    }
+
+    #[test]
     fn commands_parse_from_the_arguments() {
         assert_eq!(parse(&[]), Command::Open);
         assert_eq!(
@@ -363,6 +412,18 @@ mod tests {
             ]),
             "the system hands Tug a magnet link on its own"
         );
+        assert_eq!(
+            parse(&args(&[
+                "/home/u/Fedora.TORRENT",
+                "file:///home/u/b.torrent"
+            ])),
+            Command::Add(args(&[
+                "/home/u/Fedora.TORRENT",
+                "file:///home/u/b.torrent"
+            ])),
+            "a file manager hands Tug a .torrent file as a path or a URI"
+        );
+        assert!(matches!(parse(&args(&["notes.txt"])), Command::Usage(_)));
         assert!(matches!(parse(&args(&["remove", "1"])), Command::Usage(_)));
         assert!(matches!(
             parse(&args(&["list", "--yaml"])),

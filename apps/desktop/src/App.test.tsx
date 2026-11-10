@@ -1,4 +1,4 @@
-import { act, createEvent, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -210,6 +210,24 @@ describe("adding links", () => {
     await user.clear(again.getByRole("textbox", { name: "Links" }));
     await user.type(again.getByRole("textbox", { name: "Links" }), "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056");
     expect(again.queryByRole("textbox", { name: "Name" }), "a torrent keeps its own name").not.toBeInTheDocument();
+  });
+
+  it("adds the .torrent files the person chooses beside the typed links", async () => {
+    const { backend, user } = open();
+    const add = vi.spyOn(backend, "add");
+    await user.click(await screen.findByRole("button", { name: "Add" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Add downloads" }));
+    const links = dialog.getByRole("textbox", { name: "Links" });
+    await user.type(links, "https://example.org/a.iso");
+    await user.click(dialog.getByRole("button", { name: "Choose .torrent files…" }));
+    const torrent = "file:///home/you/Downloads/debian-13.2.0-amd64-netinst.iso.torrent";
+    await waitFor(() => {
+      expect(links).toHaveValue(`https://example.org/a.iso\n${torrent}`);
+    });
+    expect(dialog.getByText("debian-13.2.0-amd64-netinst.iso.torrent")).toBeInTheDocument();
+    await user.click(dialog.getByRole("button", { name: "Add 2 links" }));
+    expect(add).toHaveBeenCalledWith(torrent, undefined, expect.objectContaining({ paused: false }));
+    expect(await screen.findByRole("row", { name: /^debian-13\.2\.0-amd64-netinst\.iso/ })).toBeInTheDocument();
   });
 
   it("sends the referrer, cookies and User-Agent the person gives", async () => {

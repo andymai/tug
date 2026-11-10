@@ -1,8 +1,8 @@
-import { ChevronRight, CircleAlert, CopyCheck, Link, type LucideIcon } from "lucide-react";
+import { ChevronRight, CircleAlert, CopyCheck, FileUp, Link, type LucideIcon } from "lucide-react";
 import { type KeyboardEvent, type SubmitEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { shortDir, sentence } from "../lib/format";
-import { checkLinks, type LinkCheck } from "../lib/links";
+import { checkLinks, isTorrent, type LinkCheck } from "../lib/links";
 import { parseConnections, parseLimit } from "../lib/options";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads } from "../state/context";
@@ -21,6 +21,8 @@ function describe(check: LinkCheck): { Icon: LucideIcon; tone: string; title: st
       };
     case "scheme":
       return { Icon: CircleAlert, tone: "text-state-error", title: check.input, detail: `Tug can't download ${check.scheme} links` };
+    case "notTorrent":
+      return { Icon: CircleAlert, tone: "text-state-error", title: check.name, detail: "Tug opens only .torrent files" };
     case "notLink":
       return { Icon: CircleAlert, tone: "text-state-error", title: check.input, detail: "Not a link" };
   }
@@ -34,6 +36,7 @@ function AddForm({ titleId }: { titleId: string }) {
   const closeAdd = useDownloads((s) => s.closeAdd);
   const addLinks = useDownloads((s) => s.addLinks);
   const pickFolder = useDownloads((s) => s.pickFolder);
+  const chooseTorrents = useDownloads((s) => s.chooseTorrents);
   const tugConnections = useDownloads((s) => s.settings?.connections ?? null);
   const [again, setAgain] = useState(false);
   const [more, setMore] = useState(false);
@@ -66,7 +69,7 @@ function AddForm({ titleId }: { titleId: string }) {
   );
   const label = hrefs.length > 1 ? `Add ${String(hrefs.length)} links` : "Add";
   // A torrent keeps its own name.
-  const named = hrefs.length === 1 && hrefs[0]?.startsWith("magnet:") === false;
+  const named = hrefs.length === 1 && hrefs[0] !== undefined && !isTorrent(hrefs[0]);
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -147,18 +150,32 @@ function AddForm({ titleId }: { titleId: string }) {
         </label>
       )}
       <div className="flex flex-col gap-3">
-        <button
-          type="button"
-          aria-expanded={more}
-          aria-controls={optionsId}
-          onClick={() => {
-            setMore(!more);
-          }}
-          className="flex w-fit items-center gap-1 rounded-xs text-small font-medium text-ink-muted hover:text-ink"
-        >
-          <ChevronRight {...ICON} size={14} className={more ? "rotate-90" : undefined} />
-          Options
-        </button>
+        {/* After the field, which has to take the dialog's first focus. */}
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            aria-expanded={more}
+            aria-controls={optionsId}
+            onClick={() => {
+              setMore(!more);
+            }}
+            className="flex w-fit items-center gap-1 rounded-xs text-small font-medium text-ink-muted hover:text-ink"
+          >
+            <ChevronRight {...ICON} size={14} className={more ? "rotate-90" : undefined} />
+            Options
+          </button>
+          <button
+            type="button"
+            disabled={adding.busy}
+            onClick={() => {
+              void chooseTorrents();
+            }}
+            className="flex items-center gap-1 rounded-xs text-small font-medium text-ink-muted enabled:hover:text-ink disabled:cursor-default disabled:text-ink-faint"
+          >
+            <FileUp {...ICON} size={14} />
+            Choose .torrent files…
+          </button>
+        </div>
         {more && (
           <div id={optionsId} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-small">
             {named && (

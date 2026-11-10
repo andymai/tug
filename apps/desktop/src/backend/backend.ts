@@ -71,6 +71,8 @@ export interface Backend {
   setHeaders(id: number, referrer: string | null, cookies: CookiesChange, userAgent: string | null): Promise<Headers>;
   // A folder for the downloads being added, which leaves Tug's own folder alone.
   chooseFolder(from?: string): Promise<string | null>;
+  // file: links to the chosen .torrent files, which add takes; none when cancelled.
+  chooseTorrents(): Promise<string[]>;
   pause(id: number): Promise<void>;
   resume(id: number): Promise<void>;
   remove(id: number, deleteFile: boolean): Promise<void>;

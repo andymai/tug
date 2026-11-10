@@ -109,6 +109,7 @@ describe("main window", () => {
             "https://download.example.org/kde-neon-user-20261105.iso",
             "https://fonts.example.org/noto-fonts-2026.11.zip",
             "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056",
+            "file:///home/you/Downloads/debian-13.2.0-amd64-netinst.iso.torrent",
             "download.example.org",
           ].join("\n"),
         );

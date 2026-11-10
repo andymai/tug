@@ -54,6 +54,14 @@ enum Command {
     List,
 }
 
+// Tug reads a file link from this computer, and the extension sends only web
+// links, so no other link gets through from a browser.
+fn web(link: &str) -> bool {
+    link.trim().split_once(':').is_some_and(|(scheme, _)| {
+        scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https")
+    })
+}
+
 #[derive(Debug, Deserialize)]
 struct Message {
     #[serde(default)]
@@ -196,6 +204,13 @@ impl<L: Launcher> Host<L> {
     async fn result(&self, command: Command) -> Result<Value, String> {
         if matches!(command, Command::Ping) {
             return Ok(json!({ "type": "pong", "running": self.connect().await.is_some() }));
+        }
+        if let Command::Add { urls, .. } = &command
+            && let Some(link) = urls.iter().find(|link| !web(link))
+        {
+            return Err(format!(
+                "the browser can hand Tug only web links, not {link}"
+            ));
         }
         let mut client = match command {
             Command::List => self.connect().await.ok_or("Tug isn't running")?,

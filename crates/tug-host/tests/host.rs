@@ -156,6 +156,45 @@ async fn an_add_carries_the_browser_origin_to_tug() {
 }
 
 #[tokio::test]
+async fn a_browser_cant_hand_tug_a_file_link() {
+    let (_dir, endpoint) = endpoint();
+    let tug = Arc::new(Remembers::default());
+    let server = Server::bind(&endpoint).await.unwrap();
+    tokio::spawn(server.serve(Arc::clone(&tug)));
+    let host = Host::new(endpoint, CantStart, Duration::from_secs(1));
+
+    for link in [
+        "file:///home/u/a.torrent",
+        " FILE:///home/u/a.torrent",
+        "fi\tle:///home/u/a.torrent",
+        "magnet:?xt=urn:btih:00",
+        "/home/u/a.torrent",
+    ] {
+        let reply = ask(
+            &host,
+            json!({"id": 1, "type": "add", "urls": ["https://example.org/a.iso", link]}),
+        )
+        .await;
+        assert_eq!(reply["ok"], false, "{link}");
+        assert!(
+            reply["error"]
+                .as_str()
+                .unwrap()
+                .starts_with("the browser can hand Tug only web links"),
+            "{reply}"
+        );
+    }
+    assert!(tug.0.lock().unwrap().is_empty(), "Tug saw a refused link");
+
+    let reply = ask(
+        &host,
+        json!({"id": 2, "type": "add", "urls": [" HTTPS://example.org/a.iso", "http://example.org/b"]}),
+    )
+    .await;
+    assert_eq!(reply["ok"], true);
+}
+
+#[tokio::test]
 async fn messages_reach_a_running_tug_and_keep_their_id() {
     let (_dir, endpoint) = endpoint();
     running(&endpoint, 5).await;
@@ -167,13 +206,13 @@ async fn messages_reach_a_running_tug_and_keep_their_id() {
     );
     let added = ask(
         &host,
-        json!({"id": "a", "type": "add", "urls": ["https://example.org/a.iso", "nope"]}),
+        json!({"id": "a", "type": "add", "urls": ["https://example.org/a.iso", "https://example.org/b"]}),
     )
     .await;
     assert_eq!(added["ok"], true);
     assert_eq!(added["id"], "a");
     assert_eq!(added["added"][0]["name"], "a.iso");
-    assert_eq!(added["failed"][0]["url"], "nope");
+    assert_eq!(added["failed"][0]["url"], "https://example.org/b");
     assert_eq!(
         ask(&host, json!({"type": "list"})).await["downloads"][0]["state"],
         "downloading"

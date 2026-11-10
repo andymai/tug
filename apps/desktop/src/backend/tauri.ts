@@ -40,6 +40,7 @@ export const tauriBackend: Backend = {
   headers: (id) => call<Headers>("download_headers", { id }),
   setHeaders: (id, referrer, cookies, userAgent) => call<Headers>("set_download_headers", { id, referrer, cookies, userAgent }),
   chooseFolder: (from) => call<string | null>("choose_folder", { from: from ?? null }),
+  chooseTorrents: () => call<string[]>("choose_torrents"),
   search: (query) => call<number[]>("search_downloads", { query }),
   diskFree: () => call<number | null>("disk_free"),
   pause: (id) => call("pause_download", { id }),
