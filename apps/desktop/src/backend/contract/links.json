@@ -1,0 +1,74 @@
+[
+  {
+    "link": "https://example.org/a.iso",
+    "outcome": {
+      "ok": "a.iso"
+    }
+  },
+  {
+    "link": " ftp://example.org/files/b.iso ",
+    "outcome": {
+      "ok": "b.iso"
+    }
+  },
+  {
+    "link": "gopher://example.org/c",
+    "outcome": {
+      "error": "Tug can't download gopher links"
+    }
+  },
+  {
+    "link": "magnet:?xt=urn:btih:C9E15763F722F23E98A29DECDFAE341B98D53056&dn=Open%20Movie",
+    "outcome": {
+      "ok": "Open Movie"
+    }
+  },
+  {
+    "link": "magnet:?xt=urn:btih:ZHQVOY7XELZD5GFCTXWN7LRUDOMNKMCW&dn=Twin",
+    "outcome": {
+      "error": "Open Movie is in the list already"
+    }
+  },
+  {
+    "link": "magnet:?xt=urn:btih:00",
+    "outcome": {
+      "error": "this is not a magnet link or a .torrent file"
+    }
+  },
+  {
+    "link": "magnet:?dn=No%20hash",
+    "outcome": {
+      "error": "this is not a magnet link or a .torrent file"
+    }
+  },
+  {
+    "link": "magnet:?xt=urn:sha1:00&xt=urn:btih:0123456789abcdef0123456789abcdef01234567",
+    "outcome": {
+      "ok": "magnet link"
+    }
+  },
+  {
+    "link": "magnet:?xt=urn:btih:1123456789abcdef0123456789abcdef01234567&dn=%20&dn=Second",
+    "outcome": {
+      "ok": "Second"
+    }
+  },
+  {
+    "link": "file:///home/you/notes.txt",
+    "outcome": {
+      "error": "Tug opens only .torrent files"
+    }
+  },
+  {
+    "link": "file:///home/you/.torrent",
+    "outcome": {
+      "error": "Tug opens only .torrent files"
+    }
+  },
+  {
+    "link": "file://server/a.torrent",
+    "outcome": {
+      "error": "file://server/a.torrent is not a file on this computer"
+    }
+  }
+]

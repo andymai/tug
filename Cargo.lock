@@ -6230,6 +6230,7 @@ dependencies = [
  "ashpd",
  "futures-util",
  "ksni",
+ "rustix",
  "serde",
  "serde_json",
  "tauri",

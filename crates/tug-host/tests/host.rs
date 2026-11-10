@@ -156,6 +156,59 @@ async fn an_add_carries_the_browser_origin_to_tug() {
 }
 
 #[tokio::test]
+async fn a_browser_cant_hand_tug_a_file_link() {
+    let (_dir, endpoint) = endpoint();
+    let tug = Arc::new(Remembers::default());
+    let server = Server::bind(&endpoint).await.unwrap();
+    tokio::spawn(server.serve(Arc::clone(&tug)));
+    let host = Host::new(endpoint, CantStart, Duration::from_secs(1));
+
+    let refused = [
+        "file:///home/u/a.torrent",
+        " FILE:///home/u/a.torrent",
+        "fi\tle:///home/u/a.torrent",
+        "/home/u/a.torrent",
+    ];
+    let reply = ask(&host, json!({"id": 1, "type": "add", "urls": refused})).await;
+    assert_eq!(reply["ok"], true, "{reply}");
+    assert_eq!(reply["failed"].as_array().unwrap().len(), refused.len());
+    assert!(tug.0.lock().unwrap().is_empty(), "Tug saw a refused link");
+
+    let sent = [
+        " HTTPS://example.org/a.iso",
+        "ftp://example.org/b",
+        "magnet:?xt=urn:btih:00",
+    ];
+    let urls: Vec<&str> = sent.iter().chain(&refused).copied().collect();
+    let reply = ask(&host, json!({"id": 2, "type": "add", "urls": urls})).await;
+    let failed: Vec<&str> = reply["failed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|failure| failure["url"].as_str().unwrap())
+        .collect();
+    assert_eq!(failed, refused);
+    assert_eq!(
+        reply["failed"][0]["reason"],
+        "a browser can't hand Tug this kind of link"
+    );
+    let urls = tug
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .find_map(|request| match request {
+            Request::Add { urls, .. } => Some(urls.clone()),
+            _ => None,
+        });
+    assert_eq!(
+        urls,
+        Some(sent.map(String::from).to_vec()),
+        "Tug gets the other links"
+    );
+}
+
+#[tokio::test]
 async fn messages_reach_a_running_tug_and_keep_their_id() {
     let (_dir, endpoint) = endpoint();
     running(&endpoint, 5).await;

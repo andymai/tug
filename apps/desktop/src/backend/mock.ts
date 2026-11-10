@@ -1,4 +1,4 @@
-import { nameOf, SCHEMES } from "../lib/links";
+import { isTorrent, isTorrentFile, nameOf, SCHEMES } from "../lib/links";
 import { byCodePoint, quoted, trimmed } from "../lib/rust";
 import { openAt } from "../lib/schedule";
 import { siteOf } from "../lib/sites";
@@ -53,6 +53,8 @@ export interface MockOptions {
   colorScheme?: ColorScheme | null;
   captures?: readonly string[];
   diskFree?: number | null;
+  // What the .torrent chooser hands back.
+  torrents?: readonly string[];
 }
 
 function attempt<T>(action: () => T): Promise<T> {
@@ -94,6 +96,45 @@ function sizeOf(url: URL): number {
   let hash = 0;
   for (const char of url.href) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return (16 + (hash % 240)) * MB;
+}
+
+// Rust keeps a .torrent's download under the magnet link that the file makes. A hash
+// of the path stands in for its info hash, and the file's name for the name inside.
+function magnetOf(file: URL): URL {
+  if (file.host !== "") throw new BackendError("invalid", `${file.href} is not a file on this computer`);
+  if (!isTorrentFile(file)) throw new BackendError("invalid", "Tug opens only .torrent files");
+  let hash = "";
+  for (let round = 0; hash.length < 40; round += 1) {
+    let part = round;
+    for (const char of file.href) part = (part * 31 + char.charCodeAt(0)) >>> 0;
+    hash += part.toString(16).padStart(8, "0");
+  }
+  const name = nameOf(file).replace(/\.torrent$/i, "");
+  return new URL(`magnet:?xt=urn:btih:${hash.slice(0, 40)}&dn=${encodeURIComponent(name)}`);
+}
+
+// As Rust reads it: 40 hex digits, also when the link gives 32 base32 letters.
+function infoHash(url: URL): string | null {
+  const given = url.searchParams
+    .getAll("xt")
+    .find((xt) => xt.startsWith("urn:btih:"))
+    ?.slice("urn:btih:".length);
+  if (given?.length === 40 && /^[0-9a-f]+$/i.test(given)) return given.toLowerCase();
+  if (given?.length !== 32) return null;
+  let bits = 0;
+  let held = 0;
+  let hex = "";
+  for (const char of given) {
+    const value = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".indexOf(/[a-z]/.test(char) ? char.toUpperCase() : char);
+    if (value < 0) return null;
+    bits = ((bits << 5) | value) & 0xfff;
+    held += 5;
+    if (held >= 8) {
+      held -= 8;
+      hex += ((bits >> held) & 0xff).toString(16).padStart(2, "0");
+    }
+  }
+  return hex;
 }
 
 export function createMockBackend(options: MockOptions = {}): MockBackend {
@@ -214,6 +255,13 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     }
     if (!SCHEMES.has(url.protocol)) {
       throw new BackendError("invalid", `Tug can't download ${url.protocol.slice(0, -1)} links`);
+    }
+    if (url.protocol === "file:") url = magnetOf(url);
+    if (url.protocol === "magnet:") {
+      const hash = infoHash(url);
+      if (hash === null) throw new BackendError("invalid", "this is not a magnet link or a .torrent file");
+      const twin = [...downloads.values()].find((d) => d.state !== "done" && d.url.startsWith("magnet:") && infoHash(new URL(d.url)) === hash);
+      if (twin) throw new BackendError("invalid", `${twin.name} is in the list already`);
     }
     const download: Download = {
       id: nextId++,
@@ -441,14 +489,16 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     },
     add: (url, dir, options) =>
       attempt(() => {
-        checkOwn(options?.connections ?? null, options?.speedLimit ?? null);
-        const named = options?.name == null || trimmed(url).startsWith("magnet:") ? null : fileName(options.name);
+        const torrent = isTorrent(trimmed(url));
+        // A torrent takes only paused, as in Rust.
+        if (!torrent) checkOwn(options?.connections ?? null, options?.speedLimit ?? null);
+        const named = options?.name == null || torrent ? null : fileName(options.name);
         const origin = options === undefined ? null : originOf(options.referrer, options.cookies, options.userAgent);
         if (dir !== undefined && !dir.startsWith("/")) {
           throw new BackendError("invalid", `the folder must be a full path, like /home/you/Downloads, not ${dir}`);
         }
         const download = addNow(url, dir);
-        if (!trimmed(url).startsWith("magnet:")) {
+        if (!torrent) {
           if (origin !== null && (origin.referrer ?? origin.cookies ?? origin.userAgent) !== null) origins.set(download.id, origin);
           download.connections = options?.connections ?? null;
           download.speedLimit = options?.speedLimit ?? null;
@@ -518,6 +568,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         return torrentOf(download);
       }),
     chooseFolder: () => Promise.resolve(options.folder ?? "/home/you/Media/Downloads"),
+    chooseTorrents: () => Promise.resolve([...(options.torrents ?? ["file:///home/you/Downloads/debian-13.2.0-amd64-netinst.iso.torrent"])]),
     pause: (id) =>
       attempt(() => {
         const download = find(id);

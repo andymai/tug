@@ -91,6 +91,15 @@ assert bad[\"failed\"] == [{\"url\": \"http://127.0.0.1:8766/bad.bin\", \"reason
       "$(cut -f2-4 <<<"$sent" | sort -u)" "$(printf "session=abc123\thttp://127.0.0.1:8766/page\tMozilla/5.0 TugCheck")"
     echo "ok: a bad origin fails that link with the reason"
 
+    torrents="$(dirname "$XDG_CONFIG_HOME")/my torrents"
+    mkdir -p "$torrents"
+    python3 scripts/ipc/torrent.py "$torrents/Debian 13.torrent" debian-13.iso
+    python3 scripts/ipc/torrent.py "$torrents/other.torrent" other.iso
+    expect "tug add takes a .torrent file from its own folder" \
+      "$(cd "$torrents" && "$binary" add "Debian 13.torrent")" "Added debian-13.iso"
+    expect "a file manager hands Tug a .torrent file as a URI" \
+      "$($tug "file://${torrents// /%20}/other.torrent")" "Added other.iso"
+
     root=$(dirname "$XDG_CONFIG_HOME")
     browsers=$(HOME="$root/home" PATH="$root/bin:$PATH" $tug browsers)
     expect "tug browsers finds four" "$(wc -l <<<"$browsers")" 4

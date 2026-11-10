@@ -222,6 +222,21 @@ describe("mock backend", () => {
     const added = await backend.add("https://example.org/a.iso", undefined, { ...options, paused: true, referrer: " https://u:p@example.org/page#top " });
     expect(await backend.headers(added.id)).toEqual({ referrer: "https://example.org/page", userAgent: null, hasCookies: false });
   });
+  it("adds a .torrent file as Tug does: once, as a torrent with its own name", async () => {
+    const backend = createMockBackend();
+    const file = "file:///home/you/Downloads/Fedora%2044.iso.torrent";
+    // Rust gives a torrent only paused, so it never checks the rest.
+    const options = { paused: true, first: true, connections: 0, speedLimit: 0, name: "other.iso", referrer: null, cookies: null, userAgent: null };
+    const added = await backend.add(file, undefined, options);
+    expect(added).toMatchObject({ name: "Fedora 44.iso", state: "paused" });
+    expect(added.url).toMatch(/^magnet:\?xt=urn:btih:[0-9a-f]{40}&/);
+    await expect(backend.add(file)).rejects.toThrow("Fedora 44.iso is in the list already");
+    await expect(backend.add("file:///home/you/notes.txt")).rejects.toThrow("Tug opens only .torrent files");
+    await expect(backend.add("file://server/a.torrent")).rejects.toThrow("is not a file on this computer");
+    expect(await backend.list()).toHaveLength(1);
+    expect(await backend.chooseTorrents()).toEqual(["file:///home/you/Downloads/debian-13.2.0-amd64-netinst.iso.torrent"]);
+  });
+
   it("keeps a torrent's file sizes through a choice and back", async () => {
     const magnet = "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056&dn=Movie";
     const backend = createMockBackend({ seed: [{ url: magnet, state: "paused", size: 1000 }] });

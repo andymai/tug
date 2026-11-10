@@ -1,15 +1,18 @@
 import type { Download } from "../backend/backend";
+import { trimmed } from "./rust";
 
-export const SCHEMES = new Set(["http:", "https:", "ftp:", "ftps:", "magnet:"]);
+// A file link names a .torrent on this computer.
+export const SCHEMES = new Set(["http:", "https:", "ftp:", "ftps:", "magnet:", "file:"]);
 
 export type LinkCheck =
   | { kind: "ready"; input: string; href: string; name: string; host: string }
   | { kind: "duplicate"; input: string; href: string; name: string; existing: Download }
   | { kind: "scheme"; input: string; scheme: string }
+  | { kind: "notTorrent"; input: string; name: string }
   | { kind: "notLink"; input: string };
 
 export function nameOf(url: URL): string {
-  if (url.protocol === "magnet:") return url.searchParams.get("dn")?.trim() || "magnet link";
+  if (url.protocol === "magnet:") return url.searchParams.getAll("dn").find((name) => trimmed(name) !== "") ?? "magnet link";
   const segment = url.pathname.split("/").filter(Boolean).at(-1);
   if (!segment) return url.hostname;
   try {
@@ -17,6 +20,16 @@ export function nameOf(url: URL): string {
   } catch {
     return segment;
   }
+}
+
+// As Rust reads a path's extension: a name that is only ".torrent" has none.
+export function isTorrentFile(url: URL): boolean {
+  return url.protocol === "file:" && /.\.torrent$/i.test(nameOf(url));
+}
+
+// Tug adds a torrent with its own name and only the paused option.
+export function isTorrent(href: string): boolean {
+  return /^(magnet|file):/i.test(href);
 }
 
 function parse(input: string): URL | null {
@@ -44,9 +57,22 @@ function trimProse(token: string): string {
   }
 }
 
+// A pasted or dropped file is a link only when it is a .torrent.
 function downloadable(link: string): boolean {
   const url = parse(link);
-  return url !== null && SCHEMES.has(url.protocol);
+  return url !== null && SCHEMES.has(url.protocol) && (url.protocol !== "file:" || isTorrentFile(url));
+}
+
+// A file link reads best as its file's name.
+export function shownLink(href: string): string {
+  const url = parse(href);
+  return url !== null && url.protocol === "file:" ? nameOf(url) : href;
+}
+
+function hostOf(url: URL): string {
+  if (url.protocol === "magnet:") return "torrent";
+  if (url.protocol === "file:") return "torrent file";
+  return url.hostname;
 }
 
 export function checkLinks(text: string, items: readonly Download[]): LinkCheck[] {
@@ -63,13 +89,17 @@ export function checkLinks(text: string, items: readonly Download[]): LinkCheck[
       checks.push({ kind: "scheme", input, scheme: url.protocol.slice(0, -1) });
       continue;
     }
+    if (url.protocol === "file:" && !isTorrentFile(url)) {
+      checks.push({ kind: "notTorrent", input, name: nameOf(url) });
+      continue;
+    }
     if (seen.has(url.href)) continue;
     seen.add(url.href);
     const existing = known.get(url.href);
     checks.push(
       existing
         ? { kind: "duplicate", input, href: url.href, name: nameOf(url), existing }
-        : { kind: "ready", input, href: url.href, name: nameOf(url), host: url.protocol === "magnet:" ? "torrent" : url.hostname },
+        : { kind: "ready", input, href: url.href, name: nameOf(url), host: hostOf(url) },
     );
   }
   return checks;

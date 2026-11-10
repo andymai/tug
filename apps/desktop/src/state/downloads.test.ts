@@ -423,6 +423,35 @@ describe("downloads store", () => {
     expect(store.getState().settings).toMatchObject({ downloadDir: "/data/iso", connections: 16 });
   });
 
+  it("puts the chosen .torrent files only in the dialog that asked for them", async () => {
+    let answer: (files: string[]) => void = () => undefined;
+    const store = createDownloadsStore({
+      ...createMockBackend(),
+      chooseTorrents: () =>
+        new Promise<string[]>((resolve) => {
+          answer = resolve;
+        }),
+    });
+    store.getState().openAdd("https://example.org/a.iso");
+    const late = store.getState().chooseTorrents();
+    store.getState().closeAdd();
+    store.getState().openAdd("https://example.org/b.iso");
+    answer(["file:///home/you/a.torrent"]);
+    await late;
+    expect(store.getState().adding.text).toBe("https://example.org/b.iso");
+
+    const chosen = store.getState().chooseTorrents();
+    answer(["file:///home/you/a.torrent", "file:///home/you/b.torrent"]);
+    await chosen;
+    expect(store.getState().adding.text).toBe("https://example.org/b.iso\nfile:///home/you/a.torrent\nfile:///home/you/b.torrent");
+
+    const failing = createDownloadsStore({ ...createMockBackend(), chooseTorrents: () => Promise.reject(new Error("the file chooser failed: no portal")) });
+    failing.getState().openAdd();
+    await failing.getState().chooseTorrents();
+    expect(failing.getState().notice).toMatch(/no portal/);
+    expect(failing.getState().adding.text).toBe("");
+  });
+
   it("takes the folder the person chooses, and leaves settings alone on cancel", async () => {
     const backend = createMockBackend({ folder: "/data/iso" });
     const store = createDownloadsStore(backend);
@@ -477,6 +506,8 @@ describe("downloads store", () => {
       busy: false,
       error: "couldn't add https://example.org/a.iso: the disk is full",
     });
+    await store.getState().addLinks(["file:///home/you/My%20Torrents/Fedora%2044.torrent"]);
+    expect(store.getState().adding.error, "a file link reads as its file's name").toBe("couldn't add Fedora 44.torrent: the disk is full");
   });
 
   it("closes the dialog and leaves a notice when only some links fail", async () => {

@@ -82,6 +82,7 @@ fn main() -> Result<ExitCode, tauri::Error> {
             bridge::inspect_download,
             bridge::choose_download_folder,
             bridge::choose_folder,
+            bridge::choose_torrents,
             bridge::set_download_options,
             bridge::rename_download,
             bridge::download_headers,

@@ -180,12 +180,51 @@ async fn settings() -> Vec<Value> {
     cases
 }
 
+// In order on one library, so that a later link meets an earlier one's torrent.
+async fn links() -> Vec<Value> {
+    let state = tempfile::tempdir().unwrap();
+    let library = Library::open_with(
+        Store::open_in_memory().unwrap(),
+        Some(TorrentOptions {
+            local_only: true,
+            ..TorrentOptions::new(state.path().to_owned())
+        }),
+    )
+    .await
+    .unwrap();
+    let cases = [
+        "https://example.org/a.iso",
+        " ftp://example.org/files/b.iso ",
+        "gopher://example.org/c",
+        "magnet:?xt=urn:btih:C9E15763F722F23E98A29DECDFAE341B98D53056&dn=Open%20Movie",
+        // The same torrent, its hash in base32.
+        "magnet:?xt=urn:btih:ZHQVOY7XELZD5GFCTXWN7LRUDOMNKMCW&dn=Twin",
+        "magnet:?xt=urn:btih:00",
+        "magnet:?dn=No%20hash",
+        "magnet:?xt=urn:sha1:00&xt=urn:btih:0123456789abcdef0123456789abcdef01234567",
+        "magnet:?xt=urn:btih:1123456789abcdef0123456789abcdef01234567&dn=%20&dn=Second",
+        "file:///home/you/notes.txt",
+        "file:///home/you/.torrent",
+        "file://server/a.torrent",
+    ];
+    let mut checked = Vec::new();
+    for link in cases {
+        let added = add(&library, link, Some("/tmp"), &Origin::default(), true)
+            .await
+            .map(|dto| json!(dto.name))
+            .map_err(|e| e.message);
+        checked.push(json!({ "link": link, "outcome": outcome(added) }));
+    }
+    checked
+}
+
 #[tokio::test]
 async fn cases_are_current() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/backend/contract");
     std::fs::create_dir_all(&dir).unwrap();
     for (name, cases) in [
         ("headers.json", headers()),
+        ("links.json", links().await),
         ("names.json", names()),
         ("own.json", own()),
         ("settings.json", settings().await),

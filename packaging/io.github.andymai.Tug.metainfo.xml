@@ -22,6 +22,7 @@
   </categories>
   <provides>
     <binary>tug</binary>
+    <mediatype>application/x-bittorrent</mediatype>
   </provides>
   <content_rating type="oars-1.1"/>
   <branding>
