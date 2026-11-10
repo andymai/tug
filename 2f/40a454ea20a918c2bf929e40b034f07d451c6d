@@ -1,0 +1,30 @@
+.cargo/mutants.toml
+  s_b321718d129a1e::t_22368dee73621d 3
+  s_b321718d129a1e::t_d827288913c7ad 2,4-10
+CLAUDE.md
+  s_b321718d129a1e::t_ec7dcbba79154b 54
+scripts/check-commands.py
+  s_b321718d129a1e::t_34682e2bc044b7 5-8,12,17-18,53-66,104-105,110
+.github/workflows/ci.yml
+  s_b321718d129a1e::t_ec7dcbba79154b 175-176,178,184-190,195-196,200,205,210-211,214-215,218,221,225-245
+  s_b321718d129a1e::t_fa84564e20c893 246
+scripts/test_check_commands.py
+  s_b321718d129a1e::t_f4c48515c56464 69-70,73-74,76,78-94
+  s_b321718d129a1e::t_a5610cdc2c7803 71-72,75,77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f40a454ea20a918c2bf929e40b034f07d451c6d",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
