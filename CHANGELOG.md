@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.42.0](https://github.com/andymai/tug/compare/v0.41.0...v0.42.0) (2026-11-11)
+
+
+### Features
+
+* **packaging:** publish Tug's own Flatpak repository for Bazaar ([#168](https://github.com/andymai/tug/issues/168)) ([65726eb](https://github.com/andymai/tug/commit/65726eba1de14e92d12bd3d9e92605a1eb89731d))
+
 ## [0.41.0](https://github.com/andymai/tug/compare/v0.40.0...v0.41.0) (2026-11-10)
 
 
