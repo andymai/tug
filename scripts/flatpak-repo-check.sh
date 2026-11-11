@@ -1,19 +1,36 @@
 #!/usr/bin/env bash
-# Installs Tug through the tug.flatpakrepo that flatpak-repo.sh wrote, from the
-# repository on disk, and finds Tug in its AppStream data, as a store would.
-# A private FLATPAK_USER_DIR keeps the real installation out of it.
+# Checks a repository that flatpak-repo.sh built, as a store would use it. Its
+# tug.flatpakrepo and .flatpakref must name URL/repo/. Then a copy of the
+# .flatpakrepo with a file:// Url adds the remote, Tug installs from the
+# repository on disk, and Tug must be in its AppStream data. The copy keeps the
+# check off the published site: outside a release, the published summary has
+# another key. A private FLATPAK_USER_DIR keeps the real installation out of it.
 #
-#   scripts/flatpak-repo-check.sh SITE
+#   scripts/flatpak-repo-check.sh SITE URL
 set -euo pipefail
 
-site=$(realpath "${1:?usage: flatpak-repo-check.sh SITE}")
+usage="usage: flatpak-repo-check.sh SITE URL"
+site=$(realpath "${1:?$usage}")
+url=${2:?$usage}
+url=${url%/}
 app=io.github.andymai.Tug
-FLATPAK_USER_DIR=$(mktemp -d)
-export FLATPAK_USER_DIR
-trap 'rm -rf "$FLATPAK_USER_DIR"' EXIT
 
-flatpak --user remote-add check "$site/tug.flatpakrepo"
-flatpak --user remote-modify --url="file://$site/repo" check
+for file in tug.flatpakrepo "$app.flatpakref"; do
+  grep -qxF "Url=$url/repo/" "$site/$file" || { echo "$file doesn't name $url/repo/" >&2; exit 1; }
+done
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+export FLATPAK_USER_DIR=$work/flatpak
+mkdir "$FLATPAK_USER_DIR"
+
+local_url=$(python3 -I -c 'import pathlib, sys; print(pathlib.Path(sys.argv[1]).as_uri() + "/")' "$site/repo")
+{
+  grep -v '^Url=' "$site/tug.flatpakrepo"
+  echo "Url=$local_url"
+} > "$work/check.flatpakrepo"
+
+flatpak --user remote-add check "$work/check.flatpakrepo"
 flatpak --user install -y --noninteractive --no-deps --no-related check "$app"
 flatpak --user update -y --noninteractive --appstream check
 flatpak --user search --columns=application "$app" | grep -qx "$app" ||

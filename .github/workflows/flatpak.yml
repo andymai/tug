@@ -115,7 +115,7 @@ jobs:
           gpg --batch --list-secret-keys --with-colons | grep -q "^fpr:*:$want:" ||
             { echo "::error::FLATPAK_SIGNING_KEY is not the key in packaging/flatpak/tug-repo.asc"; exit 1; }
       - run: scripts/flatpak-repo.sh bundle/io.github.andymai.Tug.flatpak site https://andymai.github.io/tug
-      - run: scripts/flatpak-repo-check.sh site
+      - run: scripts/flatpak-repo-check.sh site https://andymai.github.io/tug
       # The last two releases through the scripts, as two releases in a row would go.
       - name: Test an update from one release to the next
         if: ${{ !inputs.tag }}
