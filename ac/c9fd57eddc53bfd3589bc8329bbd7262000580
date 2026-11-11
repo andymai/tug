@@ -1,0 +1,35 @@
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_11be2154b8ffca 561,931,933-937,969,971
+scripts/flatpak-cargo.sh
+  s_b321718d129a1e::t_813412c9505af3 10-12
+apps/desktop/src/App.tsx
+  s_b321718d129a1e::t_813412c9505af3 22
+scripts/test_flatpak_cargo.py
+  s_b321718d129a1e::t_813412c9505af3 13,54
+apps/desktop/src/components/DownloadList.tsx
+  s_b321718d129a1e::t_11be2154b8ffca 11,162,171
+.github/workflows/flatpak.yml
+  s_b321718d129a1e::t_813412c9505af3 70-87
+.github/workflows/release-please.yml
+  s_b321718d129a1e::t_813412c9505af3 128
+scripts/test_release_metadata.py
+  s_b321718d129a1e::t_813412c9505af3 3,19-21
+apps/extension/store/README.md
+  s_b321718d129a1e::t_813412c9505af3 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "acc9fd57eddc53bfd3589bc8329bbd7262000580",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
