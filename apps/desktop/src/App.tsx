@@ -19,14 +19,14 @@ const TEXT_INPUTS = new Set(["email", "number", "password", "search", "tel", "te
 
 // WebKit's own menu offers Back, Forward and Reload, and Reload resets the window. A text
 // field and the text that someone selected keep it, for Cut, Copy and Paste, and Shift keeps
-// it for Inspect Element in a debug build.
+// it for Inspect Element when Vite's dev server serves the window.
 function keepsWebKitMenu(event: MouseEvent): boolean {
-  if (event.shiftKey) return true;
+  if (event.shiftKey && import.meta.env.DEV) return true;
   const target = event.target;
   if (!(target instanceof Element)) return false;
-  const field = target.closest("input, textarea, [contenteditable='true']");
+  const field = target.closest("input, textarea");
   if (field instanceof HTMLInputElement) return TEXT_INPUTS.has(field.type);
-  if (field !== null) return true;
+  if (field !== null || (target instanceof HTMLElement && target.isContentEditable)) return true;
   const selection = window.getSelection();
   if (selection === null || selection.isCollapsed) return false;
   for (let index = 0; index < selection.rangeCount; index++) {
@@ -55,12 +55,12 @@ export function App({ store }: { store: DownloadsStore }) {
   }, [store]);
 
   useEffect(() => {
-    const quiet = (event: MouseEvent) => {
+    const hideWebKitMenu = (event: MouseEvent) => {
       if (!keepsWebKitMenu(event)) event.preventDefault();
     };
-    document.addEventListener("contextmenu", quiet);
+    document.addEventListener("contextmenu", hideWebKitMenu);
     return () => {
-      document.removeEventListener("contextmenu", quiet);
+      document.removeEventListener("contextmenu", hideWebKitMenu);
     };
   }, []);
 

@@ -7,8 +7,8 @@ import mark from "../../../../brand/svg/mark.svg";
 import { sentence } from "../lib/format";
 import { CATEGORIES, isCategory } from "../lib/categories";
 import { ICON } from "../lib/states";
-import { useDownloads, useDownloadsStore } from "../state/context";
-import { finished, hasFinished, savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
+import { useDownloads } from "../state/context";
+import { hasFinished, savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
 import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
@@ -60,7 +60,7 @@ function SearchField() {
             setSearch("");
           }
         }}
-        className={`h-[30px] w-44 min-w-0 rounded-sm ${savable ? "@max-xl/main:w-28" : "@max-xl/main:w-24"} border border-control-border bg-surface pl-8 text-body text-ink placeholder:text-ink-faint [&::-webkit-search-cancel-button]:appearance-none ${savable ? "pr-8" : "pr-2"}`}
+        className={`h-[30px] w-44 min-w-0 rounded-sm @max-xl/main:w-28 border border-control-border bg-surface pl-8 text-body text-ink placeholder:text-ink-faint [&::-webkit-search-cancel-button]:appearance-none ${savable ? "pr-8" : "pr-2"}`}
       />
       {savable && (
         <button
@@ -137,19 +137,14 @@ function Notice() {
 }
 
 function ClearFinished() {
-  const store = useDownloadsStore();
-  const shown = useDownloads(hasFinished);
-  if (!shown) return null;
+  const askClearFinished = useDownloads((s) => s.askClearFinished);
   return (
     // A square icon in a narrow window, so the title and the search field keep their room.
     <Button
       icon={ListX}
       title="Clear finished…"
       className="@max-3xl/main:w-[30px] @max-3xl/main:px-0"
-      onClick={() => {
-        const state = store.getState();
-        state.askRemove(finished(state).map((item) => item.id));
-      }}
+      onClick={askClearFinished}
     >
       <span className="@max-3xl/main:sr-only">Clear finished…</span>
     </Button>
@@ -164,6 +159,7 @@ export function DownloadList() {
   const items = useDownloads(useShallow((s) => visibleItems(s)));
   const openAdd = useDownloads((s) => s.openAdd);
   const searching = useDownloads((s) => s.matches !== null);
+  const clearable = useDownloads(hasFinished);
 
   return (
     <main className="@container/main flex min-w-0 flex-1 flex-col bg-surface">
@@ -172,7 +168,7 @@ export function DownloadList() {
           {titleOf(view)}
         </h1>
         <div className="flex min-w-0 items-center gap-4 @max-3xl/main:gap-2">
-          <ClearFinished />
+          {clearable && <ClearFinished />}
           <SearchField />
           <Button
             variant="primary"
