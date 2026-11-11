@@ -1,0 +1,30 @@
+.github/workflows/flatpak.yml
+  s_b321718d129a1e::t_87c374b3ab6e52 20,120-128
+CLAUDE.md
+  s_b321718d129a1e::t_87c374b3ab6e52 77
+packaging/flatpak/io.github.andymai.Tug.yml
+  s_b321718d129a1e::t_87c374b3ab6e52 48
+packaging/io.github.andymai.Tug.metainfo.xml
+  s_b321718d129a1e::t_87c374b3ab6e52 14-18,21,25,44
+  s_b321718d129a1e::t_fbe540e9e50462 12-13,19-20,22,26-43,45-51
+README.md
+  s_b321718d129a1e::t_87c374b3ab6e52 31
+.github/workflows/appimage.yml
+  s_b321718d129a1e::t_1980067b5c5c98 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0453f32197aee49aae73a59912b7f84a99e31249",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
