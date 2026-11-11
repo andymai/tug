@@ -1,4 +1,6 @@
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import tempfile
@@ -222,6 +224,74 @@ class Send(unittest.TestCase):
         self.assertEqual(level, "warning")
         self.assertIn("1.1.0 waits for review", said)
         self.assertEqual(len(self.server.seen), 1)
+
+    def test_a_review_that_the_status_misses_is_a_warning(self):
+        # The store's answer to an upload while its first version waited for review.
+        zip_path = package(Path(self.folder.name), {"version": "0.42.0"})
+        refused = {
+            "error": {
+                "code": 400,
+                "message": "You may not edit or publish an item that is in review.",
+                "status": "FAILED_PRECONDITION",
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                        "reason": "NOT_UPDATEABLE",
+                        "domain": "chromewebstore.googleapis.com",
+                    }
+                ],
+            }
+        }
+        self.server.replies = [(200, {}), (400, refused)]
+        level, said = publish.send(self.store, zip_path, "v0.42.0", lambda _: True, pause=0)
+        self.assertEqual(level, "warning")
+        self.assertEqual(
+            said,
+            "Skipped 0.42.0: You may not edit or publish an item that is in review, "
+            "so a release after it sends the newest version.",
+        )
+        self.assertEqual(len(self.server.seen), 2)
+
+    def test_a_refusal_at_publish_stops_the_job_with_its_message(self):
+        zip_path = package(Path(self.folder.name), {"version": "1.1.0"})
+        refused = {"error": {"code": 400, "message": "in review", "details": [{"reason": "NOT_UPDATEABLE"}]}}
+        self.server.replies = [(200, {}), (200, {"uploadState": "SUCCEEDED"}), (400, refused)]
+        with self.assertRaisesRegex(SystemExit, f"POST /v2/{ITEM}:publish: 400 .*NOT_UPDATEABLE"):
+            publish.send(self.store, zip_path, "v1.1.0", lambda _: True, pause=0)
+
+    def test_an_error_body_of_any_shape_stops_the_job_with_its_message(self):
+        zip_path = package(Path(self.folder.name), {"version": "1.1.0"})
+        for body in ({"error": "invalid_request"}, {"error": {"details": "x"}}, ["not", "an", "object"]):
+            self.server.replies = [(200, {}), (400, body)]
+            with self.assertRaisesRegex(SystemExit, "upload\\?uploadType=media: 400 "):
+                publish.send(self.store, zip_path, "v1.1.0", lambda _: True, pause=0)
+
+    def test_another_refusal_still_stops_the_job(self):
+        zip_path = package(Path(self.folder.name), {"version": "1.1.0"})
+        refused = {"error": {"code": 400, "details": [{"reason": "INVALID_PACKAGE"}]}}
+        self.server.replies = [(200, {}), (400, refused)]
+        with self.assertRaisesRegex(SystemExit, "400 .*INVALID_PACKAGE"):
+            publish.send(self.store, zip_path, "v1.1.0", lambda _: True, pause=0)
+
+    def test_the_log_shows_the_store_state(self):
+        zip_path = package(Path(self.folder.name), {"version": "1.2.0"})
+        self.server.replies = [
+            (
+                200,
+                {
+                    "submittedItemRevisionStatus": revision("PENDING_REVIEW", "1.1.0"),
+                    "publishedItemRevisionStatus": revision("PUBLISHED", "1.0.0"),
+                },
+            )
+        ]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            publish.send(self.store, zip_path, "v1.2.0", never, pause=0)
+        self.assertIn("The store's item: submitted PENDING_REVIEW 1.1.0, published PUBLISHED 1.0.0", out.getvalue())
+
+    def test_the_log_leaves_out_a_version_that_the_store_doesnt_give(self):
+        said = publish.describe({"submittedItemRevisionStatus": {"state": "PENDING_REVIEW"}})
+        self.assertEqual(said, "submitted PENDING_REVIEW, published none")
 
     def test_a_failed_upload_stops_before_review(self):
         zip_path = package(Path(self.folder.name), {"version": "1.1.0"})

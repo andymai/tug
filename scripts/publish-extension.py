@@ -38,6 +38,33 @@ def version_of(revision: dict) -> str | None:
     return channels[0].get("crxVersion") if channels else None
 
 
+class StoreError(SystemExit):
+    # A SystemExit, so an error that no caller handles still ends the job with its message.
+    def __init__(self, text: str, status: int, detail: str) -> None:
+        super().__init__(text)
+        self.status = status
+        try:
+            error = json.loads(detail).get("error")
+        except (ValueError, AttributeError):
+            error = None
+        error = error if isinstance(error, dict) else {}
+        self.message = str(error.get("message") or "")
+        parts = error.get("details")
+        self.reasons = {part.get("reason") for part in parts if isinstance(part, dict)} if isinstance(parts, list) else set()
+
+
+def describe(status: dict) -> str:
+    parts = []
+    for name, key in (("submitted", "submittedItemRevisionStatus"), ("published", "publishedItemRevisionStatus")):
+        revision = status.get(key)
+        if not revision:
+            parts.append(f"{name} none")
+            continue
+        version = version_of(revision)
+        parts.append(f"{name} {revision.get('state')}" + (f" {version}" if version else ""))
+    return ", ".join(parts)
+
+
 class Skip(NamedTuple):
     reason: str
     # The store holds a version back, so this release's changes wait: worth a look in the run.
@@ -118,7 +145,7 @@ class Store:
         except urllib.error.HTTPError as error:
             with error:
                 detail = error.read().decode(errors="replace")
-            raise SystemExit(f"{method} {path}: {error.code} {detail}") from None
+            raise StoreError(f"{method} {path}: {error.code} {detail}", error.code, detail) from None
         return json.loads(text or b"{}")
 
     def status(self) -> dict:
@@ -140,10 +167,19 @@ def send(store: Store, package: Path, tag: str, changed: Callable[[str], bool], 
         raise SystemExit(f"{package} carries a key, so it isn't the store's package")
     if packed.get("version") != version:
         raise SystemExit(f"{package} has version {packed.get('version')}, not the version of {tag}")
-    skip = decide(store.status(), version, changed)
+    status = store.status()
+    print(f"The store's item: {describe(status)}")
+    skip = decide(status, version, changed)
     if skip is not None:
         return ("warning" if skip.held else "notice"), f"Skipped {version}: {skip.reason}."
-    state = store.upload(package.read_bytes())
+    # The status doesn't always show a version that the store holds back, but the upload's refusal does.
+    try:
+        state = store.upload(package.read_bytes())
+    except StoreError as error:
+        if error.status != 400 or "NOT_UPDATEABLE" not in error.reasons:
+            raise
+        why = error.message or "the store won't take a new version now"
+        return "warning", f"Skipped {version}: {why.rstrip('.')}, so a release after it sends the newest version."
     deadline = time.monotonic() + UPLOAD_WAIT_S
     while state == "IN_PROGRESS" and time.monotonic() < deadline:
         time.sleep(pause)
