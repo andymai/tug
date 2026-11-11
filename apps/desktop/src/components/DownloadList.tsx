@@ -1,4 +1,4 @@
-import { BookmarkPlus, CircleAlert, Plus, Search, X } from "lucide-react";
+import { BookmarkPlus, CircleAlert, ListX, Plus, Search, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/shallow";
 
@@ -7,8 +7,8 @@ import mark from "../../../../brand/svg/mark.svg";
 import { sentence } from "../lib/format";
 import { CATEGORIES, isCategory } from "../lib/categories";
 import { ICON } from "../lib/states";
-import { useDownloads } from "../state/context";
-import { savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
+import { useDownloads, useDownloadsStore } from "../state/context";
+import { finished, hasFinished, savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
 import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
@@ -60,7 +60,7 @@ function SearchField() {
             setSearch("");
           }
         }}
-        className={`h-[30px] w-44 min-w-0 rounded-sm @max-xl/main:w-28 border border-control-border bg-surface pl-8 text-body text-ink placeholder:text-ink-faint [&::-webkit-search-cancel-button]:appearance-none ${savable ? "pr-8" : "pr-2"}`}
+        className={`h-[30px] w-44 min-w-0 rounded-sm ${savable ? "@max-xl/main:w-28" : "@max-xl/main:w-24"} border border-control-border bg-surface pl-8 text-body text-ink placeholder:text-ink-faint [&::-webkit-search-cancel-button]:appearance-none ${savable ? "pr-8" : "pr-2"}`}
       />
       {savable && (
         <button
@@ -136,6 +136,26 @@ function Notice() {
   );
 }
 
+function ClearFinished() {
+  const store = useDownloadsStore();
+  const shown = useDownloads(hasFinished);
+  if (!shown) return null;
+  return (
+    // A square icon in a narrow window, so the title and the search field keep their room.
+    <Button
+      icon={ListX}
+      title="Clear finished…"
+      className="@max-3xl/main:w-[30px] @max-3xl/main:px-0"
+      onClick={() => {
+        const state = store.getState();
+        state.askRemove(finished(state).map((item) => item.id));
+      }}
+    >
+      <span className="@max-3xl/main:sr-only">Clear finished…</span>
+    </Button>
+  );
+}
+
 export function DownloadList() {
   const view = useDownloads((s) => s.view);
   const status = useDownloads((s) => s.status);
@@ -151,7 +171,8 @@ export function DownloadList() {
         <h1 id="list-title" data-tauri-drag-region tabIndex={-1} className="min-w-0 truncate text-title text-ink outline-none">
           {titleOf(view)}
         </h1>
-        <div className="flex min-w-0 items-center gap-4">
+        <div className="flex min-w-0 items-center gap-4 @max-3xl/main:gap-2">
+          <ClearFinished />
           <SearchField />
           <Button
             variant="primary"

@@ -11,6 +11,7 @@ import {
   Keyboard,
   Layers,
   ListChecks,
+  ListX,
   ListEnd,
   ListStart,
   Settings,
@@ -25,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-import { canRename, chosen, type DownloadsStore, savedViewOf, single, type StateView } from "../state/downloads";
+import { canRename, chosen, type DownloadsStore, finished, hasFinished, savedViewOf, single, type StateView } from "../state/downloads";
 import { CATEGORIES } from "./categories";
 import { covering } from "./covering";
 import { focusRow } from "./dom";
@@ -139,6 +140,18 @@ export function commands(store: DownloadsStore): Command[] {
         state.markAll();
       },
     });
+    if (hasFinished(state)) {
+      list.push({
+        id: "clear-finished",
+        title: "Clear finished…",
+        group: "Downloads",
+        icon: ListX,
+        run: () => {
+          const now = store.getState();
+          now.askRemove(finished(now).map((item) => item.id));
+        },
+      });
+    }
   }
   const many = chosen(state);
   const selected = many.length > 1 ? undefined : single(state);

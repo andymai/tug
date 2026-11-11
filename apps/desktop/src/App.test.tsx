@@ -1270,6 +1270,107 @@ describe("selection", () => {
     expect(screen.queryByText("noto-fonts-2026.11.zip")).not.toBeInTheDocument();
   });
 
+  it("removes the selected download from its panel", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
+    const panel = within(screen.getByRole("complementary", { name: "noto-fonts-2026.11.zip" }));
+    await user.click(panel.getByRole("button", { name: "Remove…" }));
+    expect(screen.getByRole("dialog", { name: "Remove noto-fonts-2026.11.zip?" })).toBeInTheDocument();
+  });
+
+  it("clears the finished downloads in view after asking, and keeps the rest", async () => {
+    const { backend, user } = open([
+      { url: "https://example.org/one.iso", state: "done", size: MB },
+      { url: "https://example.org/two.zip", state: "done", size: MB },
+      { url: "https://example.org/big.iso", state: "paused", progress: 0.5, size: 10 * MB },
+    ]);
+    const remove = vi.spyOn(backend, "remove");
+    await screen.findByRole("row", { name: /^one\.iso/ });
+    await user.click(screen.getByRole("button", { name: "Clear finished…" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Remove 2 downloads?" }));
+    await user.click(dialog.getByRole("checkbox", { name: "Delete their files too" }));
+    await user.click(dialog.getByRole("button", { name: "Remove" }));
+    await vi.waitFor(() => {
+      expect(screen.queryByText("one.iso")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText("two.zip")).not.toBeInTheDocument();
+    expect(screen.getByText("big.iso")).toBeInTheDocument();
+    expect(remove).toHaveBeenCalledTimes(2);
+    expect(remove).toHaveBeenCalledWith(expect.any(Number), true);
+    expect(screen.queryByRole("button", { name: "Clear finished…" })).not.toBeInTheDocument();
+  });
+
+  it("offers Clear finished in the command bar while the view shows a finished download", async () => {
+    const { user } = open([
+      { url: "https://example.org/one.iso", state: "done", size: MB },
+      { url: "https://example.org/big.iso", state: "paused", progress: 0.5, size: 10 * MB },
+    ]);
+    await screen.findByRole("row", { name: /^one\.iso/ });
+    await user.keyboard("{Control>}k{/Control}");
+    const bar = within(screen.getByRole("dialog", { name: "Command bar" }));
+    await user.click(bar.getByRole("option", { name: "Clear finished…" }));
+    expect(screen.getByRole("dialog", { name: "Remove one.iso?" })).toBeInTheDocument();
+  });
+
+  it("leaves Clear finished out of a view without a finished download", async () => {
+    const { store, user } = open([
+      { url: "https://example.org/one.iso", state: "done", size: MB },
+      { url: "https://example.org/big.iso", state: "paused", progress: 0.5, size: 10 * MB },
+    ]);
+    await screen.findByRole("row", { name: /^one\.iso/ });
+    act(() => {
+      store.getState().setView("active");
+    });
+    expect(screen.queryByRole("button", { name: "Clear finished…" })).not.toBeInTheDocument();
+    await user.keyboard("{Control>}k{/Control}");
+    const bar = within(screen.getByRole("dialog", { name: "Command bar" }));
+    expect(bar.queryByRole("option", { name: "Clear finished…" })).not.toBeInTheDocument();
+  });
+
+  it("keeps WebKit's own menu, with Reload, off but in text fields, on selected text, and with Shift", async () => {
+    const { user } = open();
+    await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ });
+    const title = screen.getByRole("heading", { level: 1, name: "All downloads" });
+    expect(fireEvent.contextMenu(title)).toBe(false);
+    expect(fireEvent.contextMenu(screen.getByRole("searchbox"))).toBe(true);
+    expect(fireEvent.contextMenu(title, { shiftKey: true })).toBe(true);
+
+    // jsdom lays nothing out, so the selected text gets a box of its own.
+    const own = Object.getOwnPropertyDescriptor(Range.prototype, "getClientRects");
+    Object.defineProperty(Range.prototype, "getClientRects", { value: () => [new DOMRect(0, 0, 200, 30)], configurable: true });
+    const range = document.createRange();
+    range.selectNodeContents(title);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    expect(fireEvent.contextMenu(title, { clientX: 20, clientY: 10 })).toBe(true);
+    expect(fireEvent.contextMenu(screen.getByRole("button", { name: "Add" }), { clientX: 500, clientY: 10 })).toBe(false);
+    window.getSelection()?.removeAllRanges();
+    if (own === undefined) Reflect.deleteProperty(Range.prototype, "getClientRects");
+    else Object.defineProperty(Range.prototype, "getClientRects", own);
+
+    await user.click(screen.getByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
+    await user.keyboard("{Delete}");
+    const dialog = within(screen.getByRole("dialog", { name: "Remove noto-fonts-2026.11.zip?" }));
+    expect(fireEvent.contextMenu(dialog.getByRole("checkbox", { name: "Delete its file too" }))).toBe(false);
+  });
+
+  it("removes the download that its panel shows, though the view no longer does", async () => {
+    const { store, user } = open();
+    await user.click(await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
+    act(() => {
+      store.getState().setSearch("fedora");
+    });
+    await vi.waitFor(() => {
+      expect(screen.queryByRole("row", { name: /^noto-fonts-2026\.11\.zip/ })).not.toBeInTheDocument();
+    });
+    const panel = within(screen.getByRole("complementary", { name: "noto-fonts-2026.11.zip" }));
+    await user.click(panel.getByRole("button", { name: "Remove…" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Remove noto-fonts-2026.11.zip?" })).getByRole("button", { name: "Remove" }));
+    await vi.waitFor(() => {
+      expect(store.getState().items.some((item) => item.name === "noto-fonts-2026.11.zip")).toBe(false);
+    });
+  });
+
   it("lists the actions for several selected downloads in the command bar", async () => {
     const { user } = open();
     await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
@@ -1542,7 +1643,7 @@ describe("command bar and keyboard", () => {
     await screen.findByText("fedora-kde-44-x86_64.iso");
     await user.keyboard("{Control>}k{/Control}");
     const bar = within(screen.getByRole("dialog", { name: "Command bar" }));
-    await user.type(bar.getByRole("combobox"), "finished");
+    await user.type(bar.getByRole("combobox"), "show finished");
     expect(bar.getByRole("option", { name: /Show finished downloads/ })).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{Enter}");
     expect(screen.queryByRole("dialog", { name: "Command bar" })).not.toBeInTheDocument();
