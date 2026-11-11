@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.42.2](https://github.com/andymai/tug/compare/v0.42.1...v0.42.2) (2026-11-11)
+
+
+### Performance
+
+* **packaging:** keep the Flatpak's Rust dependencies between releases ([#174](https://github.com/andymai/tug/issues/174)) ([5769483](https://github.com/andymai/tug/commit/5769483d7f1e9cbc36ed946ce7bbdc4e578a89e1))
+
 ## [0.42.1](https://github.com/andymai/tug/compare/v0.42.0...v0.42.1) (2026-11-11)
 
 
