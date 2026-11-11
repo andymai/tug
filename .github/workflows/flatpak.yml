@@ -67,6 +67,24 @@ jobs:
           [ "$status" -eq 124 ] || { echo "::error::the Flatpak exited early with $status"; exit 1; }
           test -f "$HOME/.var/app/io.github.andymai.Tug/data/io.github.andymai.Tug/tug.db"
 
+  # Each release saves a Flatpak cache of about 800 MB under a key of its own, and GitHub
+  # keeps 10 GB of caches for the repository: older ones would push out CI's Rust caches.
+  prune:
+    name: Keep the newest Flatpak cache only
+    needs: flatpak
+    if: inputs.tag
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write # deletes the older caches
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh cache list --repo "$GITHUB_REPOSITORY" --key flatpak-builder-x86_64- --sort created_at --order desc \
+            --limit 100 --json key --jq '.[1:][].key' |
+            while read -r key; do gh cache delete "$key" --repo "$GITHUB_REPOSITORY"; done
+
   upload:
     name: Upload the Flatpak
     needs: flatpak

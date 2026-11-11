@@ -10,6 +10,7 @@ SCRIPT = Path(__file__).with_name("flatpak-cargo.sh")
 # prints the version in RUSTC_VERSION; install only says what it would install.
 CARGO = """\
 #!/bin/sh
+echo "ccache up to $CCACHE_MAXSIZE"
 release="$CARGO_TARGET_DIR/release"
 mkdir -p "$release/deps" "$release/.fingerprint/tug-core-1" "$release/.fingerprint/serde-1" "$CARGO_HOME/registry"
 echo binary > "$release/tug"
@@ -50,6 +51,7 @@ class FlatpakCargo(unittest.TestCase):
 
     def test_tugs_crates_leave_and_the_dependencies_stay(self):
         said = self.build()
+        self.assertIn("ccache up to 500M", said)
         self.assertIn(f"install -Dm755 {self.release}/tug /app/bin/tug", said)
         self.assertTrue((self.release / "deps" / "libserde-1.rlib").exists())
         self.assertTrue((self.release / ".fingerprint" / "serde-1").exists())

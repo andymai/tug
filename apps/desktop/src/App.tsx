@@ -19,7 +19,7 @@ const TEXT_INPUTS = new Set(["email", "number", "password", "search", "tel", "te
 
 // WebKit's own menu offers Back, Forward and Reload, and Reload resets the window. A text
 // field and the text that someone selected keep it, for Cut, Copy and Paste, and Shift keeps
-// it for Inspect Element in a debug build.
+// it for Inspect Element when Vite's dev server serves the window.
 function keepsWebKitMenu(event: MouseEvent): boolean {
   if (event.shiftKey && import.meta.env.DEV) return true;
   const target = event.target;

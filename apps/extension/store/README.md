@@ -25,7 +25,7 @@ The store gives the item its own ID, `CHROME_WEB_STORE_ID` in `apps/extension/sr
 
 The zip on each release must get the store's ID too. With two IDs, one browser can hold both copies, and each copy sends the same download to Tug.
 
-1. On the item's **Package** tab, click **View public key**. After step 3, the store job also prints it in each run, after `The store's public key:`.
+1. On the item's **Package** tab, click **View public key**. After section 3, the store job also prints it in each run, after `The store's public key:`.
 2. Put the key, on one line without the `BEGIN` and `END` lines, in `CHROMIUM_KEY`.
 3. Change the comment above `CHROMIUM_KEY`: the store holds the private half now.
 4. Set `CHROMIUM_ID` to the store's ID. Keep the old ID in `CHROMIUM_ORIGINS`, so the extensions that people loaded from a zip still reach Tug.

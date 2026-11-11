@@ -558,8 +558,7 @@ export function createDownloadsStore(backend: Backend) {
       },
 
       askClearFinished: () => {
-        const finished = visibleItems(get()).filter((item) => item.state === "done");
-        get().askRemove(finished.map((item) => item.id));
+        get().askRemove(shownItems(get()).flatMap((item) => (item.state === "done" ? [item.id] : [])));
       },
 
       cancelRemove: () => {
@@ -929,10 +928,13 @@ export function inView(view: View, item: Download): boolean {
   return states === undefined ? item.category === view : states.includes(item.state);
 }
 
-export function visibleItems(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">): Download[] {
+function shownItems(state: Pick<DownloadsState, "items" | "view" | "matches">): Download[] {
   const found = state.matches === null ? null : new Set(state.matches);
-  const shown = state.items.filter((item) => inView(state.view, item) && (found === null || found.has(item.id)));
-  return sortItems(shown, sortOf(state.settings), state.live, queueRanks(state.items));
+  return state.items.filter((item) => inView(state.view, item) && (found === null || found.has(item.id)));
+}
+
+export function visibleItems(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">): Download[] {
+  return sortItems(shownItems(state), sortOf(state.settings), state.live, queueRanks(state.items));
 }
 
 export function countFor(items: readonly Download[], view: View): number {
@@ -964,10 +966,9 @@ function shownId(state: Parameters<typeof single>[0]): number | null {
   return state.marked.length > 1 ? (single(state)?.id ?? null) : state.selected;
 }
 
-// Without the sort in visibleItems: commands() runs on each keydown and sorts once already.
+// Without the sort in visibleItems: commands() runs on each keydown.
 export function hasFinished(state: Pick<DownloadsState, "items" | "view" | "matches">): boolean {
-  const found = state.matches === null ? null : new Set(state.matches);
-  return state.items.some((item) => item.state === "done" && inView(state.view, item) && (found === null || found.has(item.id)));
+  return shownItems(state).some((item) => item.state === "done");
 }
 
 // The marked downloads that the view shows, in its order.

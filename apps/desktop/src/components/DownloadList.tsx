@@ -8,7 +8,7 @@ import { sentence } from "../lib/format";
 import { CATEGORIES, isCategory } from "../lib/categories";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
-import { savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
+import { hasFinished, savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
 import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
@@ -159,6 +159,7 @@ export function DownloadList() {
   const items = useDownloads(useShallow((s) => visibleItems(s)));
   const openAdd = useDownloads((s) => s.openAdd);
   const searching = useDownloads((s) => s.matches !== null);
+  const clearable = useDownloads(hasFinished);
 
   return (
     <main className="@container/main flex min-w-0 flex-1 flex-col bg-surface">
@@ -167,7 +168,7 @@ export function DownloadList() {
           {titleOf(view)}
         </h1>
         <div className="flex min-w-0 items-center gap-4 @max-3xl/main:gap-2">
-          {items.some((item) => item.state === "done") && <ClearFinished />}
+          {clearable && <ClearFinished />}
           <SearchField />
           <Button
             variant="primary"

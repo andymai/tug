@@ -7,6 +7,9 @@
 # FLATPAK_CARGO_CACHE points the script at another folder, for its test.
 set -euo pipefail
 
+# ccache keeps the C builds (the bundled SQLite) in the same cached folder, up to 5 GB by default.
+export CCACHE_MAXSIZE=500M
+
 cache=${FLATPAK_CARGO_CACHE:-/run/ccache}
 limit=${FLATPAK_CARGO_CACHE_MB:-4096}
 target=target

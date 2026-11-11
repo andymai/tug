@@ -1,5 +1,6 @@
 import re
 import unittest
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -15,7 +16,9 @@ class ReleaseMetadata(unittest.TestCase):
         release = re.search(r'<release version="([^"]+)" date="([^"]+)"/><!-- x-release-please-version-date -->', metainfo)
         self.assertIsNotNone(newest)
         self.assertIsNotNone(release, "the release line needs the x-release-please-version-date marker")
-        self.assertEqual(release.groups(), newest.groups())
+        self.assertEqual(release[1], newest[1])
+        # The changelog's date is in UTC and the MetaInfo's in the clock of the run, so they can differ by a day.
+        self.assertLessEqual(abs((date.fromisoformat(release[2]) - date.fromisoformat(newest[2])).days), 1)
 
 
 if __name__ == "__main__":
