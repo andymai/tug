@@ -964,7 +964,7 @@ function shownId(state: Parameters<typeof single>[0]): number | null {
   return state.marked.length > 1 ? (single(state)?.id ?? null) : state.selected;
 }
 
-// Without the sort in visibleItems: the command bar's keys build the commands on each keydown.
+// Without the sort in visibleItems: commands() runs on each keydown and sorts once already.
 export function hasFinished(state: Pick<DownloadsState, "items" | "view" | "matches">): boolean {
   const found = state.matches === null ? null : new Set(state.matches);
   return state.items.some((item) => item.state === "done" && inView(state.view, item) && (found === null || found.has(item.id)));

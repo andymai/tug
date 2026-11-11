@@ -46,4 +46,4 @@ A client that added the remote trusts only the key in the `tug.flatpakrepo` that
 
 1. Do the setup steps with the new key, and merge the new `tug-repo.asc`.
 2. Turn GitHub Pages off and on again. The next release checks the published commits with the new key and stops on the old ones. Without a published site, it starts a new repository.
-3. Tell users to add the remote again: `flatpak remote-delete tug`, then the `remote-add` from the README.
+3. Tell users to add the remote again: `flatpak remote-delete --force tug`, then the `remote-add` from the README. With `--force`, the installed Tug stays, and it updates from the new remote of the same name.

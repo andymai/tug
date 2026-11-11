@@ -23,10 +23,10 @@ const TEXT_INPUTS = new Set(["email", "number", "password", "search", "tel", "te
 function keepsWebKitMenu(event: MouseEvent): boolean {
   if (event.shiftKey && import.meta.env.DEV) return true;
   const target = event.target;
-  if (!(target instanceof HTMLElement)) return false;
+  if (!(target instanceof Element)) return false;
   const field = target.closest("input, textarea");
   if (field instanceof HTMLInputElement) return TEXT_INPUTS.has(field.type);
-  if (field !== null || target.isContentEditable) return true;
+  if (field !== null || (target instanceof HTMLElement && target.isContentEditable)) return true;
   const selection = window.getSelection();
   if (selection === null || selection.isCollapsed) return false;
   for (let index = 0; index < selection.rangeCount; index++) {

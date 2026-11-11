@@ -88,7 +88,7 @@ flatpak remote-add --if-not-exists tug https://andymai.github.io/tug/tug.flatpak
 flatpak install tug io.github.andymai.Tug
 ```
 
-The `remote-add` and the install ask for your password, because they install for the whole system. Bazaar before 0.10.0 doesn't read a remote of one user. If you installed the bundle before, run `flatpak uninstall --user io.github.andymai.Tug` first, or the bundle keeps starting in place of the repository's Tug. Your downloads and settings stay.
+The `remote-add` asks for your password, because it changes the whole system. Bazaar before 0.10.0 doesn't read a remote of one user. If you installed the bundle before, run `flatpak uninstall --user io.github.andymai.Tug` first, or the bundle keeps starting in place of the repository's Tug. Your downloads and settings stay.
 
 After that, Bazaar and other Flatpak stores list Tug, and `flatpak update` keeps it current. A store can also install it from [`io.github.andymai.Tug.flatpakref`](https://andymai.github.io/tug/io.github.andymai.Tug.flatpakref).
 

@@ -1345,6 +1345,16 @@ describe("selection", () => {
       window.getSelection()?.addRange(range);
       expect(fireEvent.contextMenu(title, { clientX: 20, clientY: 10 })).toBe(true);
       expect(fireEvent.contextMenu(screen.getByRole("button", { name: "Add" }), { clientX: 500, clientY: 10 })).toBe(false);
+
+      // An icon inside the selection keeps the menu too, for Copy.
+      const add = screen.getByRole("button", { name: "Add" });
+      const icon = add.querySelector("svg");
+      if (icon === null) throw new Error("the Add button has no icon");
+      const around = document.createRange();
+      around.selectNodeContents(add);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(around);
+      expect(fireEvent.contextMenu(icon, { clientX: 20, clientY: 10 })).toBe(true);
     } finally {
       window.getSelection()?.removeAllRanges();
       if (original === undefined) Reflect.deleteProperty(Range.prototype, "getClientRects");
