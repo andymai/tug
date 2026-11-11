@@ -119,8 +119,12 @@ jobs:
     uses: ./.github/workflows/flatpak.yml
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
+    secrets:
+      FLATPAK_SIGNING_KEY: ${{ secrets.FLATPAK_SIGNING_KEY }}
     permissions:
       contents: write
+      pages: write
+      id-token: write
 
   extension:
     name: Extension

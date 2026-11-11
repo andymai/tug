@@ -65,7 +65,7 @@ Tug is a download manager for Linux, made for KDE Plasma first. Its keyboard-fir
 
 ## Install
 
-Tug runs on 64-bit Linux. Each [release](https://github.com/andymai/tug/releases/latest) has an AppImage and a Flatpak bundle. To use the browser extension, install the AppImage: from inside its sandbox, the Flatpak can't connect a browser to Tug.
+Tug runs on 64-bit Linux, as an AppImage or a Flatpak. Each [release](https://github.com/andymai/tug/releases/latest) has an AppImage and a Flatpak bundle, and Tug's Flatpak repository gets the same version. To use the browser extension, install the AppImage: from inside its sandbox, the Flatpak can't connect a browser to Tug.
 
 ### AppImage
 
@@ -79,14 +79,17 @@ Tug runs on 64-bit Linux. Each [release](https://github.com/andymai/tug/releases
 
 ### Flatpak
 
-The bundle uses the GNOME 51 runtime from Flathub, which `flatpak install` gets for you.
+Tug has its own signed Flatpak repository, and each release adds its version there. Add the repository once, then install Tug. It uses the GNOME 51 runtime from Flathub.
 
 ```sh
-curl -LO https://github.com/andymai/tug/releases/latest/download/io.github.andymai.Tug.flatpak
-flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak install --user ./io.github.andymai.Tug.flatpak
-flatpak run io.github.andymai.Tug
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak remote-add --if-not-exists tug https://andymai.github.io/tug/tug.flatpakrepo
+flatpak install tug io.github.andymai.Tug
 ```
+
+After that, Bazaar and other Flatpak stores list Tug, and `flatpak update` keeps it current. A store can also install it from [`io.github.andymai.Tug.flatpakref`](https://andymai.github.io/tug/io.github.andymai.Tug.flatpakref).
+
+Each release also has the bundle `io.github.andymai.Tug.flatpak`, for an install without the repository. A bundle doesn't update.
 
 ### Browser extension
 
