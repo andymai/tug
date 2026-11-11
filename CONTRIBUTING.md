@@ -48,7 +48,9 @@ Engine behavior is tested offline in `crates/tug-core/tests/` against MDM's lab 
 
 ## Releases
 
-release-please opens a release PR from the merged conventional commits and updates `CHANGELOG.md` and the version in `Cargo.toml`. Do not edit those by hand.
+release-please opens a release PR from the merged conventional commits. It updates `CHANGELOG.md`, and the version in `Cargo.toml`, `apps/extension/package.json` and the AppStream MetaInfo. Do not edit those by hand. Each release builds the AppImage, the Flatpak and the extension. It also updates Tug's Flatpak repository and sends a changed extension to the Chrome Web Store.
+
+The scripts in `scripts/` have their own tests: `python3 -m unittest discover -s scripts -p 'test_*.py'`.
 
 ## License
 

@@ -26,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-import { canRename, chosen, type DownloadsStore, finished, hasFinished, savedViewOf, single, type StateView } from "../state/downloads";
+import { canRename, chosen, type DownloadsStore, hasFinished, savedViewOf, single, type StateView } from "../state/downloads";
 import { CATEGORIES } from "./categories";
 import { covering } from "./covering";
 import { focusRow } from "./dom";
@@ -147,8 +147,7 @@ export function commands(store: DownloadsStore): Command[] {
         group: "Downloads",
         icon: ListX,
         run: () => {
-          const now = store.getState();
-          now.askRemove(finished(now).map((item) => item.id));
+          store.getState().askClearFinished();
         },
       });
     }

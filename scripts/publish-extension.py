@@ -67,17 +67,19 @@ def describe(status: dict) -> str:
 
 class Skip(NamedTuple):
     reason: str
-    # The store holds a version back, so this release's changes wait: worth a look in the run.
-    held: bool = False
+    warn: bool = False
+
+
+LATER = "so a release after it sends the newest version"
 
 
 def decide(status: dict, version: str, changed: Callable[[str], bool]) -> Skip | None:
     if status.get("takenDown"):
-        return Skip("the store took the item down; see the Developer Dashboard", held=True)
+        return Skip("the store took the item down; see the Developer Dashboard", warn=True)
     submitted = status.get("submittedItemRevisionStatus") or {}
     held = HELD.get(submitted.get("state"))
     if held is not None:
-        return Skip(f"{version_of(submitted)} {held}, so a release after it sends the newest version", held=True)
+        return Skip(f"{version_of(submitted) or 'a version'} {held}, {LATER}", warn=True)
     published = version_of(status.get("publishedItemRevisionStatus") or {})
     if published is None:
         return None
@@ -159,6 +161,10 @@ class Store:
         return self.call("POST", f"/v2/{self.item}:publish", b"{}", "application/json")
 
 
+def skipped(version: str, skip: Skip) -> tuple[str, str]:
+    return ("warning" if skip.warn else "notice"), f"Skipped {version}: {skip.reason}."
+
+
 def send(store: Store, package: Path, tag: str, changed: Callable[[str], bool], pause: float = 5) -> tuple[str, str]:
     version = tag.removeprefix("v")
     with zipfile.ZipFile(package) as archive:
@@ -169,17 +175,20 @@ def send(store: Store, package: Path, tag: str, changed: Callable[[str], bool], 
         raise SystemExit(f"{package} has version {packed.get('version')}, not the version of {tag}")
     status = store.status()
     print(f"The store's item: {describe(status)}")
+    # CHROMIUM_KEY in manifest.ts takes this key, so the release zip gets the store's ID.
+    if status.get("publicKey"):
+        print(f"The store's public key: {status['publicKey']}")
     skip = decide(status, version, changed)
     if skip is not None:
-        return ("warning" if skip.held else "notice"), f"Skipped {version}: {skip.reason}."
+        return skipped(version, skip)
     # The status doesn't always show a version that the store holds back, but the upload's refusal does.
     try:
         state = store.upload(package.read_bytes())
     except StoreError as error:
         if error.status != 400 or "NOT_UPDATEABLE" not in error.reasons:
             raise
-        why = error.message or "the store won't take a new version now"
-        return "warning", f"Skipped {version}: {why.rstrip('.')}, so a release after it sends the newest version."
+        why = (error.message or "the store won't take a new version now").rstrip(".")
+        return skipped(version, Skip(f"{why}, {LATER}", warn=True))
     deadline = time.monotonic() + UPLOAD_WAIT_S
     while state == "IN_PROGRESS" and time.monotonic() < deadline:
         time.sleep(pause)

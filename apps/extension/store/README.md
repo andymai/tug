@@ -1,6 +1,6 @@
 # The Chrome Web Store
 
-The `Extension` workflow sends each release's `dist/chrome-web-store` build to the Chrome Web Store with `scripts/publish-extension.py`. A version goes to the store only when its package differs from the package of the store's version, which each release keeps as an asset. It waits while the store holds another version back. The store reviews each version before users get it.
+The `Extension` workflow sends each release's `dist/chrome-web-store` build to the Chrome Web Store with `scripts/publish-extension.py`. A version goes to the store only when its package differs from the package of the store's version, which each release keeps as an asset. While the store holds another version back, a release skips the store with a warning, and the next release with a changed package sends it. The store reviews each version before users get it.
 
 The store's API can't make a new item. So the first version goes up by hand, once, with the steps below. Until the repository variables in step 3 exist, the workflow skips the store. Do the steps in order: a store version that goes public before Tug lets in the store's ID can't reach Tug.
 
@@ -25,7 +25,7 @@ The store gives the item its own ID, `CHROME_WEB_STORE_ID` in `apps/extension/sr
 
 The zip on each release must get the store's ID too. With two IDs, one browser can hold both copies, and each copy sends the same download to Tug.
 
-1. On the item's **Package** tab, click **View public key**.
+1. Find the store's public key in the log of the store job: each run prints `The store's public key:`. The item's **Package** tab also shows it under **View public key**.
 2. Put the key, on one line without the `BEGIN` and `END` lines, in `CHROMIUM_KEY`.
 3. Change the comment above `CHROMIUM_KEY`: the store holds the private half now.
 4. Set `CHROMIUM_ID` to the store's ID. Keep the old ID in `CHROMIUM_ORIGINS`, so the extensions that people loaded from a zip still reach Tug.

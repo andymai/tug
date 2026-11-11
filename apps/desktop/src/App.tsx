@@ -21,12 +21,12 @@ const TEXT_INPUTS = new Set(["email", "number", "password", "search", "tel", "te
 // field and the text that someone selected keep it, for Cut, Copy and Paste, and Shift keeps
 // it for Inspect Element in a debug build.
 function keepsWebKitMenu(event: MouseEvent): boolean {
-  if (event.shiftKey) return true;
+  if (event.shiftKey && import.meta.env.DEV) return true;
   const target = event.target;
-  if (!(target instanceof Element)) return false;
-  const field = target.closest("input, textarea, [contenteditable='true']");
+  if (!(target instanceof HTMLElement)) return false;
+  const field = target.closest("input, textarea");
   if (field instanceof HTMLInputElement) return TEXT_INPUTS.has(field.type);
-  if (field !== null) return true;
+  if (field !== null || target.isContentEditable) return true;
   const selection = window.getSelection();
   if (selection === null || selection.isCollapsed) return false;
   for (let index = 0; index < selection.rangeCount; index++) {

@@ -102,6 +102,7 @@ export interface DownloadsState {
   openMenu: (at: { x: number; y: number }) => void;
   closeMenu: () => void;
   askRemove: (ids: readonly number[]) => void;
+  askClearFinished: () => void;
   cancelRemove: () => void;
   pauseMany: (ids: readonly number[]) => Promise<void>;
   resumeMany: (ids: readonly number[]) => Promise<void>;
@@ -556,6 +557,10 @@ export function createDownloadsStore(backend: Backend) {
         if (ids.length > 0) set({ removing: [...ids], menu: null });
       },
 
+      askClearFinished: () => {
+        get().askRemove(finished(get()).map((item) => item.id));
+      },
+
       cancelRemove: () => {
         set({ removing: null });
       },
@@ -958,12 +963,11 @@ function shownId(state: Parameters<typeof single>[0]): number | null {
   return state.marked.length > 1 ? (single(state)?.id ?? null) : state.selected;
 }
 
-export function finished(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">): Download[] {
+function finished(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">): Download[] {
   return visibleItems(state).filter((item) => item.state === "done");
 }
 
-// Whether the view shows a finished download, without the sort that visibleItems does:
-// the header asks on every progress tick.
+// Without the sort in visibleItems: the command bar's keys build the commands on each keydown.
 export function hasFinished(state: Pick<DownloadsState, "items" | "view" | "matches">): boolean {
   const found = state.matches === null ? null : new Set(state.matches);
   return state.items.some((item) => item.state === "done" && inView(state.view, item) && (found === null || found.has(item.id)));

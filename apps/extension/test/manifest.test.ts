@@ -30,6 +30,14 @@ describe("manifests", () => {
     expect(allowedOrigins).toContain(`"chrome-extension://${CHROME_WEB_STORE_ID}/"`);
   });
 
+  it("the store job's check finds CHROME_WEB_STORE_ID as manifest.ts writes it", () => {
+    const root = join(import.meta.dirname, "..", "..", "..");
+    const workflow = readFileSync(join(root, ".github", "workflows", "extension.yml"), "utf8");
+    const source = readFileSync(join(import.meta.dirname, "..", "src", "manifest.ts"), "utf8");
+    expect(workflow).toContain(String.raw`grep -qF "CHROME_WEB_STORE_ID = \"$ITEM\";" apps/extension/src/manifest.ts`);
+    expect(source).toContain(`CHROME_WEB_STORE_ID = "${CHROME_WEB_STORE_ID}";`);
+  });
+
   it("the store's package is the Chromium one without the key", () => {
     const { key, ...chromium } = manifest("chromium", "1.2.3");
     expect(key).toBe(CHROMIUM_KEY);
