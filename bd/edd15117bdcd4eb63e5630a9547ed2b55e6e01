@@ -1,0 +1,59 @@
+apps/desktop/src/state/downloads.ts
+  s_b321718d129a1e::t_e9b84973655f38 966
+  s_b321718d129a1e::t_58e262e61f798b 105,560-563,970
+apps/desktop/src/App.test.tsx
+  s_b321718d129a1e::t_e9b84973655f38 1341-1352,1360-1392
+  s_b321718d129a1e::t_4f7f81f69cca0b 1393
+apps/desktop/src/lib/commands.ts
+  s_b321718d129a1e::t_58e262e61f798b 29,150
+apps/desktop/src/App.tsx
+  s_b321718d129a1e::t_8e39352f882ccc 24,26-27,29
+packaging/flatpak/README.md
+  s_b321718d129a1e::t_0b82bac23318d5 1-49
+apps/extension/store/README.md
+  s_b321718d129a1e::t_778c082760384f 3,28
+packaging/io.github.andymai.Tug.metainfo.xml
+  s_b321718d129a1e::t_778c082760384f 33
+apps/desktop/src/components/DownloadList.tsx
+  s_b321718d129a1e::t_58e262e61f798b 10-11,63,140,147,170
+scripts/test_publish_extension.py
+  s_b321718d129a1e::t_26111fd5cf11e2 34,40,58,62-68,185-186,303-321,323-324,347-352
+  s_b321718d129a1e::t_01adfe298ea9e3 322
+  s_b321718d129a1e::t_a8b46c4827d430 353-354
+.github/workflows/flatpak.yml
+  s_b321718d129a1e::t_2e7f9b80a902f8 48
+scripts/publish-extension.py
+  s_b321718d129a1e::t_26111fd5cf11e2 70-73,78,82,164-167,178-180,183,190-191
+scripts/flatpak-repo.sh
+  s_b321718d129a1e::t_9e141f7adc845e 44-45
+apps/extension/test/manifest.test.ts
+  s_b321718d129a1e::t_66138700c6ca95 33-40
+CONTRIBUTING.md
+  s_b321718d129a1e::t_778c082760384f 52-53
+  s_b321718d129a1e::t_f6bf591e605d00 51
+CLAUDE.md
+  s_b321718d129a1e::t_778c082760384f 15,53,80
+README.md
+  s_b321718d129a1e::t_778c082760384f 92,160
+  s_b321718d129a1e::t_8190b6ec5b7d4b 91
+scripts/test_flatpak_cargo.py
+  s_b321718d129a1e::t_3de97585b06de8 1-87
+scripts/flatpak-cargo.sh
+  s_b321718d129a1e::t_d038391c725e24 2-7,11,18-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bdedd15117bdcd4eb63e5630a9547ed2b55e6e01",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
