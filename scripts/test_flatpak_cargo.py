@@ -70,10 +70,13 @@ class FlatpakCargo(unittest.TestCase):
         self.build()
         kept = self.release / "deps" / "kept.rlib"
         kept.touch()
+        # The stand-in cargo writes its own crate again on each build, so the test keeps one of its own.
+        crate = self.cache / "cargo" / "registry" / "kept.crate"
+        crate.touch()
         said = self.build(rustc="1.96.0")
         self.assertIn("a new rustc", said)
         self.assertFalse(kept.exists())
-        self.assertTrue((self.cache / "cargo" / "registry" / "serde-1.crate").exists())
+        self.assertTrue(crate.exists())
         self.assertEqual((self.cache / "target" / "rustc-version").read_text(), "rustc 1.96.0\n")
 
     def test_a_cache_over_the_limit_starts_all_of_it_again(self):
