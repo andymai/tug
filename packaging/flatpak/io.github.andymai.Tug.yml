@@ -34,8 +34,7 @@ modules:
       - npm install --prefix /run/build/tug/tools pnpm@11.28.8
       - /run/build/tug/tools/node_modules/.bin/pnpm install --frozen-lockfile
       - /run/build/tug/tools/node_modules/.bin/pnpm --filter @tug/desktop build
-      - cargo build --release --locked -p tug-desktop --features tauri/custom-protocol
-      - install -Dm755 target/release/tug /app/bin/tug
+      - scripts/flatpak-cargo.sh
       - scripts/install-data.sh /app
     sources:
       - type: dir

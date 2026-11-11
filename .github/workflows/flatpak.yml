@@ -41,7 +41,12 @@ jobs:
         with:
           bundle: io.github.andymai.Tug.flatpak
           manifest-path: packaging/flatpak/io.github.andymai.Tug.yml
-          cache-key: flatpak-builder-${{ github.sha }}
+          # The action appends "-x86_64" to the key, and takes the newest cache whose key
+          # starts with "flatpak-builder-x86_64": the Rust dependencies' build, kept by
+          # scripts/flatpak-cargo.sh. A key of its own per run, so each saving run saves.
+          # Only releases and manual runs save: a pull request's cache serves no one else.
+          cache-key: flatpak-builder-x86_64-${{ github.run_id }}
+          save-cache: ${{ inputs.tag != '' || github.event_name == 'workflow_dispatch' }}
       - name: Check that the Flatpak starts
         run: |
           set -euo pipefail
