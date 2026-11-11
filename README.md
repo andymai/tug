@@ -49,6 +49,7 @@ Tug is a download manager for Linux, made for KDE Plasma first. Its keyboard-fir
 - **The inspector.** A map of the file's parts, each connection's speed, bytes and status, the server's address, round trip and CDN, and the engine's log.
 - **A dense table.** Pick the columns, sort on any of them, and set their widths. Search, saved views and file types narrow the list.
 - **Many downloads at once.** Select with Shift and Ctrl, then pause, resume, remove or move them in one action.
+- **A tidy list.** **Clear finished** takes the finished downloads off the list. **Remove…** can delete the files too, and a right-click on a download opens all of its actions.
 - **The keyboard.** Ctrl+K opens the command bar, and the keyboard shortcuts dialog lists the rest.
 
 ### At home on Plasma

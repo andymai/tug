@@ -612,7 +612,11 @@ export function createDownloadsStore(backend: Backend) {
       },
 
       removeMany: async (ids, deleteFiles) => {
-        const order = chosenOf(get(), ids);
+        // Only what the view shows, and the panel's download: the panel stays open after
+        // the view loses it, and the dialog named it.
+        const shown = chosenOf(get(), ids);
+        const panel = single(get());
+        const order = panel !== undefined && ids.includes(panel.id) && !shown.includes(panel) ? [...shown, panel] : shown;
         set({ removing: null });
         if (order.some((item) => item.id === get().selected) || order.some((item) => get().marked.includes(item.id))) {
           anchor = null;
@@ -952,6 +956,17 @@ export function single(state: Pick<DownloadsState, "items" | "view" | "matches" 
 
 function shownId(state: Parameters<typeof single>[0]): number | null {
   return state.marked.length > 1 ? (single(state)?.id ?? null) : state.selected;
+}
+
+export function finished(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">): Download[] {
+  return visibleItems(state).filter((item) => item.state === "done");
+}
+
+// Whether the view shows a finished download, without the sort that visibleItems does:
+// the header asks on every progress tick.
+export function hasFinished(state: Pick<DownloadsState, "items" | "view" | "matches">): boolean {
+  const found = state.matches === null ? null : new Set(state.matches);
+  return state.items.some((item) => item.state === "done" && inView(state.view, item) && (found === null || found.has(item.id)));
 }
 
 // The marked downloads that the view shows, in its order.
