@@ -1,0 +1,27 @@
+scripts/flatpak-cargo.sh
+  s_b321718d129a1e::t_addbb8ba90d9e1 1-29
+packaging/flatpak/io.github.andymai.Tug.yml
+  s_b321718d129a1e::t_ffb33006dd9d79 37
+.github/workflows/flatpak.yml
+  s_b321718d129a1e::t_6d80bb28db22c4 44-49
+.gitignore
+  s_b321718d129a1e::t_176d1150e53678 9-10
+CLAUDE.md
+  s_b321718d129a1e::t_93c1b08698ed2e 73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7cd33c37cb302aa5118b0ec8bf9a18a80d9b0667",
+  "prompts": {},
+  "sessions": {
+    "s_b321718d129a1e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c62633eb-00e8-4221-9326-8801a74ef42d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
