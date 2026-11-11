@@ -17,6 +17,7 @@ on:
     paths:
       - .github/workflows/flatpak.yml
       - packaging/**
+      - "!packaging/screenshots/**"
       - scripts/flatpak-repo.sh
       - scripts/flatpak-repo-check.sh
       - scripts/flatpak-repo-test.sh
@@ -116,6 +117,15 @@ jobs:
             { echo "::error::FLATPAK_SIGNING_KEY is not the key in packaging/flatpak/tug-repo.asc"; exit 1; }
       - run: scripts/flatpak-repo.sh bundle/io.github.andymai.Tug.flatpak site https://andymai.github.io/tug
       - run: scripts/flatpak-repo-check.sh site https://andymai.github.io/tug
+      # Stores load the MetaInfo's screenshots from the site, so each URL needs its file.
+      - name: Add the screenshots
+        run: |
+          set -euo pipefail
+          cp -r packaging/screenshots site/
+          grep -o 'https://andymai.github.io/tug/screenshots/[^<]*' packaging/io.github.andymai.Tug.metainfo.xml |
+            while read -r url; do
+              [ -f "site/screenshots/${url##*/}" ] || { echo "::error::$url has no file in packaging/screenshots"; exit 1; }
+            done
       # The last two releases through the scripts, as two releases in a row would go.
       - name: Test an update from one release to the next
         if: ${{ !inputs.tag }}
