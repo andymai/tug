@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.0](https://github.com/andymai/tug/compare/v0.42.2...v0.43.0) (2026-11-11)
+
+
+### Features
+
+* **desktop:** clear finished downloads, remove from the panel, and no WebKit menu ([#176](https://github.com/andymai/tug/issues/176)) ([be5b011](https://github.com/andymai/tug/commit/be5b01179206bbf417c4cf6c5b40afc2be4b77db))
+
 ## [0.42.2](https://github.com/andymai/tug/compare/v0.42.1...v0.42.2) (2026-11-11)
 
 
