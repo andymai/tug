@@ -123,8 +123,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mapfile -t tags < <(gh release list --repo "$GITHUB_REPOSITORY" --limit 2 \
-            --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName')
+          # A new release exists before its bundle is up, so take the newest two that have one.
+          mapfile -t tags < <(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=20" --jq '[.[]
+            | select((.draft or .prerelease) | not)
+            | select(any(.assets[]; .name == "io.github.andymai.Tug.flatpak"))
+            | .tag_name][:2][]')
+          [ "${#tags[@]}" -eq 2 ] || { echo "::error::fewer than two releases have a Flatpak bundle"; exit 1; }
           for tag in "${tags[@]}"; do
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
               --pattern io.github.andymai.Tug.flatpak --dir "releases/$tag"
