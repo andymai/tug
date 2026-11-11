@@ -558,7 +558,8 @@ export function createDownloadsStore(backend: Backend) {
       },
 
       askClearFinished: () => {
-        get().askRemove(finished(get()).map((item) => item.id));
+        const finished = visibleItems(get()).filter((item) => item.state === "done");
+        get().askRemove(finished.map((item) => item.id));
       },
 
       cancelRemove: () => {
@@ -621,7 +622,7 @@ export function createDownloadsStore(backend: Backend) {
         // the view loses it, and the dialog named it.
         const shown = chosenOf(get(), ids);
         const panel = single(get());
-        const order = panel !== undefined && ids.includes(panel.id) && !shown.includes(panel) ? [...shown, panel] : shown;
+        const order = panel !== undefined && ids.includes(panel.id) && !shown.some((item) => item.id === panel.id) ? [...shown, panel] : shown;
         set({ removing: null });
         if (order.some((item) => item.id === get().selected) || order.some((item) => get().marked.includes(item.id))) {
           anchor = null;
@@ -961,10 +962,6 @@ export function single(state: Pick<DownloadsState, "items" | "view" | "matches" 
 
 function shownId(state: Parameters<typeof single>[0]): number | null {
   return state.marked.length > 1 ? (single(state)?.id ?? null) : state.selected;
-}
-
-function finished(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">): Download[] {
-  return visibleItems(state).filter((item) => item.state === "done");
 }
 
 // Without the sort in visibleItems: the command bar's keys build the commands on each keydown.

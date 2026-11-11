@@ -1,7 +1,6 @@
 import os
 import subprocess
 import tempfile
-import textwrap
 import unittest
 from pathlib import Path
 
@@ -30,7 +29,7 @@ class FlatpakCargo(unittest.TestCase):
         self.bin.mkdir()
         for name, body in (("cargo", CARGO), ("rustc", RUSTC), ("install", INSTALL)):
             tool = self.bin / name
-            tool.write_text(textwrap.dedent(body))
+            tool.write_text(body)
             tool.chmod(0o755)
         self.cache = root / "ccache"
         self.cache.mkdir()

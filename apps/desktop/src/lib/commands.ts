@@ -11,9 +11,9 @@ import {
   Keyboard,
   Layers,
   ListChecks,
-  ListX,
   ListEnd,
   ListStart,
+  ListX,
   Settings,
   type LucideIcon,
   Pause,
@@ -147,7 +147,7 @@ export function commands(store: DownloadsStore): Command[] {
         group: "Downloads",
         icon: ListX,
         run: () => {
-          store.getState().askClearFinished();
+          state.askClearFinished();
         },
       });
     }

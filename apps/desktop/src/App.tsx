@@ -55,12 +55,12 @@ export function App({ store }: { store: DownloadsStore }) {
   }, [store]);
 
   useEffect(() => {
-    const quiet = (event: MouseEvent) => {
+    const hideWebKitMenu = (event: MouseEvent) => {
       if (!keepsWebKitMenu(event)) event.preventDefault();
     };
-    document.addEventListener("contextmenu", quiet);
+    document.addEventListener("contextmenu", hideWebKitMenu);
     return () => {
-      document.removeEventListener("contextmenu", quiet);
+      document.removeEventListener("contextmenu", hideWebKitMenu);
     };
   }, []);
 

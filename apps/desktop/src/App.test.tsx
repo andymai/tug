@@ -1336,7 +1336,7 @@ describe("selection", () => {
     expect(fireEvent.contextMenu(title, { shiftKey: true })).toBe(true);
 
     // jsdom lays nothing out, so the selected text gets a box of its own.
-    const own = Object.getOwnPropertyDescriptor(Range.prototype, "getClientRects");
+    const original = Object.getOwnPropertyDescriptor(Range.prototype, "getClientRects");
     Object.defineProperty(Range.prototype, "getClientRects", { value: () => [new DOMRect(0, 0, 200, 30)], configurable: true });
     try {
       const range = document.createRange();
@@ -1347,8 +1347,8 @@ describe("selection", () => {
       expect(fireEvent.contextMenu(screen.getByRole("button", { name: "Add" }), { clientX: 500, clientY: 10 })).toBe(false);
     } finally {
       window.getSelection()?.removeAllRanges();
-      if (own === undefined) Reflect.deleteProperty(Range.prototype, "getClientRects");
-      else Object.defineProperty(Range.prototype, "getClientRects", own);
+      if (original === undefined) Reflect.deleteProperty(Range.prototype, "getClientRects");
+      else Object.defineProperty(Range.prototype, "getClientRects", original);
     }
 
     await user.click(screen.getByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
