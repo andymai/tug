@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.42.1](https://github.com/andymai/tug/compare/v0.42.0...v0.42.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **extension:** skip a release while the store refuses an upload in review ([#172](https://github.com/andymai/tug/issues/172)) ([2e66b8c](https://github.com/andymai/tug/commit/2e66b8c69915d0c32d1de691a51021577a57db4d))
+* **packaging:** keep the Flatpak repository check off the live site ([#171](https://github.com/andymai/tug/issues/171)) ([176f88b](https://github.com/andymai/tug/commit/176f88ba15bba6b389e527b787ac832345e36282))
+
 ## [0.42.0](https://github.com/andymai/tug/compare/v0.41.0...v0.42.0) (2026-11-11)
 
 
