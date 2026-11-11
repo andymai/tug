@@ -8,13 +8,16 @@
 # cache over 4 GiB, starts it again from nothing.
 set -euo pipefail
 
+cache=${FLATPAK_CARGO_CACHE:-/run/ccache}
 target=target
-if [[ -d /run/ccache ]]; then
-  export CARGO_HOME=/run/ccache/cargo CARGO_TARGET_DIR=/run/ccache/target
+if [[ -d $cache ]]; then
+  export CARGO_HOME=$cache/cargo CARGO_TARGET_DIR=$cache/target
   target=$CARGO_TARGET_DIR
   stamp=$target/rustc-version
-  size=$(du -sm "$target" 2> /dev/null | cut -f1)
-  if [[ $(rustc -vV) != "$(cat "$stamp" 2> /dev/null)" ]] || ((${size:-0} > 4096)); then
+  size=0
+  [[ ! -d $target ]] || size=$(du -sm "$target" | cut -f1)
+  if [[ ! -f $stamp || $(rustc -vV) != "$(< "$stamp")" ]] || ((size > 4096)); then
+    echo "flatpak-cargo: starting the cargo cache from nothing"
     rm -rf "$target"
   fi
   mkdir -p "$target"
