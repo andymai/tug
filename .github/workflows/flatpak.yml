@@ -17,9 +17,11 @@ on:
     paths:
       - .github/workflows/flatpak.yml
       - packaging/**
+      - scripts/flatpak-cargo.sh
       - scripts/flatpak-repo.sh
       - scripts/flatpak-repo-check.sh
       - scripts/flatpak-repo-test.sh
+      - scripts/install-data.sh
 
 permissions: {}
 
