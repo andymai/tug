@@ -69,8 +69,10 @@ jobs:
 
   # Each release saves a Flatpak cache of about 800 MB under a key of its own, and GitHub
   # keeps 10 GB of caches for the repository: older ones would push out CI's Rust caches.
+  # Only the ref that saved a cache, and the branches from it, restore that cache, so the
+  # job deletes only the older caches of its own ref. A manual run on a branch keeps main's.
   prune:
-    name: Keep the newest Flatpak cache only
+    name: Keep the newest Flatpak cache of the ref
     needs: flatpak
     # The runs that save a cache: the same condition as save-cache above.
     if: inputs.tag || github.event_name == 'workflow_dispatch'
@@ -82,7 +84,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh cache list --repo "$GITHUB_REPOSITORY" --key flatpak-builder-x86_64- --sort created_at --order desc \
+          gh cache list --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF" --key flatpak-builder-x86_64- \
+            --sort created_at --order desc \
             --limit 100 --json key --jq '.[1:][].key' |
             while read -r key; do gh cache delete "$key" --repo "$GITHUB_REPOSITORY"; done
 
