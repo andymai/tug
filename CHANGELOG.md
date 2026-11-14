@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.0](https://github.com/andymai/tug/compare/v0.43.1...v0.44.0) (2026-11-14)
+
+
+### Features
+
+* **packaging:** a store page with a real description and screenshots ([#170](https://github.com/andymai/tug/issues/170)) ([57bbbc0](https://github.com/andymai/tug/commit/57bbbc089270d119b089ab91c3059ef1d6a4ff20))
+
 ## [0.43.1](https://github.com/andymai/tug/compare/v0.43.0...v0.43.1) (2026-11-14)
 
 
