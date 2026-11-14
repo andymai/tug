@@ -49,6 +49,7 @@ Tug is a download manager for Linux, made for KDE Plasma first. Its keyboard-fir
 - **The inspector.** A map of the file's parts, each connection's speed, bytes and status, the server's address, round trip and CDN, and the engine's log.
 - **A dense table.** Pick the columns, sort on any of them, and set their widths. Search, saved views and file types narrow the list.
 - **Many downloads at once.** Select with Shift and Ctrl, then pause, resume, remove or move them in one action.
+- **A tidy list.** **Clear finished** takes the finished downloads off the list. **Remove…** can delete the files too, and a right-click on a download opens all of its actions.
 - **The keyboard.** Ctrl+K opens the command bar, and the keyboard shortcuts dialog lists the rest.
 
 ### At home on Plasma
@@ -86,6 +87,8 @@ flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.f
 flatpak remote-add --if-not-exists tug https://andymai.github.io/tug/tug.flatpakrepo
 flatpak install tug io.github.andymai.Tug
 ```
+
+The `remote-add` asks for your password, because it changes the whole system. Bazaar before 0.10.0 doesn't read a remote of one user. If you installed the bundle before, run `flatpak uninstall --user io.github.andymai.Tug` first, or the bundle keeps starting in place of the repository's Tug. Your downloads and settings stay.
 
 After that, Bazaar and other Flatpak stores list Tug, and `flatpak update` keeps it current. A store can also install it from [`io.github.andymai.Tug.flatpakref`](https://andymai.github.io/tug/io.github.andymai.Tug.flatpakref).
 
@@ -154,7 +157,7 @@ cargo build --release --locked -p tug-host
 
 `tug-host` connects the browser extension to Tug, and Tug looks for it next to `tug`.
 
-To build the browser extension, run `pnpm --filter @tug/extension build`. It writes `apps/extension/dist/chromium` and `apps/extension/dist/firefox`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the tests, the commit hooks and the checks that CI runs.
+To build the browser extension, run `pnpm --filter @tug/extension build`. It writes `apps/extension/dist/chromium`, `dist/firefox` and `dist/chrome-web-store`, the Chromium build without `key` for the store. See [CONTRIBUTING.md](CONTRIBUTING.md) for the tests, the commit hooks and the checks that CI runs.
 
 ## License
 

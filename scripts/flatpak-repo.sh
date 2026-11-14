@@ -41,7 +41,8 @@ status=$(curl -sL --retry 3 -o /dev/null -w '%{http_code}' "$url/repo/summary") 
 case $status in
   200)
     ostree remote add --repo="$repo" --gpg-import="$published_key" published "$url/repo/"
-    ostree pull --repo="$repo" --mirror --depth="$parents" published "$ref"
+    # With the new commit on top, the prune below keeps $parents published commits: the pull gets only those.
+    ostree pull --repo="$repo" --mirror --depth="$((parents - 1))" published "$ref"
     ostree remote delete --repo="$repo" published
     ;;
   404) echo "nothing published at $url yet: a new repository" ;;

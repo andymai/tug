@@ -388,6 +388,7 @@ function Panel({ download }: { download: Download }) {
   const startNext = useDownloads((s) => s.startNext);
   const openFile = useDownloads((s) => s.openFile);
   const showInFolder = useDownloads((s) => s.showInFolder);
+  const askRemove = useDownloads((s) => s.askRemove);
   const notify = useDownloads((s) => s.notify);
   const store = useDownloadsStore();
   const chosenTab = useDownloads((s) => s.inspectorTab);
@@ -540,6 +541,14 @@ function Panel({ download }: { download: Download }) {
         </Button>
         <Button icon={copied ? Check : Copy} onClick={copy}>
           {copied ? "Copied" : "Copy link"}
+        </Button>
+        <Button
+          icon={Trash2}
+          onClick={() => {
+            askRemove([download.id]);
+          }}
+        >
+          Remove…
         </Button>
       </div>
       <InspectorTabs base={tabBase} tabs={tabs} tab={tab} onChange={setTab} />

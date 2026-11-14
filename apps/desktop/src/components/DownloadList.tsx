@@ -1,4 +1,4 @@
-import { BookmarkPlus, CircleAlert, Plus, Search, X } from "lucide-react";
+import { BookmarkPlus, CircleAlert, ListX, Plus, Search, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/shallow";
 
@@ -8,7 +8,7 @@ import { sentence } from "../lib/format";
 import { CATEGORIES, isCategory } from "../lib/categories";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
-import { savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
+import { hasFinished, savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
 import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
@@ -136,6 +136,21 @@ function Notice() {
   );
 }
 
+function ClearFinished() {
+  const askClearFinished = useDownloads((s) => s.askClearFinished);
+  return (
+    // A square icon in a narrow window, so the title and the search field keep their room.
+    <Button
+      icon={ListX}
+      title="Clear finished…"
+      className="@max-3xl/main:w-[30px] @max-3xl/main:px-0"
+      onClick={askClearFinished}
+    >
+      <span className="@max-3xl/main:sr-only">Clear finished…</span>
+    </Button>
+  );
+}
+
 export function DownloadList() {
   const view = useDownloads((s) => s.view);
   const status = useDownloads((s) => s.status);
@@ -144,6 +159,7 @@ export function DownloadList() {
   const items = useDownloads(useShallow((s) => visibleItems(s)));
   const openAdd = useDownloads((s) => s.openAdd);
   const searching = useDownloads((s) => s.matches !== null);
+  const clearable = useDownloads(hasFinished);
 
   return (
     <main className="@container/main flex min-w-0 flex-1 flex-col bg-surface">
@@ -151,7 +167,8 @@ export function DownloadList() {
         <h1 id="list-title" data-tauri-drag-region tabIndex={-1} className="min-w-0 truncate text-title text-ink outline-none">
           {titleOf(view)}
         </h1>
-        <div className="flex min-w-0 items-center gap-4">
+        <div className="flex min-w-0 items-center gap-4 @max-3xl/main:gap-2">
+          {clearable && <ClearFinished />}
           <SearchField />
           <Button
             variant="primary"

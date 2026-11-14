@@ -102,6 +102,7 @@ export interface DownloadsState {
   openMenu: (at: { x: number; y: number }) => void;
   closeMenu: () => void;
   askRemove: (ids: readonly number[]) => void;
+  askClearFinished: () => void;
   cancelRemove: () => void;
   pauseMany: (ids: readonly number[]) => Promise<void>;
   resumeMany: (ids: readonly number[]) => Promise<void>;
@@ -556,6 +557,10 @@ export function createDownloadsStore(backend: Backend) {
         if (ids.length > 0) set({ removing: [...ids], menu: null });
       },
 
+      askClearFinished: () => {
+        get().askRemove(shownItems(get()).flatMap((item) => (item.state === "done" ? [item.id] : [])));
+      },
+
       cancelRemove: () => {
         set({ removing: null });
       },
@@ -612,7 +617,11 @@ export function createDownloadsStore(backend: Backend) {
       },
 
       removeMany: async (ids, deleteFiles) => {
-        const order = chosenOf(get(), ids);
+        // Only what the view shows, and the panel's download: the panel stays open after
+        // the view loses it, and the dialog named it.
+        const shown = chosenOf(get(), ids);
+        const panel = single(get());
+        const order = panel !== undefined && ids.includes(panel.id) && !shown.some((item) => item.id === panel.id) ? [...shown, panel] : shown;
         set({ removing: null });
         if (order.some((item) => item.id === get().selected) || order.some((item) => get().marked.includes(item.id))) {
           anchor = null;
@@ -919,10 +928,13 @@ export function inView(view: View, item: Download): boolean {
   return states === undefined ? item.category === view : states.includes(item.state);
 }
 
-export function visibleItems(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">): Download[] {
+function shownItems(state: Pick<DownloadsState, "items" | "view" | "matches">): Download[] {
   const found = state.matches === null ? null : new Set(state.matches);
-  const shown = state.items.filter((item) => inView(state.view, item) && (found === null || found.has(item.id)));
-  return sortItems(shown, sortOf(state.settings), state.live, queueRanks(state.items));
+  return state.items.filter((item) => inView(state.view, item) && (found === null || found.has(item.id)));
+}
+
+export function visibleItems(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">): Download[] {
+  return sortItems(shownItems(state), sortOf(state.settings), state.live, queueRanks(state.items));
 }
 
 export function countFor(items: readonly Download[], view: View): number {
@@ -952,6 +964,11 @@ export function single(state: Pick<DownloadsState, "items" | "view" | "matches" 
 
 function shownId(state: Parameters<typeof single>[0]): number | null {
   return state.marked.length > 1 ? (single(state)?.id ?? null) : state.selected;
+}
+
+// Without the sort in visibleItems: commands() runs on each keydown.
+export function hasFinished(state: Pick<DownloadsState, "items" | "view" | "matches">): boolean {
+  return shownItems(state).some((item) => item.state === "done");
 }
 
 // The marked downloads that the view shows, in its order.

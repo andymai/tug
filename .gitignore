@@ -6,3 +6,5 @@ apps/desktop/.vitest/
 apps/extension/dist/
 __pycache__/
 /mutants.out*/
+
+.flatpak-builder/
