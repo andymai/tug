@@ -1,0 +1,78 @@
+packaging/io.github.andymai.Tug.metainfo.xml
+  s_0d4c8a45463599::t_b47c56ff547eb6 69
+.release-please-manifest.json
+  s_0d4c8a45463599::t_b47c56ff547eb6 2
+scripts/flatpak-cargo.sh
+  s_0d4c8a45463599::t_b47c56ff547eb6 1-40
+apps/desktop/src/lib/commands.ts
+  s_0d4c8a45463599::t_b47c56ff547eb6 16,29,143-153
+apps/extension/package.json
+  s_0d4c8a45463599::t_b47c56ff547eb6 3
+scripts/publish-extension.py
+  s_0d4c8a45463599::t_b47c56ff547eb6 70-73,78,82,164-167,178-180,183,190-191
+.gitignore
+  s_0d4c8a45463599::t_b47c56ff547eb6 9-10
+scripts/flatpak-repo.sh
+  s_0d4c8a45463599::t_b47c56ff547eb6 44-45
+CLAUDE.md
+  s_0d4c8a45463599::t_b47c56ff547eb6 15,53,74,80
+apps/extension/store/README.md
+  s_0d4c8a45463599::t_b47c56ff547eb6 3,28
+packaging/flatpak/README.md
+  s_0d4c8a45463599::t_b47c56ff547eb6 1-49
+apps/desktop/src/components/DownloadList.tsx
+  s_0d4c8a45463599::t_b47c56ff547eb6 1,11,139-153,162,170-171
+CONTRIBUTING.md
+  s_0d4c8a45463599::t_b47c56ff547eb6 51-53
+.github/workflows/flatpak.yml
+  s_0d4c8a45463599::t_b47c56ff547eb6 21,25,47-52,71-91
+  s_0d4c8a45463599::t_265cfa8518e3e1 92
+scripts/test_flatpak_cargo.py
+  s_0d4c8a45463599::t_b47c56ff547eb6 1-91
+apps/desktop/src/App.tsx
+  s_0d4c8a45463599::t_b47c56ff547eb6 18-39,57-65
+  s_0d4c8a45463599::t_c3acfd943fcc69 66
+scripts/test_publish_extension.py
+  s_0d4c8a45463599::t_b47c56ff547eb6 34,40,58,62-68,185-186,303-324,347-352
+  s_0d4c8a45463599::t_ab27752a89b9d5 353-354
+scripts/test_release_metadata.py
+  s_0d4c8a45463599::t_b47c56ff547eb6 1-25
+apps/desktop/src/components/DetailPanel.tsx
+  s_0d4c8a45463599::t_b47c56ff547eb6 391,545-551
+  s_0d4c8a45463599::t_a52865ad2eae24 552
+packaging/flatpak/io.github.andymai.Tug.yml
+  s_0d4c8a45463599::t_b47c56ff547eb6 37
+apps/extension/test/manifest.test.ts
+  s_0d4c8a45463599::t_b47c56ff547eb6 33-40
+Cargo.toml
+  s_0d4c8a45463599::t_b47c56ff547eb6 11
+README.md
+  s_0d4c8a45463599::t_b47c56ff547eb6 52,91-92,160
+apps/desktop/src/state/downloads.ts
+  s_0d4c8a45463599::t_b47c56ff547eb6 105,560-563,620-624,931,933-937,969-972
+  s_0d4c8a45463599::t_482278cb2fb704 973
+.github/workflows/release-please.yml
+  s_0d4c8a45463599::t_b47c56ff547eb6 128
+apps/desktop/src/App.test.tsx
+  s_0d4c8a45463599::t_b47c56ff547eb6 1273-1420,1693
+CHANGELOG.md
+  s_0d4c8a45463599::t_b47c56ff547eb6 3-24
+Cargo.lock
+  s_0d4c8a45463599::t_bbddba07e2350d 6208,6228,6250,6261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f577c7e79cea2d3e62e7919f7222c743d574bce1",
+  "prompts": {},
+  "sessions": {
+    "s_0d4c8a45463599": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08f6c499-3e63-406f-8604-1a39493c163d",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
