@@ -15,6 +15,7 @@ on:
       - apps/desktop/src-tauri/src/browsers.rs
       - crates/tug-host/**
       - packaging/**
+      - "!packaging/screenshots/**"
       - scripts/host/**
 
 permissions: {}

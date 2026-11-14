@@ -28,7 +28,7 @@ Tug is a download manager for Linux, made for KDE Plasma first. Its keyboard-fir
 
 ### Downloads that finish
 
-- **Many connections per file.** Up to 128, and 8 by default. When a connection finishes its part, Tug splits the largest part that remains, so every connection stays busy to the end.
+- **Many connections per file.** Up to 32, and 8 by default. When a connection finishes its part, Tug splits the largest part that remains, so every connection stays busy to the end.
 - **Resume after a stop or a crash.** Tug saves its place every 2 seconds, next to the file. The data goes to a `.part` file, and Tug renames it only when the download is complete.
 - **Built for flaky servers.** A failed connection tries again at once, then after a delay that doubles up to 30 seconds. Tug learns how many connections each server accepts.
 

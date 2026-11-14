@@ -9,10 +9,46 @@
     <name>Andy Aragon</name>
   </developer>
   <description>
-    <p>Tug pulls every file over many connections and picks up exactly where it stopped, after a pause, a crash or a dropped connection.</p>
-    <p>It is a download manager made for KDE Plasma first, with a quiet, keyboard-first interface that shows exactly what every download is doing.</p>
+    <p>Tug pulls every file over many connections and picks up exactly where it stopped, after a pause, a crash or a dropped connection. It is a download manager for Linux, made for KDE Plasma first. Its keyboard-first window shows what each download does, down to each connection.</p>
+    <ul>
+      <li>Each file downloads over up to 32 connections, and 8 by default. When a connection finishes its part, Tug splits the largest part that remains, so every connection stays busy to the end.</li>
+      <li>Tug saves its place as it goes, so a download resumes after a stop or a crash.</li>
+      <li>One queue takes web links over HTTP(S) and FTP(S), magnet links and .torrent files.</li>
+      <li>You set how many downloads run at once, a speed limit, a lower limit for busy hours, or a schedule.</li>
+      <li>When you add a download, you can give it its own folder, connections, speed limit, name, referrer, cookies and User-Agent.</li>
+      <li>The inspector shows a map of the file's parts, the speed of each connection, the server and the engine's log.</li>
+      <li>Ctrl+K opens the command bar.</li>
+      <li>Tug shows a tray icon with a progress ring, notifications with Open and Show in folder, and its progress on the task manager.</li>
+    </ul>
   </description>
   <launchable type="desktop-id">io.github.andymai.Tug.desktop</launchable>
+  <!-- The Flatpak workflow publishes packaging/screenshots/ at these URLs with each release. -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>All downloads, with the details of one</caption>
+      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/list.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Each connection of a download, in the dark theme</caption>
+      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/connections.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The peers of a torrent</caption>
+      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/torrent.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The command bar</caption>
+      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/commands.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>A lower speed for busy hours</caption>
+      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/schedule.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Options for one download</caption>
+      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/add.png</image>
+    </screenshot>
+  </screenshots>
   <url type="homepage">https://github.com/andymai/tug</url>
   <url type="bugtracker">https://github.com/andymai/tug/issues</url>
   <url type="vcs-browser">https://github.com/andymai/tug</url>
