@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.1](https://github.com/andymai/tug/compare/v0.43.0...v0.43.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* close the gaps from a sweep of the store, Flatpak and UI work ([#178](https://github.com/andymai/tug/issues/178)) ([7cbd2bf](https://github.com/andymai/tug/commit/7cbd2bfc7c57e2efa03dfe5657b31179a2cb890a))
+
 ## [0.43.0](https://github.com/andymai/tug/compare/v0.42.2...v0.43.0) (2026-11-11)
 
 
