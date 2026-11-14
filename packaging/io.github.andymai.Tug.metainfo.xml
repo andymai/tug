@@ -30,6 +30,6 @@
     <color type="primary" scheme_preference="dark">#142645</color>
   </branding>
   <releases>
-    <release version="0.43.0" date="2026-11-11"/><!-- x-release-please-version-date -->
+    <release version="0.43.1" date="2026-11-14"/><!-- x-release-please-version-date -->
   </releases>
 </component>
