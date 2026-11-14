@@ -31,13 +31,13 @@ class Decide(unittest.TestCase):
         status = {"publishedItemRevisionStatus": revision("PUBLISHED", "1.0.0"), "submittedItemRevisionStatus": revision("PENDING_REVIEW", "1.1.0")}
         skip = publish.decide(status, "1.2.0", never)
         self.assertIn("1.1.0 waits for review", skip.reason)
-        self.assertTrue(skip.held)
+        self.assertTrue(skip.warn)
 
     def test_a_staged_version_waits_for_a_person(self):
         status = {"submittedItemRevisionStatus": revision("STAGED", "1.1.0")}
         skip = publish.decide(status, "1.2.0", never)
         self.assertIn("1.1.0 waits for someone to publish it", skip.reason)
-        self.assertTrue(skip.held)
+        self.assertTrue(skip.warn)
 
     def test_a_rejected_submission_compares_with_the_published_version(self):
         status = {"publishedItemRevisionStatus": revision("PUBLISHED", "1.0.0"), "submittedItemRevisionStatus": revision("REJECTED", "1.1.0")}
@@ -55,11 +55,17 @@ class Decide(unittest.TestCase):
         status = {"publishedItemRevisionStatus": revision("PUBLISHED", "1.0.0")}
         skip = publish.decide(status, "1.1.0", lambda _: False)
         self.assertIn("the same as 1.0.0", skip.reason)
-        self.assertFalse(skip.held)
+        self.assertFalse(skip.warn)
         self.assertIsNone(publish.decide(status, "1.1.0", lambda _: True))
 
     def test_a_taken_down_item_gets_nothing(self):
-        self.assertIn("took the item down", publish.decide({"takenDown": True}, "1.0.0", never).reason)
+        skip = publish.decide({"takenDown": True}, "1.0.0", never)
+        self.assertIn("took the item down", skip.reason)
+        self.assertTrue(skip.warn)
+
+    def test_a_held_version_that_the_store_doesnt_name(self):
+        skip = publish.decide({"submittedItemRevisionStatus": {"state": "PENDING_REVIEW"}}, "1.2.0", never)
+        self.assertTrue(skip.reason.startswith("a version waits for review"))
 
 
 def package(folder: Path, manifest: dict, files: dict[str, str] | None = None, name: str = "store.zip") -> Path:
@@ -176,7 +182,8 @@ class Send(unittest.TestCase):
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Stub)
         self.server.seen = []
         self.server.replies = []
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        # A short poll, so that each shutdown in tearDown doesn't wait half a second.
+        threading.Thread(target=lambda: self.server.serve_forever(poll_interval=0.01), daemon=True).start()
         self.store = publish.Store(f"http://127.0.0.1:{self.server.server_port}/", "token", ITEM)
         self.folder = tempfile.TemporaryDirectory()
 
@@ -293,6 +300,28 @@ class Send(unittest.TestCase):
         said = publish.describe({"submittedItemRevisionStatus": {"state": "PENDING_REVIEW"}})
         self.assertEqual(said, "submitted PENDING_REVIEW, published none")
 
+    def test_an_upload_that_stays_in_progress_stops_before_review(self):
+        zip_path = package(Path(self.folder.name), {"version": "1.1.0"})
+        self.server.replies = [(200, {}), (200, {"uploadState": "IN_PROGRESS"})]
+        with mock.patch.object(publish, "UPLOAD_WAIT_S", 0), self.assertRaisesRegex(SystemExit, "the upload is IN_PROGRESS"):
+            publish.send(self.store, zip_path, "v1.1.0", lambda _: True, pause=0)
+        self.assertEqual(len(self.server.seen), 2)
+
+    def test_an_upload_that_fails_after_a_wait_stops_before_review(self):
+        zip_path = package(Path(self.folder.name), {"version": "1.1.0"})
+        self.server.replies = [(200, {}), (200, {"uploadState": "IN_PROGRESS"}), (200, {"lastAsyncUploadState": "FAILED"})]
+        with self.assertRaisesRegex(SystemExit, "the upload is FAILED"):
+            publish.send(self.store, zip_path, "v1.1.0", lambda _: True, pause=0)
+        self.assertEqual(len(self.server.seen), 3)
+
+    def test_the_log_shows_the_public_key_for_the_release_zip(self):
+        zip_path = package(Path(self.folder.name), {"version": "1.1.0"})
+        self.server.replies = [(200, {"publicKey": "MIIBIjANBg", "publishedItemRevisionStatus": revision("PUBLISHED", "1.0.0")})]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            publish.send(self.store, zip_path, "v1.1.0", lambda _: False, pause=0)
+        self.assertIn("The store's public key: MIIBIjANBg", out.getvalue())
+
     def test_a_failed_upload_stops_before_review(self):
         zip_path = package(Path(self.folder.name), {"version": "1.1.0"})
         self.server.replies = [(200, {}), (200, {"uploadState": "FAILED"})]
@@ -313,6 +342,14 @@ class Send(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "carries a key"):
             publish.send(self.store, package(folder, {"version": "1.1.0", "key": "k"}), "v1.1.0", never, pause=0)
         self.assertEqual(self.server.seen, [])
+
+
+class Main(unittest.TestCase):
+    def test_the_wrong_arguments_show_the_usage(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(publish.main(["publish-extension.py"]), 2)
+        self.assertIn("Usage: publish-extension.py PACKAGE.zip TAG", err.getvalue())
 
 
 if __name__ == "__main__":

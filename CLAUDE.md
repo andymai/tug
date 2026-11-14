@@ -12,7 +12,7 @@ Design tokens: `design/tokens.json`. Brand sources: `brand/`.
 | `apps/desktop` | React 19 UI (Vite, Tailwind 4, TypeScript) | the design tokens |
 | `apps/desktop/src-tauri` | Tauri 2 shell, crate `tug-desktop`, binary `tug` | `tug-core`, never `mdm-*` |
 | `crates/tug-ipc` | The local socket: one Tug per session, `tug add` and `tug list`, the browser host. JSON lines over a Unix socket in `$XDG_RUNTIME_DIR/app/io.github.andymai.Tug/` (`…Tug.Devel/` for debug builds) with a 0600 token; a lock file decides which Tug owns it | std, serde, thiserror, tokio |
-| `apps/extension` | The browser extension, one TypeScript source for Chromium (MV3 service worker, fixed ID through its `key`) and Firefox (gecko ID): it hands each download to `tug-host` with its referrer, cookies and the browser's User-Agent, and adds **Download with Tug** to links and media. When Tug can't take a link, the browser keeps it | nothing (the browser APIs come in through `src/api.ts`) |
+| `apps/extension` | The browser extension, one TypeScript source for Chromium (MV3 service worker; the release zip's ID comes from its `key`, and the store gives its copy the store's ID) and Firefox (gecko ID): it hands each download to `tug-host` with its referrer, cookies and the browser's User-Agent, and adds **Download with Tug** to links and media. When Tug can't take a link, the browser keeps it | nothing (the browser APIs come in through `src/api.ts`) |
 | `crates/tug-host` | The browser's native messaging host, binary `tug-host`: length-prefixed JSON on stdin and stdout, passed to Tug over the socket; starts Tug when it isn't running, the `tug` beside it first. It fails each link that isn't `http`, `https`, `ftp`, `ftps` or `magnet`, because Tug reads a `file:` link's `.torrent` from this computer | `tug-ipc` |
 | `design/tokens.json` | The design system's tokens; `scripts/gen-tokens.py` writes `apps/desktop/src/styles/tokens.css` (CSS variables, Tailwind `@theme`, `.text-*` type styles) | nothing |
 | `brand/` | Mark, icons, wordmark: `build.py` draws every SVG, `export.sh` renders PNGs | nothing |
@@ -50,6 +50,7 @@ distrobox enter dev -- bash -lc 'cd ~/Git/tug && PKG_CONFIG=/usr/bin/pkg-config 
 ```
 
 - `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`
+- `python3 -m unittest discover -s scripts -p 'test_*.py'`: the tests for the scripts, such as `publish-extension.py` and `flatpak-cargo.sh`
 - `python3 scripts/check-deps.py`, `python3 scripts/check-commands.py` (each Tauri command is registered, and async unless its `SYNC` entry gives a reason), `taplo fmt --check`, `cargo machete`, `cargo deny check`, `cargo audit`
 - `git fetch && git diff --no-renames --diff-filter=AM origin/main... -- '*.rs' > /tmp/pr.diff && cargo mutants --in-diff /tmp/pr.diff`: CI's Mutants job runs it on each pull request and fails on a mutant that no test catches. Add a test in the mutant's own crate, or, for a mutant that no test can tell apart, a line in `.cargo/mutants.toml` with the reason
 - `brand/export.sh` after changing `brand/build.py`; `python3 scripts/gen-tokens.py` after changing `design/tokens.json`
@@ -76,7 +77,7 @@ Tug's Flatpak repository: the `repo` job in `flatpak.yml` builds it with `script
 
 The `pages` job puts the repository at `https://andymai.github.io/tug/repo/`, beside `tug.flatpakrepo` and the `.flatpakref`. GitHub Pages builds from GitHub Actions, and only `main` may deploy. The site holds nothing else, because each deploy replaces it. Bazaar and other Flatpak stores read the repository's AppStream branch.
 
-The Chrome Web Store: the `store` job in `.github/workflows/extension.yml` sends each release's `dist/chrome-web-store` to the store through `scripts/publish-extension.py`, with a token from Workload Identity Federation. It sends a version only when its package differs from the store version's package, which each release keeps as an asset. It never sends one while the store holds another version back. It runs only when the repository variables from `apps/extension/store/README.md` exist; that file also keeps the listing, the privacy answers and the images.
+The Chrome Web Store: the `store` job in `.github/workflows/extension.yml` sends each release's `dist/chrome-web-store` to the store through `scripts/publish-extension.py`, with a token from Workload Identity Federation. It sends a version only when its package differs from the store version's package, which each release keeps as an asset. It never sends one while the store holds another version back. It runs only when the repository variables from `apps/extension/store/README.md` exist. `listing.md` beside that file keeps the listing and the privacy answers, and the images are there too.
 
 CI (`.github/workflows/ci.yml`) runs all of these behind the `CI Pass` gate. Commits and PR titles are conventional commits; release-please cuts releases from them.
 

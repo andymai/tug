@@ -88,6 +88,8 @@ flatpak remote-add --if-not-exists tug https://andymai.github.io/tug/tug.flatpak
 flatpak install tug io.github.andymai.Tug
 ```
 
+The `remote-add` asks for your password, because it changes the whole system. Bazaar before 0.10.0 doesn't read a remote of one user. If you installed the bundle before, run `flatpak uninstall --user io.github.andymai.Tug` first, or the bundle keeps starting in place of the repository's Tug. Your downloads and settings stay.
+
 After that, Bazaar and other Flatpak stores list Tug, and `flatpak update` keeps it current. A store can also install it from [`io.github.andymai.Tug.flatpakref`](https://andymai.github.io/tug/io.github.andymai.Tug.flatpakref).
 
 Each release also has the bundle `io.github.andymai.Tug.flatpak`, for an install without the repository. A bundle doesn't update.
@@ -155,7 +157,7 @@ cargo build --release --locked -p tug-host
 
 `tug-host` connects the browser extension to Tug, and Tug looks for it next to `tug`.
 
-To build the browser extension, run `pnpm --filter @tug/extension build`. It writes `apps/extension/dist/chromium` and `apps/extension/dist/firefox`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the tests, the commit hooks and the checks that CI runs.
+To build the browser extension, run `pnpm --filter @tug/extension build`. It writes `apps/extension/dist/chromium`, `dist/firefox` and `dist/chrome-web-store`, the Chromium build without `key` for the store. See [CONTRIBUTING.md](CONTRIBUTING.md) for the tests, the commit hooks and the checks that CI runs.
 
 ## License
 

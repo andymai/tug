@@ -1336,22 +1336,69 @@ describe("selection", () => {
     expect(fireEvent.contextMenu(title, { shiftKey: true })).toBe(true);
 
     // jsdom lays nothing out, so the selected text gets a box of its own.
-    const own = Object.getOwnPropertyDescriptor(Range.prototype, "getClientRects");
+    const original = Object.getOwnPropertyDescriptor(Range.prototype, "getClientRects");
     Object.defineProperty(Range.prototype, "getClientRects", { value: () => [new DOMRect(0, 0, 200, 30)], configurable: true });
-    const range = document.createRange();
-    range.selectNodeContents(title);
-    window.getSelection()?.removeAllRanges();
-    window.getSelection()?.addRange(range);
-    expect(fireEvent.contextMenu(title, { clientX: 20, clientY: 10 })).toBe(true);
-    expect(fireEvent.contextMenu(screen.getByRole("button", { name: "Add" }), { clientX: 500, clientY: 10 })).toBe(false);
-    window.getSelection()?.removeAllRanges();
-    if (own === undefined) Reflect.deleteProperty(Range.prototype, "getClientRects");
-    else Object.defineProperty(Range.prototype, "getClientRects", own);
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(title);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(range);
+      expect(fireEvent.contextMenu(title, { clientX: 20, clientY: 10 })).toBe(true);
+      expect(fireEvent.contextMenu(screen.getByRole("button", { name: "Add" }), { clientX: 500, clientY: 10 })).toBe(false);
+
+      // An icon inside the selection keeps the menu too, for Copy.
+      const add = screen.getByRole("button", { name: "Add" });
+      const icon = add.querySelector("svg");
+      if (icon === null) throw new Error("the Add button has no icon");
+      const around = document.createRange();
+      around.selectNodeContents(add);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(around);
+      expect(fireEvent.contextMenu(icon, { clientX: 20, clientY: 10 })).toBe(true);
+    } finally {
+      window.getSelection()?.removeAllRanges();
+      if (original === undefined) Reflect.deleteProperty(Range.prototype, "getClientRects");
+      else Object.defineProperty(Range.prototype, "getClientRects", original);
+    }
 
     await user.click(screen.getByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
     await user.keyboard("{Delete}");
     const dialog = within(screen.getByRole("dialog", { name: "Remove noto-fonts-2026.11.zip?" }));
     expect(fireEvent.contextMenu(dialog.getByRole("checkbox", { name: "Delete its file too" }))).toBe(false);
+  });
+
+  it("keeps WebKit's menu in the Add dialog's links, and not for Shift in a release build", async () => {
+    const { user } = open();
+    await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ });
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    expect(fireEvent.contextMenu(screen.getByRole("textbox", { name: "Links" }))).toBe(true);
+    vi.stubEnv("DEV", false);
+    try {
+      expect(fireEvent.contextMenu(screen.getByRole("heading", { level: 1, name: "All downloads" }), { shiftKey: true })).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("clears only the finished downloads that the view shows", async () => {
+    const { backend, store, user } = open([
+      { url: "https://example.org/one.iso", state: "done", size: MB },
+      { url: "https://example.org/two.zip", state: "done", size: MB },
+    ]);
+    const remove = vi.spyOn(backend, "remove");
+    await screen.findByRole("row", { name: /^one\.iso/ });
+    act(() => {
+      store.getState().setSearch("one");
+    });
+    await vi.waitFor(() => {
+      expect(screen.queryByText("two.zip")).not.toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "Clear finished…" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Remove one.iso?" })).getByRole("button", { name: "Remove" }));
+    await vi.waitFor(() => {
+      expect(remove).toHaveBeenCalledTimes(1);
+    });
+    expect(store.getState().items.map((item) => item.name)).toEqual(["two.zip"]);
   });
 
   it("removes the download that its panel shows, though the view no longer does", async () => {
