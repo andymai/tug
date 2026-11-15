@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.45.0](https://github.com/andymai/tug/compare/v0.44.1...v0.45.0) (2026-11-15)
+
+
+### Features
+
+* **desktop:** right-click menus on the header, the list, the sidebar and the status bar ([#184](https://github.com/andymai/tug/issues/184)) ([0cef72b](https://github.com/andymai/tug/commit/0cef72b96d345628953c9cbb006c9bc2dfe04ad8))
+
 ## [0.44.1](https://github.com/andymai/tug/compare/v0.44.0...v0.44.1) (2026-11-15)
 
 
