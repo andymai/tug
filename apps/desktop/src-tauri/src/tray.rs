@@ -20,7 +20,9 @@ const SYMBOLIC: &str = include_str!("../../../../brand/svg/symbolic-22.svg");
 const RING_RADIUS: f64 = 9.0;
 // The tray's glyph, smaller and drawn at this size: a scaled copy of the 1px glyph would
 // thin its lines below a pixel. Ring and glyph share pixel column 10, so lines stay crisp.
-const RING_GLYPH: &str = "M7.5 6.5H13.5M10.5 6.5V15.5M7.5 12.5L10.5 15.5L13.5 12.5";
+// The part between the handle and the arrow has flat ends, so it fills one whole pixel.
+const RING_GLYPH: &str = "M7.5 6.5H13.5M10.5 10.5V15.5M7.5 12.5L10.5 15.5L13.5 12.5";
+const RING_PART: &str = "M10.5 8V9";
 const PUBLISH_EVERY: Duration = Duration::from_secs(1);
 pub const NOTICE_EVENT: &str = "notice";
 
@@ -44,7 +46,7 @@ pub fn ring_svg(step: u8) -> String {
         )
     };
     format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" width="22" height="22"><style id="current-color-scheme">.ColorScheme-Text{{color:#232629;}}</style><circle class="ColorScheme-Text" cx="10.5" cy="11" r="{RING_RADIUS}" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-width="1"/>{arc}<path class="ColorScheme-Text" d="{RING_GLYPH}" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>"#
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" width="22" height="22"><style id="current-color-scheme">.ColorScheme-Text{{color:#232629;}}</style><circle class="ColorScheme-Text" cx="10.5" cy="11" r="{RING_RADIUS}" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-width="1"/>{arc}<path class="ColorScheme-Text" d="{RING_GLYPH}" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><path class="ColorScheme-Text" d="{RING_PART}" fill="none" stroke="currentColor" stroke-width="1"/></svg>"#
     )
 }
 
@@ -443,6 +445,12 @@ mod tests {
         assert!(
             ring_svg(10).contains(&format!(r#"d="{RING_GLYPH}""#)),
             "the mark is missing"
+        );
+        assert!(
+            ring_svg(10).contains(&format!(
+                r#"d="{RING_PART}" fill="none" stroke="currentColor" stroke-width="1"/>"#
+            )),
+            "the part between the handle and the arrow is missing, or has round ends"
         );
         assert!(
             !ring_svg(10).contains(r#"stroke-width="2""#),

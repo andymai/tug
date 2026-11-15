@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="brand/svg/lockup-dark.svg">
-  <img alt="tug" src="brand/svg/lockup.svg" height="72">
+  <img alt="Tug" src="brand/svg/lockup.svg" height="72">
 </picture>
 
 **Fast, resumable downloads for Linux.**<br>

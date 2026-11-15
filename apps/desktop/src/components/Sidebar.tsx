@@ -2,8 +2,7 @@ import { ArrowDown, Bookmark, Check, CircleAlert, Layers, type LucideIcon, Searc
 import { useEffect } from "react";
 import { useShallow } from "zustand/shallow";
 
-import lockupDark from "../../../../brand/svg/lockup-dark.svg";
-import lockup from "../../../../brand/svg/lockup.svg";
+import icon from "../../../../brand/svg/icon-22.svg";
 import type { SavedView } from "../backend/backend";
 import { CATEGORIES } from "../lib/categories";
 import { PALETTE_KEYS } from "../lib/commands";
@@ -11,7 +10,6 @@ import { menuPoint } from "../lib/dom";
 import { ICON } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
 import { countFor, type MenuOn, sameView, savedViewOf, type StateView, VIEWS } from "../state/downloads";
-import { useTheme } from "../state/theme";
 import { isMenuKey, under } from "./ContextMenu";
 import { Keys } from "./Kbd";
 
@@ -94,7 +92,6 @@ export function Sidebar() {
   const setView = useDownloads((s) => s.setView);
   const setOverlay = useDownloads((s) => s.setOverlay);
   const page = useDownloads((s) => s.page);
-  const theme = useTheme();
   const setPage = useDownloads((s) => s.setPage);
   const counts = useDownloads(useShallow((s) => VIEWS.map((v) => countFor(s.items, v.id))));
   const types = useDownloads(useShallow((s) => CATEGORIES.map((category) => countFor(s.items, category.id))));
@@ -105,8 +102,11 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-(--sidebar-width) shrink-0 flex-col border-r border-line bg-bg">
-      <div data-tauri-drag-region className="flex h-12 items-center px-4">
-        <img data-tauri-drag-region draggable={false} src={theme === "dark" ? lockupDark : lockup} alt="Tug" width={57} height={22} />
+      <div data-tauri-drag-region className="flex h-12 items-center gap-2 px-4">
+        <img data-tauri-drag-region draggable={false} src={icon} alt="" width={22} height={22} />
+        <span data-tauri-drag-region className="text-title text-ink">
+          Tug
+        </span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <nav aria-labelledby="views-label" className="flex flex-col gap-1 px-2 pt-2">
