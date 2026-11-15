@@ -50,22 +50,6 @@ jobs:
       # build. It downloads each one, and drops one that it can't get without an error.
       # A release needs them all, and the files of a new tag can take minutes to answer.
       # A pull request can name a tag or a file that does not exist yet.
-      - name: DIAGNOSTIC
-        run: |
-          grep -E ' (/|/var/lib/flatpak) ' /proc/self/mountinfo | cut -c1-400
-          df -h / /var/lib/flatpak
-          du -sh /var/lib/flatpak
-          flatpak list --columns=application,branch,active | head -12
-          python3 - <<'PY'
-          import os
-          for path in ("/usr/share/licenses", "/var/lib/flatpak/runtime"):
-              try:
-                  os.rename(path, path + ".probe")
-                  os.rename(path + ".probe", path)
-                  print("rename of", path, "ok")
-              except OSError as error:
-                  print("rename of", path, "fails:", error)
-          PY
       - name: Count the screenshots that the build can download
         id: screenshots
         env:
