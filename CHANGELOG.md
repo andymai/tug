@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.0](https://github.com/andymai/tug/compare/v0.46.0...v0.47.0) (2026-11-15)
+
+
+### Features
+
+* **brand:** draw the Tug mark as a handle, the file in parts and an arrow ([#193](https://github.com/andymai/tug/issues/193)) ([07dfa7f](https://github.com/andymai/tug/commit/07dfa7f78d3fb11d28b350e2af83c0a148f81467))
+
 ## [0.46.0](https://github.com/andymai/tug/compare/v0.45.0...v0.46.0) (2026-11-15)
 
 
