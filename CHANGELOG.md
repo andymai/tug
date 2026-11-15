@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.0](https://github.com/andymai/tug/compare/v0.45.0...v0.46.0) (2026-11-15)
+
+
+### Features
+
+* **desktop:** submenus in the row menu for copy, speed limit, connections and Open with ([#191](https://github.com/andymai/tug/issues/191)) ([7fd8237](https://github.com/andymai/tug/commit/7fd8237cccc0c43abe5e895618a918df7362a8d9))
+
 ## [0.45.0](https://github.com/andymai/tug/compare/v0.44.1...v0.45.0) (2026-11-15)
 
 
