@@ -4,6 +4,7 @@ import { useShallow } from "zustand/shallow";
 
 import markDark from "../../../../brand/svg/mark-dark.svg";
 import mark from "../../../../brand/svg/mark.svg";
+import { menuPoint } from "../lib/dom";
 import { sentence } from "../lib/format";
 import { CATEGORIES, isCategory } from "../lib/categories";
 import { ICON } from "../lib/states";
@@ -195,10 +196,9 @@ export function DownloadList() {
         <div
           className="@container flex min-w-0 flex-1 flex-col"
           onContextMenu={(event) => {
-            // A row or the header opened its own menu.
-            if (event.defaultPrevented || status !== "ready") return;
-            event.preventDefault();
-            openMenu({ x: event.clientX, y: event.clientY }, { kind: "list" });
+            if (status !== "ready") return;
+            const at = menuPoint(event);
+            if (at !== null) openMenu(at, { kind: "list" });
           }}
         >
           {status === "error" ? (

@@ -28,7 +28,7 @@ import {
   X,
 } from "lucide-react";
 
-import { canRename, chosen, type DownloadsStore, hasFinished, savedViewOf, single, type StateView } from "../state/downloads";
+import { canPauseAll, canRename, canResumeAll, chosen, type DownloadsStore, hasFinished, savedViewOf, single, type StateView } from "../state/downloads";
 import { CATEGORIES } from "./categories";
 import { covering } from "./covering";
 import { focusRow } from "./dom";
@@ -131,10 +131,10 @@ export function commands(store: DownloadsStore): Command[] {
       }),
     ),
   ];
-  if (state.items.some((item) => item.state === "downloading" || item.state === "queued")) {
+  if (canPauseAll(state.items)) {
     list.push({ id: "pause-all", title: "Pause all", group: "Downloads", icon: CirclePause, run: () => void state.pauseAll() });
   }
-  if (state.items.some((item) => item.state === "paused")) {
+  if (canResumeAll(state.items)) {
     list.push({ id: "resume-all", title: "Resume all", group: "Downloads", icon: CirclePlay, run: () => void state.resumeAll() });
   }
   if (state.search.trim() !== "" && savedViewOf(state) === null) {

@@ -3,6 +3,7 @@ import {
   ArrowUp,
   CirclePause,
   CirclePlay,
+  Clock,
   Copy,
   Eye,
   ExternalLink,
@@ -24,10 +25,12 @@ import {
 } from "lucide-react";
 
 import type { Download, SavedView } from "../backend/backend";
-import { canRename, chosen, type DownloadsState, hasFinished, inView, type MenuOn, VIEWS, type View, visibleItems } from "../state/downloads";
+import { canPauseAll, canRename, canResumeAll, chosen, type DownloadsState, hasFinished, inView, type MenuOn, VIEWS, type View, visibleItems } from "../state/downloads";
 import { CATEGORIES } from "./categories";
 import { type ColumnId, COLUMNS, columnsOf, FIXED, sortOf, sortText } from "./columns";
 import { KEYS } from "./commands";
+import { MB, megabytes } from "./format";
+import { limitInForce } from "./schedule";
 
 export interface MenuEntry {
   id: string;
@@ -38,6 +41,8 @@ export interface MenuEntry {
   check?: { kind: "checkbox" | "radio"; on: boolean };
   // A dialog takes the focus; other entries give it back.
   keepsFocus?: boolean;
+  // Shown for what it says; it does nothing and the arrows pass it.
+  disabled?: boolean;
   run: () => void;
 }
 
@@ -46,15 +51,13 @@ export interface MenuModel {
   groups: MenuEntry[][];
 }
 
-const MB = 1 << 20;
 export const LIMIT_PRESETS: readonly number[] = [1, 2, 5, 10, 20, 50].map((n) => n * MB);
 
-// As the Settings page writes a limit: whole megabytes, or two decimals at most.
 export function limitLabel(bytes: number): string {
-  return `${String(Number((bytes / MB).toFixed(2)))} MB/s`;
+  return `${megabytes(bytes)} MB/s`;
 }
 
-export function menuFor(on: MenuOn, state: DownloadsState): MenuModel {
+export function menuFor(on: MenuOn, state: DownloadsState, now = new Date()): MenuModel {
   switch (on.kind) {
     case "rows":
       return rowMenu(state);
@@ -67,7 +70,7 @@ export function menuFor(on: MenuOn, state: DownloadsState): MenuModel {
     case "saved":
       return { label: on.saved.name, groups: savedGroups(state, on.saved) };
     case "status":
-      return { label: "Status", groups: statusGroups(state) };
+      return { label: "Status", groups: statusGroups(state, now) };
   }
 }
 
@@ -82,7 +85,7 @@ function count(n: number): string {
 function rowMenu(state: DownloadsState): MenuModel {
   const list = chosen(state);
   const [first] = list;
-  const label = list.length === 1 && first !== undefined ? first.name : `${String(list.length)} downloads`;
+  const label = list.length === 1 && first !== undefined ? first.name : count(list.length);
   return { label, groups: list.length === 0 ? [] : rowGroups(list, state) };
 }
 
@@ -191,10 +194,10 @@ function columnGroups(state: DownloadsState, column: ColumnId | null): MenuEntry
 
 function allGroup(state: DownloadsState): MenuEntry[] {
   const group: MenuEntry[] = [];
-  if (state.items.some((item) => item.state === "downloading" || item.state === "queued")) {
+  if (canPauseAll(state.items)) {
     group.push({ id: "pause-all", label: "Pause all", icon: CirclePause, run: () => void state.pauseAll() });
   }
-  if (state.items.some((item) => item.state === "paused")) {
+  if (canResumeAll(state.items)) {
     group.push({ id: "resume-all", label: "Resume all", icon: CirclePlay, run: () => void state.resumeAll() });
   }
   return group;
@@ -308,10 +311,15 @@ function savedGroups(state: DownloadsState, saved: SavedView): MenuEntry[][] {
   ];
 }
 
-function statusGroups(state: DownloadsState): MenuEntry[][] {
+function statusGroups(state: DownloadsState, at: Date): MenuEntry[][] {
   const { settings } = state;
   const limits: MenuEntry[] = [];
   if (settings !== null) {
+    // The radios set the plain limit; while the slower hours hold a lower one, the menu says so.
+    const held = limitInForce(settings, at);
+    if (held.slower && held.limit !== null) {
+      limits.push({ id: "slower", label: `Slower hours: ${limitLabel(held.limit)}`, icon: Clock, disabled: true, run: () => undefined });
+    }
     const now = settings.speedLimit;
     const setLimit = (speedLimit: number | null) => () => void state.savePreference({ speedLimit }, "the speed limit");
     const presets = now === null || LIMIT_PRESETS.includes(now) ? LIMIT_PRESETS : [...LIMIT_PRESETS, now].sort((a, b) => a - b);

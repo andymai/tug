@@ -1735,6 +1735,112 @@ describe("menus", () => {
     });
   });
 
+  it("leaves WebKit's Copy menu on text selected in the status bar, a row, the header and the sidebar", async () => {
+    const { store } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const nav = within(screen.getByRole("navigation", { name: "Downloads" }));
+    // jsdom lays nothing out, so the selected text gets a box of its own.
+    const original = Object.getOwnPropertyDescriptor(Range.prototype, "getClientRects");
+    Object.defineProperty(Range.prototype, "getClientRects", { value: () => [new DOMRect(0, 0, 200, 30)], configurable: true });
+    try {
+      const texts = [screen.getByText("1 running · 1 queued · 1 paused"), screen.getByText("fedora-kde-44-x86_64.iso"), screen.getByRole("button", { name: "Size" }), nav.getByText("Active")];
+      for (const text of texts) {
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+        expect(fireEvent.contextMenu(text, { clientX: 20, clientY: 10 }), text.textContent).toBe(true);
+        expect(store.getState().menu).toBeNull();
+      }
+      expect(fireEvent.contextMenu(screen.getByRole("region", { name: "Status" }), { clientX: 500, clientY: 10 }), "past the text, Tug's menu").toBe(false);
+      expect(store.getState().menu?.on).toEqual({ kind: "status" });
+    } finally {
+      window.getSelection()?.removeAllRanges();
+      if (original === undefined) Reflect.deleteProperty(Range.prototype, "getClientRects");
+      else Object.defineProperty(Range.prototype, "getClientRects", original);
+    }
+  });
+
+  it("keeps the focus in a menu when the entry it was on goes", async () => {
+    const { backend, store, user } = open();
+    const status = within(await screen.findByRole("region", { name: "Status" }));
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const limit = status.getByRole("button", { name: /No limit/ });
+    limit.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}{End}{ArrowUp}{ArrowUp}");
+    expect(screen.getByRole("menuitem", { name: "Pause all" })).toHaveFocus();
+    await act(async () => {
+      await backend.pauseAll();
+      await store.getState().reload();
+    });
+    expect(screen.queryByRole("menuitem", { name: "Pause all" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Resume all" }), "the entry now in its place").toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(limit).toHaveFocus();
+  });
+
+  it("keeps a menu in the window when it grows", async () => {
+    const { backend, store } = open([
+      { url: "https://example.org/a.iso", state: "downloading", progress: 0.5, size: 64 * MB },
+      { url: "https://example.org/b.zip", state: "done" },
+    ]);
+    await screen.findByText("a.iso");
+    // jsdom lays nothing out: each entry is 30 pixels high.
+    const measure = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute("role") === "menu" ? new DOMRect(0, 0, 200, 30 * this.querySelectorAll('[role^="menuitem"]').length) : new DOMRect();
+    });
+    try {
+      const bottom = window.innerHeight - 4;
+      act(() => {
+        store.getState().openMenu({ x: 100, y: bottom - 4 * 30 }, { kind: "list" });
+      });
+      expect(entries("Downloads")).toHaveLength(4);
+      expect(screen.getByRole("menu").style.top).toBe(`${String(bottom - 4 * 30)}px`);
+      await act(async () => {
+        await backend.add("https://example.org/c.iso", undefined, { paused: true, first: false, connections: null, speedLimit: null, name: null, referrer: null, cookies: null, userAgent: null });
+        await store.getState().reload();
+      });
+      expect(entries("Downloads")).toContain("Resume all");
+      expect(screen.getByRole("menu").style.top, "it opens up from the point now").toBe(`${String(bottom - 4 * 30 - 5 * 30)}px`);
+    } finally {
+      measure.mockRestore();
+    }
+  });
+
+  it("closes a type's menu when its last download goes", async () => {
+    const { backend, store } = open([
+      { url: "https://example.org/talk.mp4", state: "done" },
+      { url: "https://example.org/a.iso", state: "queued" },
+    ]);
+    const types = within(await screen.findByRole("navigation", { name: "Types" }));
+    fireEvent.contextMenu(types.getByRole("button", { name: /^Videos/ }));
+    expect(entries("Videos")).toEqual(["Open", "Clear 1 finished…"]);
+    const id = store.getState().items.find((d) => d.name === "talk.mp4")?.id ?? -1;
+    await act(async () => {
+      await backend.remove(id, false);
+      await store.getState().reload();
+    });
+    expect(screen.queryByRole("button", { name: /^Videos/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(store.getState().menu).toBeNull();
+  });
+
+  it("says when the slower hours hold a lower limit than the one the menu ticks", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    await backend.updateSettings({ ...(await backend.settings()), speedLimit: null, slowHours: { limit: 2 * MB, hours: { days: 0b111_1111, start: 0, stop: 1439 } } });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    const status = within(await screen.findByRole("region", { name: "Status" }));
+    fireEvent.contextMenu(await status.findByRole("button", { name: /Slower hours 2\.00 MB\/s/ }));
+    expect(entries("Status").slice(0, 3)).toEqual(["Slower hours: 2 MB/s", "✓ No limit", "1 MB/s"]);
+    const note = screen.getByRole("menuitem", { name: "Slower hours: 2 MB/s" });
+    expect(note).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("menuitemradio", { name: "No limit" }), "the arrows pass it").toHaveFocus();
+    await user.click(note);
+    expect(screen.getByRole("menu", { name: "Status" }), "it does nothing").toBeInTheDocument();
+  });
+
   it("keeps a limit from Settings among the presets, and opens Settings from the keyboard", async () => {
     const backend = createMockBackend({ seed: SHOWCASE });
     await backend.updateSettings({ ...(await backend.settings()), speedLimit: 3.5 * MB });

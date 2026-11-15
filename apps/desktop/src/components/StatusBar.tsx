@@ -2,8 +2,9 @@ import { ArrowDown, Clock, Gauge, HardDrive } from "lucide-react";
 import { useEffect } from "react";
 import { useShallow } from "zustand/shallow";
 
+import { menuPoint } from "../lib/dom";
 import { formatBytes, formatSpeed } from "../lib/format";
-import { openAt } from "../lib/schedule";
+import { limitInForce, openAt } from "../lib/schedule";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { SAMPLES } from "../state/downloads";
@@ -54,18 +55,16 @@ export function StatusBar() {
   }, [checkDisk, folder]);
 
   const now = new Date();
-  const slow = settings?.slowHours != null && openAt(settings.slowHours.hours, now) ? settings.slowHours : null;
   const limit = settings?.speedLimit ?? null;
-  const slower = slow !== null && (limit === null || slow.limit < limit);
-  const inForce = slower ? slow.limit : limit;
+  const { limit: inForce, slower } = settings === null ? { limit, slower: false } : limitInForce(settings, now);
   const outside = settings?.schedule != null && !openAt(settings.schedule, now);
 
   return (
     <section
       aria-label="Status"
       onContextMenu={(event) => {
-        event.preventDefault();
-        openMenu({ x: event.clientX, y: event.clientY }, { kind: "status" });
+        const at = menuPoint(event);
+        if (at !== null) openMenu(at, { kind: "status" });
       }}
       className="flex h-7 shrink-0 items-center gap-4 border-t border-line bg-surface px-3 text-small whitespace-nowrap text-ink-muted">
       <span className="flex items-center gap-1.5">

@@ -1,4 +1,5 @@
 import { ArrowDown, Bookmark, Check, CircleAlert, Layers, type LucideIcon, Search, Settings, X } from "lucide-react";
+import { useEffect } from "react";
 import { useShallow } from "zustand/shallow";
 
 import lockupDark from "../../../../brand/svg/lockup-dark.svg";
@@ -6,8 +7,9 @@ import lockup from "../../../../brand/svg/lockup.svg";
 import type { SavedView } from "../backend/backend";
 import { CATEGORIES } from "../lib/categories";
 import { PALETTE_KEYS } from "../lib/commands";
+import { menuPoint } from "../lib/dom";
 import { ICON } from "../lib/states";
-import { useDownloads } from "../state/context";
+import { useDownloads, useDownloadsStore } from "../state/context";
 import { countFor, type MenuOn, sameView, savedViewOf, type StateView, VIEWS } from "../state/downloads";
 import { useTheme } from "../state/theme";
 import { isMenuKey, under } from "./ContextMenu";
@@ -37,7 +39,18 @@ function ViewItem({
   onClick: () => void;
   onRemove?: () => void;
 }) {
+  const store = useDownloadsStore();
   const openMenu = useDownloads((s) => s.openMenu);
+  const closeMenu = useDownloads((s) => s.closeMenu);
+  // A type with nothing left, or a saved view removed, takes its menu with it.
+  const target = JSON.stringify(menu);
+  useEffect(
+    () => () => {
+      const open = store.getState().menu;
+      if (open !== null && JSON.stringify(open.on) === target) closeMenu();
+    },
+    [store, target, closeMenu],
+  );
   return (
     <li className="group/item relative">
       <button
@@ -45,8 +58,8 @@ function ViewItem({
         aria-current={current ? "page" : undefined}
         onClick={onClick}
         onContextMenu={(event) => {
-          event.preventDefault();
-          openMenu({ x: event.clientX, y: event.clientY }, menu);
+          const at = menuPoint(event);
+          if (at !== null) openMenu(at, menu);
         }}
         onKeyDown={(event) => {
           if (!isMenuKey(event)) return;

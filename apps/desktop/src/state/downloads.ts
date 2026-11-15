@@ -249,7 +249,6 @@ export function createDownloadsStore(backend: Backend) {
           failed.push(BackendError.from(error).message);
         }
       }
-      set({ menu: null });
       await get().reload();
       const [first] = failed;
       if (first === undefined) return;
@@ -622,9 +621,10 @@ export function createDownloadsStore(backend: Backend) {
 
       resumeMany: (ids) => resumeList(chosenOf(get(), ids), ["paused", "failed"]),
 
-      pauseIn: (view) => pauseList(get().items.filter((item) => inView(view, item))),
+      pauseIn: (view) => (holdsEveryRunning(view) ? get().pauseAll() : pauseList(get().items.filter((item) => inView(view, item)))),
 
-      resumeIn: (view, state) => resumeList(get().items.filter((item) => inView(view, item)), [state]),
+      resumeIn: (view, state) =>
+        state === "paused" && holdsEveryRunning(view) ? get().resumeAll() : resumeList(get().items.filter((item) => inView(view, item)), [state]),
 
       pauseAll: () => all("pause", () => backend.pauseAll()),
 
@@ -986,6 +986,20 @@ function shownItems(state: Pick<DownloadsState, "items" | "view" | "matches">): 
 
 export function visibleItems(state: Pick<DownloadsState, "items" | "view" | "matches" | "settings" | "live">): Download[] {
   return sortItems(shownItems(state), sortOf(state.settings), state.live, queueRanks(state.items));
+}
+
+// Such a view holds whatever Pause all or Resume all touches, so its menu uses them.
+function holdsEveryRunning(view: View): boolean {
+  const states = VIEWS.find((v) => v.id === view)?.states ?? [];
+  return (["downloading", "queued", "paused"] as const).every((state) => states.includes(state));
+}
+
+export function canPauseAll(items: readonly Download[]): boolean {
+  return items.some((item) => item.state === "downloading" || item.state === "queued");
+}
+
+export function canResumeAll(items: readonly Download[]): boolean {
+  return items.some((item) => item.state === "paused");
 }
 
 export function countFor(items: readonly Download[], view: View): number {

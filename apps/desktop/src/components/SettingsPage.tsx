@@ -2,7 +2,7 @@ import { CircleAlert, FolderOpen, Globe, Minus, Plus, X } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useId, useRef, useState } from "react";
 
 import type { Appearance, Schedule, Settings } from "../backend/backend";
-import { clock, minutesOf, sentence, shortDir } from "../lib/format";
+import { clock, MB, megabytes, minutesOf, sentence, shortDir } from "../lib/format";
 import { siteOf } from "../lib/sites";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
@@ -10,11 +10,10 @@ import { useDraft } from "../state/draft";
 import { Button } from "./Button";
 import { WindowControls } from "./WindowControls";
 
-const MB = 1 << 20;
 const DEFAULT_LIMIT = 10 * MB;
 
 function formatLimit(bytes: number | null): string {
-  return bytes === null ? "" : String(Number((bytes / MB).toFixed(2)));
+  return bytes === null ? "" : megabytes(bytes);
 }
 
 function Row({ label, description, control, labelFor }: { label: string; description: string; control: ReactNode; labelFor?: string }) {

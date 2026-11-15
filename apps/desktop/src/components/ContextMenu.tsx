@@ -9,7 +9,8 @@ import { useDownloads, useDownloadsStore } from "../state/context";
 import type { Menu } from "../state/downloads";
 
 const EDGE = 4;
-const ITEMS = '[role^="menuitem"]';
+// The entries that the arrows reach.
+const ITEMS = '[role^="menuitem"]:not([aria-disabled="true"])';
 // A click on the button that opened a menu closes it there, not here and again.
 const OPENER = '[aria-haspopup="menu"][aria-expanded="true"]';
 
@@ -44,7 +45,12 @@ function Open({ menu }: { menu: Menu }) {
   const box = useRef<HTMLDivElement>(null);
   const [before] = useState(() => document.activeElement);
   const [place, setPlace] = useState({ x: menu.x, y: menu.y });
+  // The entry the focus was last on, by place.
+  const focusAt = useRef(0);
+  const shape = groups.map((group) => group.map((entry) => entry.id).join(" ")).join("|");
 
+  // Again when entries come or go: the menu stays in the window, and the focus
+  // stays in the menu, where Escape and the arrows work.
   useLayoutEffect(() => {
     const element = box.current;
     if (element === null) return;
@@ -56,8 +62,10 @@ function Open({ menu }: { menu: Menu }) {
       x: Math.max(EDGE, Math.min(left, window.innerWidth - width - EDGE)),
       y: Math.max(EDGE, Math.min(top, window.innerHeight - height - EDGE)),
     });
-    element.querySelector<HTMLElement>(ITEMS)?.focus();
-  }, [menu]);
+    if (element.contains(document.activeElement)) return;
+    const items = [...element.querySelectorAll<HTMLElement>(ITEMS)];
+    (items[Math.min(focusAt.current, items.length - 1)] ?? element).focus();
+  }, [menu, shape]);
 
   const empty = groups.length === 0;
   useEffect(() => {
@@ -117,6 +125,10 @@ function Open({ menu }: { menu: Menu }) {
       aria-label={label}
       tabIndex={-1}
       onKeyDown={onKeyDown}
+      onFocus={(event) => {
+        const at = [...(box.current?.querySelectorAll(ITEMS) ?? [])].indexOf(event.target);
+        if (at !== -1) focusAt.current = at;
+      }}
       onContextMenu={(event) => {
         event.preventDefault();
       }}
@@ -132,15 +144,18 @@ function Open({ menu }: { menu: Menu }) {
               type="button"
               role={roleOf(entry)}
               aria-checked={entry.check?.on}
+              aria-disabled={entry.disabled === true ? true : undefined}
+              tabIndex={entry.disabled === true ? -1 : undefined}
               aria-keyshortcuts={entry.keys === undefined ? undefined : ariaKeys(entry.keys)}
               onClick={() => {
+                if (entry.disabled === true) return;
                 if (entry.check?.kind !== "checkbox") {
                   if (entry.keepsFocus === true) closeMenu();
                   else back();
                 }
                 entry.run();
               }}
-              className="flex h-7 items-center gap-2 rounded-xs px-2 text-left text-body text-ink outline-offset-[-2px] hover:bg-hover focus-visible:bg-hover"
+              className={`flex h-7 items-center gap-2 rounded-xs px-2 text-left text-body outline-offset-[-2px] ${entry.disabled === true ? "cursor-default text-ink-muted" : "text-ink hover:bg-hover focus-visible:bg-hover"}`}
             >
               <span className="flex size-4 shrink-0 items-center justify-center text-ink-muted">
                 {entry.check !== undefined ? entry.check.on && <Check {...ICON} size={14} className="text-ink" /> : entry.icon && <entry.icon {...ICON} size={14} />}

@@ -271,9 +271,13 @@ describe("main window", () => {
     await capture(window, "view-menu");
   });
 
-  it("picks a speed limit from the status bar, above it", async () => {
+  it("picks a speed limit from the status bar, above it, and names the slower hours", async () => {
     const { store, window } = await showcase();
-    await act(() => store.getState().saveSettings({ speedLimit: 10 * MB }));
+    // Slower hours from an hour before now to an hour after, so they hold whenever the test runs.
+    const now = new Date();
+    const minute = now.getHours() * 60 + now.getMinutes();
+    const hours = { days: 0b111_1111, start: (minute + 1380) % 1440, stop: (minute + 60) % 1440 };
+    await act(() => store.getState().saveSettings({ speedLimit: 10 * MB, slowHours: { limit: 2 * MB, hours } }));
     rightClick('section[aria-label="Status"] button[aria-pressed]', 16, 12);
     await capture(window, "status-menu");
   });

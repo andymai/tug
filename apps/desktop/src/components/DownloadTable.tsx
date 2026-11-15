@@ -3,6 +3,7 @@ import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useS
 import { useShallow } from "zustand/shallow";
 
 import { clampWidth, type Column, type ColumnId, columnsOf, fit, MAX_WIDTH, MIN_WIDTH, nextSort, queueRanks, sortOf, sortText, widest } from "../lib/columns";
+import { menuPoint } from "../lib/dom";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { visibleItems } from "../state/downloads";
@@ -161,8 +162,8 @@ export function DownloadTable({ title }: { title: string }) {
                   aria-label={column.label}
                   aria-sort={active ? (sort.down ? "descending" : "ascending") : "none"}
                   onContextMenu={(event) => {
-                    event.preventDefault();
-                    openMenu({ x: event.clientX, y: event.clientY }, { kind: "columns", column: column.id });
+                    const at = menuPoint(event);
+                    if (at !== null) openMenu(at, { kind: "columns", column: column.id });
                   }}
                   className="relative h-8 px-2 first:pl-3"
                 >
@@ -200,8 +201,8 @@ export function DownloadTable({ title }: { title: string }) {
             <th
               scope="col"
               onContextMenu={(event) => {
-                event.preventDefault();
-                openMenu({ x: event.clientX, y: event.clientY }, { kind: "columns", column: null });
+                const at = menuPoint(event);
+                if (at !== null) openMenu(at, { kind: "columns", column: null });
               }}
               className="h-8 pr-2"
             >
