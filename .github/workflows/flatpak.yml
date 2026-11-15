@@ -56,9 +56,16 @@ jobs:
           df -h / /var/lib/flatpak
           du -sh /var/lib/flatpak
           flatpak list --columns=application,branch,active | head -12
-          mkdir /etc/exdev-probe-new && mv /etc/exdev-probe-new /etc/exdev-probe-moved && echo "rename of a new folder: ok"
-          mv /etc/xdg /etc/xdg-moved && echo "mv of an image folder: ok"
-          python3 -c 'import os; os.rename("/etc/pki", "/etc/pki-moved"); print("rename of an image folder: ok")' || true
+          python3 - <<'PY'
+          import os
+          for path in ("/usr/share/licenses", "/var/lib/flatpak/runtime"):
+              try:
+                  os.rename(path, path + ".probe")
+                  os.rename(path + ".probe", path)
+                  print("rename of", path, "ok")
+              except OSError as error:
+                  print("rename of", path, "fails:", error)
+          PY
       - name: Count the screenshots that the build can download
         id: screenshots
         env:
