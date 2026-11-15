@@ -22,33 +22,35 @@
     </ul>
   </description>
   <launchable type="desktop-id">io.github.andymai.Tug.desktop</launchable>
-  <!-- The Flatpak workflow publishes packaging/screenshots/ at these URLs with each release. -->
+  <!-- appstreamcli compose downloads each screenshot during the Flatpak build, and drops one that it can't get. So each URL names the release's tag, which is there before the build. -->
+  <!-- x-release-please-start-version -->
   <screenshots>
     <screenshot type="default">
       <caption>All downloads, with the details of one</caption>
-      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/list.png</image>
+      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.44.0/packaging/screenshots/list.png</image>
     </screenshot>
     <screenshot>
       <caption>Each connection of a download, in the dark theme</caption>
-      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/connections.png</image>
+      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.44.0/packaging/screenshots/connections.png</image>
     </screenshot>
     <screenshot>
       <caption>The peers of a torrent</caption>
-      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/torrent.png</image>
+      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.44.0/packaging/screenshots/torrent.png</image>
     </screenshot>
     <screenshot>
       <caption>The command bar</caption>
-      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/commands.png</image>
+      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.44.0/packaging/screenshots/commands.png</image>
     </screenshot>
     <screenshot>
       <caption>A lower speed for busy hours</caption>
-      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/schedule.png</image>
+      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.44.0/packaging/screenshots/schedule.png</image>
     </screenshot>
     <screenshot>
       <caption>Options for one download</caption>
-      <image type="source" width="1280" height="800">https://andymai.github.io/tug/screenshots/add.png</image>
+      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.44.0/packaging/screenshots/add.png</image>
     </screenshot>
   </screenshots>
+  <!-- x-release-please-end -->
   <url type="homepage">https://github.com/andymai/tug</url>
   <url type="bugtracker">https://github.com/andymai/tug/issues</url>
   <url type="vcs-browser">https://github.com/andymai/tug</url>
