@@ -238,9 +238,44 @@ describe("main window", () => {
     const id = (name: string) => store.getState().items.find((d) => d.name === name)?.id ?? -1;
     act(() => {
       store.getState().toggleMark(id("blender-5.1-linux-x64.tar.xz"));
-      store.getState().openMenu({ x: 320, y: 130 });
+      store.getState().openMenu({ x: 320, y: 130 }, { kind: "rows" });
     });
     await capture(window, "row-menu");
+  });
+
+  // A right-click a little inside the element, as a pointer would land.
+  const rightClick = (selector: string, dx: number, dy: number) => {
+    const element = document.querySelector(selector);
+    if (element === null) throw new Error(`no ${selector}`);
+    const box = element.getBoundingClientRect();
+    act(() => {
+      fireEvent.contextMenu(element, { clientX: box.left + dx, clientY: box.top + dy });
+    });
+  };
+
+  it("offers the sort and the columns on a right-click on the header", async () => {
+    const { window } = await showcase();
+    rightClick('th[aria-label="Size"]', 24, 20);
+    await capture(window, "header-menu");
+  });
+
+  it("offers the whole list's actions on a right-click past the rows", async () => {
+    const { window } = await showcase();
+    rightClick('[role="grid"]', 420, 260);
+    await capture(window, "list-menu");
+  });
+
+  it("acts on a view's downloads from the sidebar", async () => {
+    const { window } = await showcase();
+    rightClick('nav[aria-labelledby="views-label"] li:nth-child(2) button', 48, 20);
+    await capture(window, "view-menu");
+  });
+
+  it("picks a speed limit from the status bar, above it", async () => {
+    const { store, window } = await showcase();
+    await act(() => store.getState().saveSettings({ speedLimit: 10 * MB }));
+    rightClick('section[aria-label="Status"] button[aria-pressed]', 16, 12);
+    await capture(window, "status-menu");
   });
 
   it("shows where a dragged download lands in the queue", async () => {

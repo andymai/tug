@@ -8,8 +8,9 @@ import { CATEGORIES } from "../lib/categories";
 import { PALETTE_KEYS } from "../lib/commands";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
-import { countFor, sameView, savedViewOf, type StateView, VIEWS } from "../state/downloads";
+import { countFor, type MenuOn, sameView, savedViewOf, type StateView, VIEWS } from "../state/downloads";
 import { useTheme } from "../state/theme";
+import { isMenuKey, under } from "./ContextMenu";
 import { Keys } from "./Kbd";
 
 const VIEW_ICONS: Record<StateView, LucideIcon> = {
@@ -24,6 +25,7 @@ function ViewItem({
   icon: Icon,
   count,
   current,
+  menu,
   onClick,
   onRemove,
 }: {
@@ -31,15 +33,26 @@ function ViewItem({
   icon: LucideIcon;
   count?: number;
   current: boolean;
+  menu: MenuOn;
   onClick: () => void;
   onRemove?: () => void;
 }) {
+  const openMenu = useDownloads((s) => s.openMenu);
   return (
     <li className="group/item relative">
       <button
         type="button"
         aria-current={current ? "page" : undefined}
         onClick={onClick}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          openMenu({ x: event.clientX, y: event.clientY }, menu);
+        }}
+        onKeyDown={(event) => {
+          if (!isMenuKey(event)) return;
+          event.preventDefault();
+          openMenu(under(event.currentTarget), menu);
+        }}
         className="group flex h-8 w-full items-center gap-2 rounded-sm px-2 text-body text-ink transition-colors duration-(--duration-fast) ease-(--ease-out) hover:bg-hover aria-[current=page]:bg-selection aria-[current=page]:font-medium"
       >
         <Icon {...ICON} className="text-ink-muted group-hover:text-ink group-aria-[current=page]:text-ink" />
@@ -95,6 +108,7 @@ export function Sidebar() {
                 icon={VIEW_ICONS[v.id]}
                 count={counts[index] ?? 0}
                 current={openSaved === null && page === "downloads" && v.id === view}
+                menu={{ kind: "view", view: v.id }}
                 onClick={() => {
                   setView(v.id);
                 }}
@@ -116,6 +130,7 @@ export function Sidebar() {
                     icon={category.icon}
                     count={types[index] ?? 0}
                     current={openSaved === null && page === "downloads" && category.id === view}
+                    menu={{ kind: "view", view: category.id }}
                     onClick={() => {
                       setView(category.id);
                     }}
@@ -137,6 +152,7 @@ export function Sidebar() {
                   label={entry.name}
                   icon={Bookmark}
                   current={openSaved !== null && sameView(openSaved, entry)}
+                  menu={{ kind: "saved", saved: entry }}
                   onClick={() => {
                     openView(entry);
                   }}

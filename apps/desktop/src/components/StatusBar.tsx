@@ -7,6 +7,7 @@ import { openAt } from "../lib/schedule";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { SAMPLES } from "../state/downloads";
+import { isMenuKey } from "./ContextMenu";
 
 const DISK_EVERY_MS = 30_000;
 
@@ -41,6 +42,7 @@ export function StatusBar() {
   const diskFree = useDownloads((s) => s.diskFree);
   const checkDisk = useDownloads((s) => s.checkDisk);
   const lastLimit = useDownloads((s) => s.lastLimit);
+  const openMenu = useDownloads((s) => s.openMenu);
   const folder = settings?.downloadDir;
 
   useEffect(() => {
@@ -59,7 +61,13 @@ export function StatusBar() {
   const outside = settings?.schedule != null && !openAt(settings.schedule, now);
 
   return (
-    <section aria-label="Status" className="flex h-7 shrink-0 items-center gap-4 border-t border-line bg-surface px-3 text-small whitespace-nowrap text-ink-muted">
+    <section
+      aria-label="Status"
+      onContextMenu={(event) => {
+        event.preventDefault();
+        openMenu({ x: event.clientX, y: event.clientY }, { kind: "status" });
+      }}
+      className="flex h-7 shrink-0 items-center gap-4 border-t border-line bg-surface px-3 text-small whitespace-nowrap text-ink-muted">
       <span className="flex items-center gap-1.5">
         <ArrowDown {...ICON} size={14} />
         <span className="text-mono text-ink">{formatSpeed(speed)}</span>
@@ -79,6 +87,13 @@ export function StatusBar() {
         title={limit === null ? "Turn the speed limit on" : "Turn the speed limit off"}
         onClick={() => {
           void savePreference({ speedLimit: limit === null ? lastLimit : null }, "the speed limit");
+        }}
+        onKeyDown={(event) => {
+          if (!isMenuKey(event)) return;
+          event.preventDefault();
+          // Above the button: the bar sits at the window's bottom edge.
+          const box = event.currentTarget.getBoundingClientRect();
+          openMenu({ x: box.left, y: box.top }, { kind: "status" });
         }}
         className="flex h-6 items-center gap-1.5 rounded-xs px-1.5 hover:bg-hover hover:text-ink"
       >

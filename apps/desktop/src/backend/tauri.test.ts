@@ -31,6 +31,8 @@ describe("tauri backend", () => {
     await tauriBackend.chooseFolder("/data");
     await tauriBackend.pause(3);
     await tauriBackend.resume(3);
+    await tauriBackend.pauseAll();
+    await tauriBackend.resumeAll();
     await tauriBackend.remove(3, true);
     await tauriBackend.openFile(3);
     await tauriBackend.showInFolder(3);
@@ -58,6 +60,8 @@ describe("tauri backend", () => {
       ["choose_folder", { from: "/data" }],
       ["pause_download", { id: 3 }],
       ["resume_download", { id: 3 }],
+      ["pause_all_downloads", undefined],
+      ["resume_all_downloads", undefined],
       ["remove_download", { id: 3, deleteFile: true }],
       ["open_file", { id: 3 }],
       ["show_in_folder", { id: 3 }],

@@ -153,6 +153,14 @@ function ClearFinished() {
 
 export function DownloadList() {
   const view = useDownloads((s) => s.view);
+  const openMenu = useDownloads((s) => s.openMenu);
+  const closeMenu = useDownloads((s) => s.closeMenu);
+  useEffect(
+    () => () => {
+      closeMenu(["rows", "columns", "list", "status"]);
+    },
+    [closeMenu],
+  );
   const status = useDownloads((s) => s.status);
   const loadError = useDownloads((s) => s.loadError);
   const total = useDownloads((s) => s.items.length);
@@ -184,7 +192,15 @@ export function DownloadList() {
       </header>
       <Notice />
       <div className="relative flex min-h-0 flex-1">
-        <div className="@container flex min-w-0 flex-1 flex-col">
+        <div
+          className="@container flex min-w-0 flex-1 flex-col"
+          onContextMenu={(event) => {
+            // A row or the header opened its own menu.
+            if (event.defaultPrevented || status !== "ready") return;
+            event.preventDefault();
+            openMenu({ x: event.clientX, y: event.clientY }, { kind: "list" });
+          }}
+        >
           {status === "error" ? (
             <LoadError message={sentence(loadError ?? "")} />
           ) : status === "ready" && items.length === 0 ? (

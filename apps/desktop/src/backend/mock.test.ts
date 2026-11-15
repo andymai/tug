@@ -187,6 +187,27 @@ describe("mock backend", () => {
     expect(seen).toEqual(["dark"]);
   });
 
+  it("pauses everything with the queue held, and resumes only the paused, as Library does", async () => {
+    const backend = createMockBackend({
+      seed: [
+        { url: "https://example.org/a.iso", state: "downloading", size: 64 * MB },
+        { url: "https://example.org/b.iso", state: "queued", size: 64 * MB },
+        { url: "https://example.org/c.iso", state: "failed", error: "gone" },
+      ],
+      captures: ["https://example.org/d.iso"],
+    });
+    const seen: number[][] = [];
+    await backend.onCaptures((captures) => seen.push(captures.map((c) => c.id)));
+    await backend.pauseAll();
+    const states = async () => (await backend.list()).map((d) => `${d.name} ${d.state}`);
+    expect(await states()).toEqual(["a.iso paused", "b.iso paused", "c.iso failed", "d.iso paused"]);
+    expect(seen, "a pause leaves the capture sheet alone").toEqual([]);
+
+    await backend.resumeAll();
+    expect(await states()).toEqual(["a.iso downloading", "b.iso downloading", "c.iso failed", "d.iso downloading"]);
+    expect(seen.at(-1), "a resumed capture leaves the sheet").toEqual([]);
+  });
+
   it("starts with the seed links", async () => {
     const backend = createMockBackend({ seed: ["https://example.org/one.zip", "https://example.org/two.zip"] });
     expect((await backend.list()).map((d) => d.name)).toEqual(["one.zip", "two.zip"]);

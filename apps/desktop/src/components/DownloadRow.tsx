@@ -9,6 +9,7 @@ import { ROW_DRAG } from "../lib/dom";
 import { useDownloads, useDownloadsStore } from "../state/context";
 import { chosen } from "../state/downloads";
 import { Button } from "./Button";
+import { isMenuKey } from "./ContextMenu";
 
 export interface DownloadRowProps {
   download: Download;
@@ -60,7 +61,7 @@ export const DownloadRow = memo(function DownloadRow({ download, columns, rank, 
   };
   const menuAt = (at: { x: number; y: number }) => {
     if (!store.getState().marked.includes(download.id)) select(download.id);
-    openMenu(at);
+    openMenu(at, { kind: "rows" });
   };
 
   const cell = (id: ColumnId): ReactNode => {
@@ -183,7 +184,7 @@ export const DownloadRow = memo(function DownloadRow({ download, columns, rank, 
       onDragEnd={endDrag}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
-        if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+        if (isMenuKey(event)) {
           event.preventDefault();
           const box = event.currentTarget.getBoundingClientRect();
           menuAt({ x: box.left + 24, y: box.bottom });

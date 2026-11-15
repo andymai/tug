@@ -3,6 +3,7 @@ import { type ReactNode, useEffect } from "react";
 import { AddDialog } from "./components/AddDialog";
 import { CaptureSheet } from "./components/CaptureSheet";
 import { CommandBar } from "./components/CommandBar";
+import { ContextMenu } from "./components/ContextMenu";
 import { DownloadList } from "./components/DownloadList";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { LinkCapture } from "./components/LinkCapture";
@@ -77,6 +78,7 @@ export function App({ store }: { store: DownloadsStore }) {
       <ShortcutsDialog />
       <LinkCapture />
       <CaptureSheet />
+      <ContextMenu />
       <KeyboardShortcuts />
       <Theme />
     </DownloadsContext>

@@ -23,7 +23,7 @@ import {
 } from "../backend/backend";
 import { isCategory } from "../lib/categories";
 import { covering } from "../lib/covering";
-import { queueRanks, sortItems, sortOf } from "../lib/columns";
+import { type ColumnId, queueRanks, sortItems, sortOf } from "../lib/columns";
 import { shownLink } from "../lib/links";
 
 export type StateView = "all" | "active" | "done" | "failed";
@@ -40,6 +40,23 @@ function patched(settings: Settings, patch: SettingsPatch): Settings {
 }
 export type View = StateView | Category;
 
+// What a right-click or the menu key opened a menu on.
+export type MenuOn =
+  | { kind: "rows" }
+  | { kind: "columns"; column: ColumnId | null }
+  | { kind: "list" }
+  | { kind: "view"; view: View }
+  | { kind: "saved"; saved: SavedView }
+  | { kind: "status" };
+
+export interface Menu {
+  x: number;
+  y: number;
+  // The menu's right edge sits at x, as under a button at the end of a row.
+  end?: boolean;
+  on: MenuOn;
+}
+
 export const VIEWS: readonly { id: StateView; label: string; states: readonly DownloadState[] }[] = covering<StateView>().by<"id">()([
   { id: "all", label: "All", states: ["queued", "downloading", "paused", "done", "failed"] },
   { id: "active", label: "Active", states: ["queued", "downloading", "paused"] },
@@ -55,7 +72,7 @@ export interface DownloadsState {
   selected: number | null;
   // Every selected row; bulk actions take the ones the view shows (`chosen`).
   marked: number[];
-  menu: { x: number; y: number } | null;
+  menu: Menu | null;
   removing: number[] | null;
   // The queued rows a drag carries, and where they would land.
   dragging: number[] | null;
@@ -99,13 +116,19 @@ export interface DownloadsState {
   markTo: (id: number) => void;
   markAll: () => void;
   step: (delta: number, extend?: boolean) => number | null;
-  openMenu: (at: { x: number; y: number }) => void;
-  closeMenu: () => void;
+  openMenu: (at: Omit<Menu, "on">, on: MenuOn) => void;
+  // Without kinds it closes any menu; with them, only a menu on one of them.
+  closeMenu: (only?: readonly MenuOn["kind"][]) => void;
   askRemove: (ids: readonly number[]) => void;
   askClearFinished: () => void;
   cancelRemove: () => void;
   pauseMany: (ids: readonly number[]) => Promise<void>;
   resumeMany: (ids: readonly number[]) => Promise<void>;
+  // Every download in the view, whatever the list shows now.
+  pauseIn: (view: View) => Promise<void>;
+  resumeIn: (view: View, state: "paused" | "failed") => Promise<void>;
+  pauseAll: () => Promise<void>;
+  resumeAll: () => Promise<void>;
   moveMany: (ids: readonly number[], to: "first" | "last") => Promise<void>;
   moveNextTo: (ids: readonly number[], target: number, after: boolean) => Promise<void>;
   moveOne: (id: number, to: "up" | "down") => Promise<void>;
@@ -231,6 +254,35 @@ export function createDownloadsStore(backend: Backend) {
       const [first] = failed;
       if (first === undefined) return;
       set({ notice: failed.length === 1 ? first : `couldn't ${verb} ${String(failed.length)} downloads: ${first}` });
+    };
+
+    const pauseList = (list: readonly Download[]) => {
+      // The waiting ones first, so a slot that a pause frees doesn't start one of them.
+      const waiting = (state: Download["state"]) => (state === "queued" ? 0 : 1);
+      const order = list
+        .filter((item) => item.state === "downloading" || item.state === "queued")
+        .sort((a, b) => waiting(a.state) - waiting(b.state));
+      return many(order, "pause", (id) => backend.pause(id));
+    };
+
+    const resumeList = (list: readonly Download[], states: readonly Download["state"][]) =>
+      many(
+        list.filter((item) => states.includes(item.state)),
+        "resume",
+        (id) => backend.resume(id),
+      );
+
+    // One call for the whole library, as the tray's Pause all and Resume all: the
+    // library holds its run lock throughout, so no freed place starts another.
+    const all = async (verb: string, call: () => Promise<void>) => {
+      let failure: string | null = null;
+      try {
+        await call();
+      } catch (error) {
+        failure = BackendError.from(error).message;
+      }
+      await get().reload();
+      if (failure !== null) set({ notice: `couldn't ${verb} every download: ${failure}` });
     };
 
     const act = async (action: () => Promise<void>) => {
@@ -545,12 +597,13 @@ export function createDownloadsStore(backend: Backend) {
         return id;
       },
 
-      openMenu: (at) => {
-        set({ menu: at });
+      openMenu: (at, on) => {
+        set({ menu: { ...at, on } });
       },
 
-      closeMenu: () => {
-        set({ menu: null });
+      closeMenu: (only) => {
+        const { menu } = get();
+        if (menu !== null && (only === undefined || only.includes(menu.on.kind))) set({ menu: null });
       },
 
       askRemove: (ids) => {
@@ -565,19 +618,17 @@ export function createDownloadsStore(backend: Backend) {
         set({ removing: null });
       },
 
-      pauseMany: (ids) => {
-        // The waiting ones first, so a slot that a pause frees doesn't start one of them.
-        const waiting = (state: Download["state"]) => (state === "queued" ? 0 : 1);
-        const order = chosenOf(get(), ids)
-          .filter((item) => item.state === "downloading" || item.state === "queued")
-          .sort((a, b) => waiting(a.state) - waiting(b.state));
-        return many(order, "pause", (id) => backend.pause(id));
-      },
+      pauseMany: (ids) => pauseList(chosenOf(get(), ids)),
 
-      resumeMany: (ids) => {
-        const order = chosenOf(get(), ids).filter((item) => item.state === "paused" || item.state === "failed");
-        return many(order, "resume", (id) => backend.resume(id));
-      },
+      resumeMany: (ids) => resumeList(chosenOf(get(), ids), ["paused", "failed"]),
+
+      pauseIn: (view) => pauseList(get().items.filter((item) => inView(view, item))),
+
+      resumeIn: (view, state) => resumeList(get().items.filter((item) => inView(view, item)), [state]),
+
+      pauseAll: () => all("pause", () => backend.pauseAll()),
+
+      resumeAll: () => all("resume", () => backend.resumeAll()),
 
       // To the top in reverse and to the end in order, so the moved keep their order.
       moveMany: (ids, to) => {

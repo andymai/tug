@@ -641,6 +641,46 @@ describe("downloads store", () => {
     expect(store.getState().notice).toBe("the run lock is poisoned");
   });
 
+  it("pauses and resumes a whole view, past the view and the search on screen", async () => {
+    const { store } = await ready();
+    store.getState().setView("done");
+    store.getState().setSearch("fonts");
+    await store.getState().pauseIn("active");
+    const state = (name: string) => store.getState().items.find((d) => d.name === name)?.state;
+    expect(["fedora.iso", "blender.tar.xz", "talk.mp4"].map(state)).toEqual(["paused", "paused", "paused"]);
+    await store.getState().resumeIn("all", "failed");
+    expect(state("shard.parquet")).not.toBe("failed");
+    expect(state("talk.mp4"), "a retry leaves the paused alone").toBe("paused");
+    await store.getState().resumeIn("active", "paused");
+    expect(["fedora.iso", "blender.tar.xz", "talk.mp4"].map(state)).not.toContain("paused");
+  });
+
+  it("names a failed Pause all or Resume all, after it reloads what did change", async () => {
+    const backend = createMockBackend({ seed: showcase });
+    const store = createDownloadsStore(backend);
+    await store.getState().init();
+    const reload = vi.spyOn(store.getState(), "reload");
+    backend.pauseAll = () => Promise.reject(new BackendError("internal", "the disk is full"));
+    backend.resumeAll = () => Promise.reject(new BackendError("internal", "the run lock is poisoned"));
+    await store.getState().pauseAll();
+    expect(store.getState().notice).toBe("couldn't pause every download: the disk is full");
+    await store.getState().resumeAll();
+    expect(store.getState().notice).toBe("couldn't resume every download: the run lock is poisoned");
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
+
+  it("closes only a menu of the kinds it names", async () => {
+    const { store } = await ready();
+    store.getState().openMenu({ x: 1, y: 2 }, { kind: "view", view: "done" });
+    store.getState().closeMenu(["rows", "columns"]);
+    expect(store.getState().menu?.on).toEqual({ kind: "view", view: "done" });
+    store.getState().closeMenu(["view"]);
+    expect(store.getState().menu).toBeNull();
+    store.getState().openMenu({ x: 1, y: 2, end: true }, { kind: "status" });
+    store.getState().closeMenu();
+    expect(store.getState().menu).toBeNull();
+  });
+
   it("marks with Ctrl, a range with Shift and all, and a plain select takes one", async () => {
     const { store } = await ready();
     const id = (name: string) => store.getState().items.find((d) => d.name === name)?.id ?? -1;
