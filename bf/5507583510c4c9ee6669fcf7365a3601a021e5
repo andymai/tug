@@ -1,0 +1,36 @@
+apps/desktop/src/components/Sidebar.tsx
+  s_8c00190c4734e7::t_c7114e5616090f 5-6
+  s_8c00190c4734e7::t_7873349553c435 107-112
+CLAUDE.md
+  s_8c00190c4734e7::t_b56e851853c278 56
+apps/desktop/src-tauri/src/tray.rs
+  s_8c00190c4734e7::t_72b072779cfa08 20,44-47,440-444,448,451-452
+brand/build.py
+  s_8c00190c4734e7::t_cc12090e1abe69 5-6,9-11,44-48,116-117,120,122-123,137,148-151
+brand/svg/lockup-dark.svg
+  s_8c00190c4734e7::t_13390f02e8ac85 1
+brand/svg/lockup-mono.svg
+  s_8c00190c4734e7::t_b33f2038580104 1
+brand/svg/lockup.svg
+  s_8c00190c4734e7::t_545e8fcb6e2c6c 1
+brand/svg/ring-glyph.svg
+  s_8c00190c4734e7::t_c245670980368a 1
+scripts/test_brand.py
+  s_8c00190c4734e7::t_a577bd67e3453b 3,21-33,47,50,78-81,83,88-92,96,101-109,116,119,124-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf5507583510c4c9ee6669fcf7365a3601a021e5",
+  "prompts": {},
+  "sessions": {
+    "s_8c00190c4734e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5909e59f-c49a-41c7-99ab-3f9b3934d01d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
