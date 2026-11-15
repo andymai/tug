@@ -4,6 +4,7 @@ import { useShallow } from "zustand/shallow";
 
 import markDark from "../../../../brand/svg/mark-dark.svg";
 import mark from "../../../../brand/svg/mark.svg";
+import { menuPoint } from "../lib/dom";
 import { sentence } from "../lib/format";
 import { CATEGORIES, isCategory } from "../lib/categories";
 import { ICON } from "../lib/states";
@@ -153,6 +154,14 @@ function ClearFinished() {
 
 export function DownloadList() {
   const view = useDownloads((s) => s.view);
+  const openMenu = useDownloads((s) => s.openMenu);
+  const closeMenu = useDownloads((s) => s.closeMenu);
+  useEffect(
+    () => () => {
+      closeMenu(["rows", "columns", "list", "status"]);
+    },
+    [closeMenu],
+  );
   const status = useDownloads((s) => s.status);
   const loadError = useDownloads((s) => s.loadError);
   const total = useDownloads((s) => s.items.length);
@@ -184,7 +193,15 @@ export function DownloadList() {
       </header>
       <Notice />
       <div className="relative flex min-h-0 flex-1">
-        <div className="@container flex min-w-0 flex-1 flex-col">
+        <div
+          data-list-area
+          className="@container flex min-w-0 flex-1 flex-col"
+          onContextMenu={(event) => {
+            if (status !== "ready") return;
+            const at = menuPoint(event);
+            if (at !== null) openMenu(at, { kind: "list" });
+          }}
+        >
           {status === "error" ? (
             <LoadError message={sentence(loadError ?? "")} />
           ) : status === "ready" && items.length === 0 ? (

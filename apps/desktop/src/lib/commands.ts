@@ -5,6 +5,8 @@ import {
   BookmarkPlus,
   Check,
   CircleAlert,
+  CirclePause,
+  CirclePlay,
   Copy,
   ExternalLink,
   FolderOpen,
@@ -26,7 +28,7 @@ import {
   X,
 } from "lucide-react";
 
-import { canRename, chosen, type DownloadsStore, hasFinished, savedViewOf, single, type StateView } from "../state/downloads";
+import { canPauseAll, canRename, canResumeAll, chosen, type DownloadsStore, hasFinished, savedViewOf, single, type StateView } from "../state/downloads";
 import { CATEGORIES } from "./categories";
 import { covering } from "./covering";
 import { focusRow } from "./dom";
@@ -38,6 +40,20 @@ export interface Keys {
   alt?: boolean;
   label: readonly string[];
 }
+
+// Each key that a command and a menu entry share.
+export const KEYS = {
+  add: { key: "n", ctrl: true, label: ["Ctrl", "N"] },
+  search: { key: "f", ctrl: true, label: ["Ctrl", "F"] },
+  selectAll: { key: "a", ctrl: true, label: ["Ctrl", "A"] },
+  toggle: { key: "p", label: ["P"] },
+  remove: { key: "delete", label: ["Del"] },
+  open: { key: "o", ctrl: true, label: ["Ctrl", "O"] },
+  rename: { key: "f2", label: ["F2"] },
+  moveUp: { key: "arrowup", alt: true, label: ["Alt", "↑"] },
+  moveDown: { key: "arrowdown", alt: true, label: ["Alt", "↓"] },
+  settings: { key: ",", ctrl: true, label: ["Ctrl", ","] },
+} as const satisfies Record<string, Keys>;
 
 export type Group = "Downloads" | "Views" | "Selected download" | "Selected downloads" | "Help";
 
@@ -65,7 +81,7 @@ export function commands(store: DownloadsStore): Command[] {
       title: "Add downloads",
       group: "Downloads",
       icon: Plus,
-      keys: { key: "n", ctrl: true, label: ["Ctrl", "N"] },
+      keys: KEYS.add,
       run: () => {
         state.openAdd();
       },
@@ -75,7 +91,7 @@ export function commands(store: DownloadsStore): Command[] {
       title: "Search downloads",
       group: "Downloads",
       icon: Search,
-      keys: { key: "f", ctrl: true, label: ["Ctrl", "F"] },
+      keys: KEYS.search,
       run: () => {
         state.openSearch();
       },
@@ -115,6 +131,12 @@ export function commands(store: DownloadsStore): Command[] {
       }),
     ),
   ];
+  if (canPauseAll(state.items)) {
+    list.push({ id: "pause-all", title: "Pause all", group: "Downloads", icon: CirclePause, run: () => void state.pauseAll() });
+  }
+  if (canResumeAll(state.items)) {
+    list.push({ id: "resume-all", title: "Resume all", group: "Downloads", icon: CirclePlay, run: () => void state.resumeAll() });
+  }
   if (state.search.trim() !== "" && savedViewOf(state) === null) {
     list.push({
       id: "save-view",
@@ -127,15 +149,15 @@ export function commands(store: DownloadsStore): Command[] {
     });
   }
 
-  const toggle = { key: "p", label: ["P"] };
-  const removeKeys = { key: "delete", label: ["Del"] };
+  const toggle = KEYS.toggle;
+  const removeKeys = KEYS.remove;
   if (state.page === "downloads") {
     list.push({
       id: "select-all",
       title: "Select all",
       group: "Downloads",
       icon: ListChecks,
-      keys: { key: "a", ctrl: true, label: ["Ctrl", "A"] },
+      keys: KEYS.selectAll,
       run: () => {
         state.markAll();
       },
@@ -224,7 +246,7 @@ export function commands(store: DownloadsStore): Command[] {
           title: "Move up in the queue",
           group: "Selected download",
           icon: ArrowUp,
-          keys: { key: "arrowup", alt: true, label: ["Alt", "↑"] },
+          keys: KEYS.moveUp,
           run: () => void state.moveOne(id, "up"),
         },
         {
@@ -232,7 +254,7 @@ export function commands(store: DownloadsStore): Command[] {
           title: "Move down in the queue",
           group: "Selected download",
           icon: ArrowDown,
-          keys: { key: "arrowdown", alt: true, label: ["Alt", "↓"] },
+          keys: KEYS.moveDown,
           run: () => void state.moveOne(id, "down"),
         },
         { id: "move-last", title: "Move to the end", group: "Selected download", icon: ListEnd, run: () => void state.moveMany([id], "last") },
@@ -253,7 +275,7 @@ export function commands(store: DownloadsStore): Command[] {
         title: "Open",
         group: "Selected download",
         icon: ExternalLink,
-        keys: { key: "o", ctrl: true, label: ["Ctrl", "O"] },
+        keys: KEYS.open,
         run: () => void state.openFile(id),
       });
     }
@@ -266,7 +288,7 @@ export function commands(store: DownloadsStore): Command[] {
               title: "Rename…",
               group: "Selected download" as const,
               icon: Pencil,
-              keys: { key: "f2", label: ["F2"] },
+              keys: KEYS.rename,
               run: () => {
                 state.startRename(id);
               },
@@ -313,7 +335,7 @@ export function commands(store: DownloadsStore): Command[] {
     title: "Open settings",
     group: "Help",
     icon: Settings,
-    keys: { key: ",", ctrl: true, label: ["Ctrl", ","] },
+    keys: KEYS.settings,
     run: () => {
       state.setPage("settings");
     },
@@ -360,9 +382,9 @@ export const KEYMAP: readonly { group: string; entries: readonly { title: string
     group: "General",
     entries: [
       { title: "Command bar", label: PALETTE_KEYS.label },
-      { title: "Add downloads", label: ["Ctrl", "N"] },
-      { title: "Search downloads", label: ["Ctrl", "F"] },
-      { title: "Settings", label: ["Ctrl", ","] },
+      { title: "Add downloads", label: KEYS.add.label },
+      { title: "Search downloads", label: KEYS.search.label },
+      { title: "Settings", label: KEYS.settings.label },
       { title: "Keyboard shortcuts", label: ["?"] },
       { title: "Close details or a dialog", label: ["Esc"] },
     ],
@@ -374,14 +396,14 @@ export const KEYMAP: readonly { group: string; entries: readonly { title: string
       ...NAVIGATION.map(({ title, keys }) => ({ title, label: keys.label })),
       { title: "Select more, one by one", label: ["Ctrl", "Click"] },
       { title: "Select a range", label: ["Shift", "↑", "↓"] },
-      { title: "Select all", label: ["Ctrl", "A"] },
-      { title: "Move up in the queue", label: ["Alt", "↑"] },
-      { title: "Move down in the queue", label: ["Alt", "↓"] },
+      { title: "Select all", label: KEYS.selectAll.label },
+      { title: "Move up in the queue", label: KEYS.moveUp.label },
+      { title: "Move down in the queue", label: KEYS.moveDown.label },
       { title: "Menu for the selection", label: ["Shift", "F10"] },
-      { title: "Pause, resume or retry", label: ["P"] },
-      { title: "Rename", label: ["F2"] },
-      { title: "Remove", label: ["Del"] },
-      { title: "Open a finished file", label: ["Ctrl", "O"] },
+      { title: "Pause, resume or retry", label: KEYS.toggle.label },
+      { title: "Rename", label: KEYS.rename.label },
+      { title: "Remove", label: KEYS.remove.label },
+      { title: "Open a finished file", label: KEYS.open.label },
     ],
   },
 ];

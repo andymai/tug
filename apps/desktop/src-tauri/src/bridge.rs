@@ -1224,6 +1224,22 @@ pub async fn resume_download(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn pause_all_downloads(state: tauri::State<'_, AppState>) -> Result<(), CommandError> {
+    Ok(state.library.pause_all().await?)
+}
+
+#[tauri::command]
+pub async fn resume_all_downloads(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), CommandError> {
+    for id in state.library.resume_all().await? {
+        started(&app, id);
+    }
+    Ok(())
+}
+
 // A resume between two progress ticks can start and stop a capture unseen by
 // the batch pruning, so every resume also takes it off the sheet.
 pub fn started<R: tauri::Runtime>(app: &AppHandle<R>, id: DownloadId) {

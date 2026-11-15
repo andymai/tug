@@ -4,6 +4,14 @@ import { commands, matches, NAVIGATION, PALETTE_KEYS } from "../lib/commands";
 import { editable, focusRow } from "../lib/dom";
 import { useDownloadsStore } from "../state/context";
 import { modalOpen } from "../state/downloads";
+import { isMenuKey } from "./ContextMenu";
+
+// Where the menu key opens the list's own menu: nothing in focus, the title, or
+// the list's empty space. A row, a header cell and a button open their own first.
+function onListArea(target: EventTarget | null): boolean {
+  if (target === document.body) return true;
+  return target instanceof Element && (target.id === "list-title" || target.closest("[data-list-area]") !== null);
+}
 
 export function KeyboardShortcuts() {
   const store = useDownloadsStore();
@@ -19,6 +27,12 @@ export function KeyboardShortcuts() {
       }
       if (editable(event.target)) return;
       const onList = state.page === "downloads";
+      if (isMenuKey(event) && onList && state.status === "ready" && onListArea(event.target)) {
+        event.preventDefault();
+        const area = document.querySelector("[data-list-area]")?.getBoundingClientRect();
+        state.openMenu({ x: (area?.left ?? 0) + 8, y: (area?.top ?? 0) + 8 }, { kind: "list" });
+        return;
+      }
       const plain = { key: event.key, ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: false };
       const step = NAVIGATION.findIndex(({ keys }) => matches(keys, plain));
       if (step !== -1 && onList) {

@@ -75,6 +75,8 @@ export interface Backend {
   chooseTorrents(): Promise<string[]>;
   pause(id: number): Promise<void>;
   resume(id: number): Promise<void>;
+  pauseAll(): Promise<void>;
+  resumeAll(): Promise<void>;
   remove(id: number, deleteFile: boolean): Promise<void>;
   place(id: number, place: Place): Promise<void>;
   openFile(id: number): Promise<void>;
