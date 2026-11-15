@@ -246,7 +246,7 @@ describe("main window", () => {
   it("opens a submenu beside the entry that holds it", async () => {
     const { store, window } = await showcase("fedora-kde-44-x86_64.iso");
     const fedora = store.getState().items.find((d) => d.name === "fedora-kde-44-x86_64.iso")?.id ?? -1;
-    await act(() => store.getState().setOptions(fedora, null, 5 * MB));
+    await act(() => store.getState().setOptions(fedora, { speedLimit: 5 * MB }));
     act(() => {
       store.getState().openMenu({ x: 320, y: 130 }, { kind: "rows" });
     });

@@ -165,8 +165,9 @@ export interface DownloadsState {
   setAddText: (text: string) => void;
   closeAdd: () => void;
   addLinks: (hrefs: readonly string[], options?: { dir?: string; add?: AddOptions }) => Promise<void>;
-  setOptions: (id: number, connections: number | null, speedLimit: number | null) => Promise<boolean>;
-  // Each download that takes options keeps the one that the patch leaves out.
+  // A download keeps each option that the patch leaves out; true when it saved.
+  setOptions: (id: number, patch: OptionsPatch) => Promise<boolean>;
+  // As setOptions, for each of these downloads that takes options.
   setOptionsMany: (ids: readonly number[], patch: OptionsPatch) => Promise<void>;
   // The download whose name the panel edits.
   renaming: number | null;
@@ -248,7 +249,14 @@ export function createDownloadsStore(backend: Backend) {
 
     // One by one, then one reload, and one notice for what failed.
     // One change of options at a time, so each reads the values that the last one saved.
-    let tuning: Promise<void> = Promise.resolve();
+    let tuning: Promise<unknown> = Promise.resolve();
+    const tune = <T>(change: () => Promise<T>): Promise<T> => {
+      const next = tuning.then(change);
+      tuning = next.catch(() => undefined);
+      return next;
+    };
+    const withPatch = (item: Pick<Download, "connections" | "speedLimit">, patch: OptionsPatch) =>
+      [patch.connections === undefined ? item.connections : patch.connections, patch.speedLimit === undefined ? item.speedLimit : patch.speedLimit] as const;
 
     const many = async (order: readonly Download[], verb: string, action: (item: Download) => Promise<void>) => {
       const failed: string[] = [];
@@ -883,26 +891,31 @@ export function createDownloadsStore(backend: Backend) {
         await get().reload();
       },
 
-      setOptions: async (id, connections, speedLimit) => {
-        try {
-          await backend.setOptions(id, connections, speedLimit);
-          await get().reload();
-          return true;
-        } catch (error) {
-          set({ notice: `couldn't change the download: ${BackendError.from(error).message}` });
-          return false;
-        }
-      },
+      setOptions: (id, patch) =>
+        tune(async () => {
+          const item = get().items.find((other) => other.id === id) ?? { connections: null, speedLimit: null };
+          try {
+            await backend.setOptions(id, ...withPatch(item, patch));
+            await get().reload();
+            return true;
+          } catch (error) {
+            set({ notice: `couldn't change the download: ${BackendError.from(error).message}` });
+            return false;
+          }
+        }),
 
-      setOptionsMany: (ids, patch) => {
-        const next = tuning.then(() =>
-          many(chosenOf(get(), ids).filter(takesOptions), "change", async (item) => {
-            await backend.setOptions(item.id, patch.connections === undefined ? item.connections : patch.connections, patch.speedLimit === undefined ? item.speedLimit : patch.speedLimit);
-          }),
-        );
-        tuning = next.catch(() => undefined);
-        return next;
-      },
+      // The downloads that the menu showed, even when the view changes before their turn.
+      setOptionsMany: (ids, patch) =>
+        tune(() => {
+          const wanted = new Set(ids);
+          return many(
+            get().items.filter((item) => wanted.has(item.id) && takesOptions(item)),
+            "change",
+            async (item) => {
+              await backend.setOptions(item.id, ...withPatch(item, patch));
+            },
+          );
+        }),
 
       loadHeaders: (id) => loadSlot("headers", id, () => backend.headers(id)),
 

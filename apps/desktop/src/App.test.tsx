@@ -2070,7 +2070,7 @@ describe("menus", () => {
     expect(await menuOn("fedora-kde-44-x86_64.iso", "Speed limit")).toEqual(["Tug's setting (no limit)", "1 MB/s", "2 MB/s", "✓ 3.5 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"]);
   });
 
-  it("keeps the first change of options when a second one comes before it is saved", async () => {
+  it("keeps the first change of options when a second one comes before it is saved, in any view", async () => {
     const backend = createMockBackend({ seed: SHOWCASE });
     let release: () => void = () => undefined;
     const held = new Promise<void>((done) => {
@@ -2094,6 +2094,9 @@ describe("menus", () => {
     };
     await choose("Speed limit", "5 MB/s");
     await choose("Connections", "4");
+    act(() => {
+      store.getState().setView("done");
+    });
     release();
     const own = (name: string) => {
       const item = store.getState().items.find((d) => d.name === name);
@@ -2103,6 +2106,70 @@ describe("menus", () => {
       expect(own("blender-5.1-linux-x64.tar.xz")).toEqual({ connections: 4, speedLimit: 5 * MB });
     });
     expect(own("fedora-kde-44-x86_64.iso")).toEqual({ connections: 4, speedLimit: 5 * MB });
+  });
+
+  it("keeps a change from the details panel and one from the menu, in either order", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    let release: () => void = () => undefined;
+    let held = Promise.resolve();
+    const hold = () => {
+      held = new Promise<void>((done) => {
+        release = done;
+      });
+    };
+    const store = createDownloadsStore({
+      ...backend,
+      setOptions: async (id, connections, speedLimit) => {
+        await held;
+        return backend.setOptions(id, connections, speedLimit);
+      },
+    });
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    const fedora = () => store.getState().items.find((d) => d.name === "fedora-kde-44-x86_64.iso");
+    const field = (name: string) => within(screen.getByRole("region", { name: "Options" })).getByRole("textbox", { name });
+    const menu = async (sub: string, value: string) => {
+      fireEvent.contextMenu(rowOf("fedora-kde-44-x86_64.iso"), { clientX: 300, clientY: 200 });
+      await user.hover(screen.getByRole("menuitem", { name: sub }));
+      await user.click(screen.getByRole("menuitemradio", { name: value }));
+    };
+
+    hold();
+    await user.type(field("Connections"), "4{Enter}");
+    await menu("Speed limit", "5 MB/s");
+    release();
+    await waitFor(() => {
+      expect(fedora()?.speedLimit).toBe(5 * MB);
+    });
+    expect(fedora()?.connections, "the menu keeps the panel's change").toBe(4);
+
+    hold();
+    await menu("Speed limit", "10 MB/s");
+    await user.clear(field("Connections"));
+    await user.type(field("Connections"), "2{Enter}");
+    release();
+    await waitFor(() => {
+      expect(fedora()?.connections).toBe(2);
+    });
+    expect(fedora()?.speedLimit, "the panel keeps the menu's change").toBe(10 * MB);
+  });
+
+  it("closes a submenu that the pointer opened with Escape or the left arrow, and then the menu", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    const limit = screen.getByRole("menuitem", { name: "Speed limit" });
+    await user.hover(limit);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menu", { name: "fedora-kde-44-x86_64.iso" })).toBeInTheDocument();
+    await user.unhover(limit);
+    await user.hover(limit);
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("closes a submenu that the pointer opened when the keys move on", async () => {

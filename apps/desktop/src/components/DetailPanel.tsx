@@ -18,7 +18,7 @@ import { focusRow } from "../lib/dom";
 import { limitText, type Parsed, parseConnections, parseLimit } from "../lib/options";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
-import { canRename, chosen, modalOpen, single, takesOptions } from "../state/downloads";
+import { canRename, chosen, modalOpen, type OptionsPatch, single, takesOptions } from "../state/downloads";
 import { useDraft } from "../state/draft";
 import { Button } from "./Button";
 import { ConnectionsPanel, FilesPanel, HTTP_TABS, InspectorTabs, LogPanel, PeersPanel, tabIds, TORRENT_TABS, useInspection, useTorrentView } from "./Inspector";
@@ -307,10 +307,16 @@ function OwnOptions({ download }: { download: Download }) {
       return;
     }
     setProblem(null);
-    if (own.value === download.connections && cap.value === download.speedLimit && pending === 0) return;
+    // Only what changed, so a change from the row menu that is on its way stays.
+    // While a save is on its way, both, so the newest values win.
+    const patch: OptionsPatch = {
+      ...(pending > 0 || own.value !== download.connections ? { connections: own.value } : {}),
+      ...(pending > 0 || cap.value !== download.speedLimit ? { speedLimit: cap.value } : {}),
+    };
+    if (Object.keys(patch).length === 0) return;
     const saves = [connectionsDraft.commit(), limitDraft.commit()];
     setPending((n) => n + 1);
-    void setOptions(download.id, own.value, cap.value).then((saved) => {
+    void setOptions(download.id, patch).then((saved) => {
       setPending((n) => n - 1);
       if (!saved) for (const save of saves) save.failed();
     });

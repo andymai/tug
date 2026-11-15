@@ -239,7 +239,12 @@ function Open({ menu }: { menu: Menu }) {
     const at = items.findIndex((item) => item === document.activeElement);
     const to = stepTo(event.key, at, items.length);
     const parent = event.key === "ArrowRight" ? groups.flat().find((entry) => entry.sub !== undefined && entry.id === items[at]?.dataset.entry) : undefined;
-    if (event.key === "Escape" || event.key === "Tab") {
+    // A submenu that the pointer opened goes first, as one with the focus does.
+    if (sub !== null && (event.key === "Escape" || event.key === "ArrowLeft")) {
+      event.preventDefault();
+      event.stopPropagation();
+      showSub(null);
+    } else if (event.key === "Escape" || event.key === "Tab") {
       event.preventDefault();
       event.stopPropagation();
       back();
