@@ -2153,6 +2153,18 @@ describe("menus", () => {
       expect(fedora()?.connections).toBe(2);
     });
     expect(fedora()?.speedLimit, "the panel keeps the menu's change").toBe(10 * MB);
+
+    hold();
+    await user.clear(field("Connections"));
+    await user.type(field("Connections"), "6{Enter}");
+    await menu("Speed limit", "20 MB/s");
+    await user.clear(field("Connections"));
+    await user.type(field("Connections"), "3{Enter}");
+    release();
+    await waitFor(() => {
+      expect(fedora()?.connections).toBe(3);
+    });
+    expect(fedora()?.speedLimit, "a second panel save sends only its own field").toBe(20 * MB);
   });
 
   it("closes a submenu that the pointer opened with Escape or the left arrow, and then the menu", async () => {

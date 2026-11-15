@@ -293,7 +293,6 @@ function OwnOptions({ download }: { download: Download }) {
   const limitDraft = useDraft(limitText(download.speedLimit));
   const connections = connectionsDraft.text;
   const limit = limitDraft.text;
-  const [pending, setPending] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
   const headingId = useId();
   const connectionsId = useId();
@@ -307,17 +306,15 @@ function OwnOptions({ download }: { download: Download }) {
       return;
     }
     setProblem(null);
-    // Only what changed, so a change from the row menu that is on its way stays.
-    // While a save is on its way, both, so the newest values win.
+    // Only the fields typed in since their last save: the store keeps the other
+    // field's saved value, so a change from the row menu on its way stays.
     const patch: OptionsPatch = {
-      ...(pending > 0 || own.value !== download.connections ? { connections: own.value } : {}),
-      ...(pending > 0 || cap.value !== download.speedLimit ? { speedLimit: cap.value } : {}),
+      ...(connectionsDraft.dirty ? { connections: own.value } : {}),
+      ...(limitDraft.dirty ? { speedLimit: cap.value } : {}),
     };
-    if (Object.keys(patch).length === 0) return;
-    const saves = [connectionsDraft.commit(), limitDraft.commit()];
-    setPending((n) => n + 1);
+    const saves = [connectionsDraft, limitDraft].filter((draft) => draft.dirty).map((draft) => draft.commit());
+    if (saves.length === 0) return;
     void setOptions(download.id, patch).then((saved) => {
-      setPending((n) => n - 1);
       if (!saved) for (const save of saves) save.failed();
     });
   };
