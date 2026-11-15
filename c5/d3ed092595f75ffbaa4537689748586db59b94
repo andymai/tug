@@ -1,0 +1,26 @@
+packaging/io.github.andymai.Tug.metainfo.xml
+  s_50254cc352a543::t_f0a49733117fd8 25-26,30,34,38,42,46,50,53
+.github/workflows/flatpak.yml
+  s_50254cc352a543::t_661b71c43bcc7c 43-68
+  s_50254cc352a543::t_7f335578b74075 96,98,102-106
+CLAUDE.md
+  s_50254cc352a543::t_2c4385921a33ad 80-82
+scripts/test_release_metadata.py
+  s_50254cc352a543::t_23e7508a956740 3,8,17,25-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c5d3ed092595f75ffbaa4537689748586db59b94",
+  "prompts": {},
+  "sessions": {
+    "s_50254cc352a543": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "702f0d1a-5375-403f-80e1-1c607d206e63",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
