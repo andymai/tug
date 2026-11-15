@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.1](https://github.com/andymai/tug/compare/v0.44.0...v0.44.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **packaging:** screenshots that reach the store ([#181](https://github.com/andymai/tug/issues/181)) ([9bb71f9](https://github.com/andymai/tug/commit/9bb71f98123ad868e2318d87586793bd62aa8c1a))
+
 ## [0.44.0](https://github.com/andymai/tug/compare/v0.43.1...v0.44.0) (2026-11-14)
 
 
