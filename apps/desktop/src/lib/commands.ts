@@ -1,4 +1,5 @@
 import {
+  AppWindow,
   ArrowDown,
   ArrowUp,
   Bookmark,
@@ -237,7 +238,7 @@ export function commands(store: DownloadsStore): Command[] {
     );
   }
   if (selected) {
-    const { id } = selected;
+    const { id, file } = selected;
     if (selected.state === "queued") {
       list.push(
         { id: "start-next", title: "Start next", group: "Selected download", icon: ListStart, run: () => void state.startNext(id) },
@@ -278,6 +279,7 @@ export function commands(store: DownloadsStore): Command[] {
         keys: KEYS.open,
         run: () => void state.openFile(id),
       });
+      list.push({ id: "open-with", title: "Open with…", group: "Selected download", icon: AppWindow, run: () => void state.openWith(id) });
     }
     list.push(
       { id: "folder", title: "Open folder", group: "Selected download", icon: FolderOpen, run: () => void state.showInFolder(id) },
@@ -306,6 +308,21 @@ export function commands(store: DownloadsStore): Command[] {
           });
         },
       },
+      ...(file === null
+        ? []
+        : [
+            {
+              id: "copy-path",
+              title: "Copy file path",
+              group: "Selected download" as const,
+              icon: Copy,
+              run: () => {
+                navigator.clipboard.writeText(file).catch(() => {
+                  state.notify("couldn't copy the file path");
+                });
+              },
+            },
+          ]),
       {
         id: "remove",
         title: "Remove…",

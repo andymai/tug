@@ -246,6 +246,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     return download;
   };
 
+  // As finished_file in Rust.
+  const finished = (download: Download) => {
+    if (download.state !== "done") throw new BackendError("invalid", `${download.name} isn't finished yet`);
+  };
+
   const addNow = (link: string, dir?: string): Download => {
     let url: URL;
     try {
@@ -620,8 +625,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       }),
     openFile: (id) =>
       attempt(() => {
-        const download = find(id);
-        if (download.state !== "done") throw new BackendError("invalid", `${download.name} isn't finished yet`);
+        finished(find(id));
+      }),
+    openWith: (id) =>
+      attempt(() => {
+        finished(find(id));
       }),
     events: (id) =>
       attempt(() => {

@@ -1532,6 +1532,43 @@ pub async fn open_download<R: tauri::Runtime>(
     .await
 }
 
+// The desktop's own chooser asks which app opens the file; Escape there is no error.
+#[tauri::command]
+pub async fn open_file_with(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<(), CommandError> {
+    let download = state.library.get(DownloadId::from(id))?;
+    let path = finished_file(&download)?.to_path_buf();
+    let file = off_window(move || {
+        std::fs::File::open(&path).map_err(|e| CommandError {
+            kind: ErrorKind::NotFound,
+            message: format!("couldn't open {}: {e}", path.display()),
+        })
+    })
+    .await?;
+    open_with_chooser(&file).await
+}
+
+async fn open_with_chooser(file: &std::fs::File) -> Result<(), CommandError> {
+    use ashpd::desktop::open_uri::OpenFileRequest;
+    use std::os::fd::AsFd;
+
+    let failed = |e: &ashpd::Error| CommandError {
+        kind: ErrorKind::Internal,
+        message: format!("the app chooser failed: {e}"),
+    };
+    let request = OpenFileRequest::default()
+        .ask(true)
+        .send_file(&file.as_fd())
+        .await
+        .map_err(|e| failed(&e))?;
+    match request.response() {
+        Ok(()) | Err(ashpd::Error::Response(ashpd::desktop::ResponseError::Cancelled)) => Ok(()),
+        Err(e) => Err(failed(&e)),
+    }
+}
+
 #[tauri::command]
 pub async fn show_in_folder(
     app: AppHandle,

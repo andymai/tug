@@ -1,4 +1,5 @@
 import {
+  AppWindow,
   ArrowDown,
   ArrowUp,
   CirclePause,
@@ -8,12 +9,14 @@ import {
   Eye,
   ExternalLink,
   FolderOpen,
+  Gauge,
   ListChecks,
   ListEnd,
   ListStart,
   ListX,
   type LucideIcon,
   MoveHorizontal,
+  Network,
   Pause,
   Pencil,
   Play,
@@ -25,26 +28,52 @@ import {
 } from "lucide-react";
 
 import type { Download, SavedView } from "../backend/backend";
-import { canPauseAll, canRename, canResumeAll, chosen, type DownloadsState, hasFinished, inView, type MenuOn, VIEWS, type View, visibleItems } from "../state/downloads";
+import {
+  canPauseAll,
+  canRename,
+  canResumeAll,
+  chosen,
+  type DownloadsState,
+  hasFinished,
+  inView,
+  type MenuOn,
+  takesOptions,
+  VIEWS,
+  type View,
+  visibleItems,
+} from "../state/downloads";
 import { CATEGORIES } from "./categories";
 import { type ColumnId, COLUMNS, columnsOf, FIXED, sortOf, sortText } from "./columns";
 import { KEYS } from "./commands";
 import { MB, megabytes } from "./format";
 import { limitInForce } from "./schedule";
 
-export interface MenuEntry {
+interface EntryBase {
   id: string;
   label: string;
   icon?: LucideIcon;
   keys?: readonly string[];
+  // Shown for what it says; it does nothing and the arrows pass it.
+  disabled?: boolean;
+}
+
+interface Action extends EntryBase {
   // A checkbox leaves the menu open, so several can change; a radio closes it.
   check?: { kind: "checkbox" | "radio"; on: boolean };
   // A dialog takes the focus; other entries give it back.
   keepsFocus?: boolean;
-  // Shown for what it says; it does nothing and the arrows pass it.
-  disabled?: boolean;
   run: () => void;
+  sub?: undefined;
 }
+
+interface Parent extends EntryBase {
+  sub: MenuEntry[][];
+  check?: undefined;
+  keepsFocus?: undefined;
+  run?: undefined;
+}
+
+export type MenuEntry = Action | Parent;
 
 export interface MenuModel {
   label: string;
@@ -52,6 +81,18 @@ export interface MenuModel {
 }
 
 export const LIMIT_PRESETS: readonly number[] = [1, 2, 5, 10, 20, 50].map((n) => n * MB);
+export const CONNECTION_PRESETS: readonly number[] = [1, 2, 4, 8, 16, 32];
+
+// A value that isn't a preset joins the list, in order, so its radio can show it.
+function withValue(presets: readonly number[], value: number | null | undefined): readonly number[] {
+  return value === null || value === undefined || presets.includes(value) ? presets : [...presets, value].sort((a, b) => a - b);
+}
+
+// The one value that every item has, or undefined when they differ.
+function shared<T>(values: readonly T[]): T | undefined {
+  const [first] = values;
+  return values.every((value) => value === first) ? first : undefined;
+}
 
 export function limitLabel(bytes: number): string {
   return `${megabytes(bytes)} MB/s`;
@@ -95,7 +136,12 @@ export function rowGroups(list: readonly Download[], state: DownloadsState): Men
   const [first] = list;
   const one = list.length === 1 ? first : undefined;
   const open: MenuEntry[] = [];
-  if (one?.state === "done") open.push({ id: "open", label: "Open", icon: ExternalLink, keys: KEYS.open.label, run: () => void state.openFile(one.id) });
+  if (one?.state === "done") {
+    open.push(
+      { id: "open", label: "Open", icon: ExternalLink, keys: KEYS.open.label, run: () => void state.openFile(one.id) },
+      { id: "open-with", label: "Open with…", icon: AppWindow, run: () => void state.openWith(one.id) },
+    );
+  }
   if (one !== undefined) open.push({ id: "folder", label: "Open folder", icon: FolderOpen, run: () => void state.showInFolder(one.id) });
   if (one !== undefined && canRename(one)) {
     open.push({
@@ -109,16 +155,7 @@ export function rowGroups(list: readonly Download[], state: DownloadsState): Men
       },
     });
   }
-  open.push({
-    id: "copy",
-    label: one === undefined ? "Copy links" : "Copy link",
-    icon: Copy,
-    run: () => {
-      navigator.clipboard.writeText(list.map((item) => item.url).join("\n")).catch(() => {
-        state.notify(one === undefined ? "couldn't copy the links" : "couldn't copy the link");
-      });
-    },
-  });
+  open.push({ id: "copy", label: "Copy", icon: Copy, sub: [copyGroup(list, state)] });
   const act: MenuEntry[] = [];
   if (any("queued")) {
     act.push({ id: "start-next", label: "Start next", icon: ListStart, run: () => void state.moveMany(ids, "first") });
@@ -148,7 +185,64 @@ export function rowGroups(list: readonly Download[], state: DownloadsState): Men
       },
     },
   ];
-  return filled([open, act, remove]);
+  return filled([open, act, optionGroup(list, state), remove]);
+}
+
+function copyGroup(list: readonly Download[], state: DownloadsState): MenuEntry[] {
+  const copy = (id: string, what: string, lines: readonly string[]): MenuEntry => ({
+    id,
+    label: what.charAt(0).toUpperCase() + what.slice(1),
+    run: () => {
+      navigator.clipboard.writeText(lines.join("\n")).catch(() => {
+        state.notify(`couldn't copy the ${what}`);
+      });
+    },
+  });
+  const several = list.length > 1;
+  const group = [copy("copy-link", several ? "links" : "link", list.map((item) => item.url)), copy("copy-name", several ? "file names" : "file name", list.map((item) => item.name))];
+  // A file exists once the download starts writing it.
+  const paths = list.flatMap((item) => (item.file === null ? [] : [item.file]));
+  if (paths.length > 0) group.push(copy("copy-path", paths.length > 1 ? "file paths" : "file path", paths));
+  return group;
+}
+
+// The own limit and connections, as the details panel sets them, for each download that takes them.
+function optionGroup(list: readonly Download[], state: DownloadsState): MenuEntry[] {
+  const own = list.filter(takesOptions);
+  if (own.length === 0) return [];
+  const ids = list.map((item) => item.id);
+  const limit = shared(own.map((item) => item.speedLimit));
+  const connections = shared(own.map((item) => item.connections));
+  const radio = (on: boolean) => ({ kind: "radio" as const, on });
+  const setLimit = (speedLimit: number | null) => () => void state.setOptionsMany(ids, { speedLimit });
+  const setConnections = (count: number | null) => () => void state.setOptionsMany(ids, { connections: count });
+  const tug = state.settings?.connections;
+  return [
+    {
+      id: "speed-limit",
+      label: "Speed limit",
+      icon: Gauge,
+      sub: [
+        [
+          { id: "limit-none", label: "None", check: radio(limit === null), run: setLimit(null) },
+          ...withValue(LIMIT_PRESETS, limit).map((bytes): MenuEntry => ({ id: `limit-${String(bytes)}`, label: limitLabel(bytes), check: radio(limit === bytes), run: setLimit(bytes) })),
+        ],
+      ],
+    },
+    {
+      id: "connections",
+      label: "Connections",
+      icon: Network,
+      sub: [
+        [
+          { id: "connections-tug", label: tug === undefined ? "Tug's setting" : `Tug's setting (${String(tug)})`, check: radio(connections === null), run: setConnections(null) },
+          ...withValue(CONNECTION_PRESETS, connections).map(
+            (count): MenuEntry => ({ id: `connections-${String(count)}`, label: String(count), check: radio(connections === count), run: setConnections(count) }),
+          ),
+        ],
+      ],
+    },
+  ];
 }
 
 function columnGroups(state: DownloadsState, column: ColumnId | null): MenuEntry[][] {
@@ -322,7 +416,7 @@ function statusGroups(state: DownloadsState, at: Date): MenuEntry[][] {
     }
     const now = settings.speedLimit;
     const setLimit = (speedLimit: number | null) => () => void state.savePreference({ speedLimit }, "the speed limit");
-    const presets = now === null || LIMIT_PRESETS.includes(now) ? LIMIT_PRESETS : [...LIMIT_PRESETS, now].sort((a, b) => a - b);
+    const presets = withValue(LIMIT_PRESETS, now);
     limits.push(
       { id: "limit-none", label: "No limit", check: { kind: "radio", on: now === null }, run: setLimit(null) },
       ...presets.map((bytes): MenuEntry => ({ id: `limit-${String(bytes)}`, label: limitLabel(bytes), check: { kind: "radio", on: now === bytes }, run: setLimit(bytes) })),

@@ -18,7 +18,7 @@ import { focusRow } from "../lib/dom";
 import { limitText, type Parsed, parseConnections, parseLimit } from "../lib/options";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
-import { canRename, chosen, modalOpen, single } from "../state/downloads";
+import { canRename, chosen, modalOpen, single, takesOptions } from "../state/downloads";
 import { useDraft } from "../state/draft";
 import { Button } from "./Button";
 import { ConnectionsPanel, FilesPanel, HTTP_TABS, InspectorTabs, LogPanel, PeersPanel, tabIds, TORRENT_TABS, useInspection, useTorrentView } from "./Inspector";
@@ -565,7 +565,7 @@ function Panel({ download }: { download: Download }) {
                 </div>
               ))}
             </dl>
-            {download.state !== "done" && !download.url.startsWith("magnet:") && (
+            {takesOptions(download) && (
               <>
                 <OwnOptions download={download} />
                 <OwnHeaders download={download} />

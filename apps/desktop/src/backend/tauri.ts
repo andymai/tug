@@ -50,6 +50,7 @@ export const tauriBackend: Backend = {
   remove: (id, deleteFile) => call("remove_download", { id, deleteFile }),
   place: (id, place) => call("place_download", { id, place }),
   openFile: (id) => call("open_file", { id }),
+  openWith: (id) => call("open_file_with", { id }),
   showInFolder: (id) => call("show_in_folder", { id }),
   events: (id) => call<DownloadEvent[]>("download_events", { id }),
   inspect: (id) => call<Inspection | null>("inspect_download", { id }),

@@ -149,6 +149,7 @@ export interface DownloadsState {
   resume: (id: number) => Promise<void>;
   startNext: (id: number) => Promise<void>;
   openFile: (id: number) => Promise<void>;
+  openWith: (id: number) => Promise<void>;
   showInFolder: (id: number) => Promise<void>;
   loadHistory: (id: number) => Promise<void>;
   inspect: (id: number) => Promise<void>;
@@ -163,6 +164,8 @@ export interface DownloadsState {
   closeAdd: () => void;
   addLinks: (hrefs: readonly string[], options?: { dir?: string; add?: AddOptions }) => Promise<void>;
   setOptions: (id: number, connections: number | null, speedLimit: number | null) => Promise<boolean>;
+  // Each download that takes options keeps the one that the patch leaves out.
+  setOptionsMany: (ids: readonly number[], patch: OptionsPatch) => Promise<void>;
   // The download whose name the panel edits.
   renaming: number | null;
   startRename: (id: number | null) => void;
@@ -183,6 +186,8 @@ export interface DownloadsState {
 }
 
 export type Overlay = "commands" | "shortcuts" | null;
+
+export type OptionsPatch = Partial<Pick<Download, "connections" | "speedLimit">>;
 
 export type InspectorTab = "overview" | "connections" | "log" | "files" | "peers";
 
@@ -240,11 +245,11 @@ export function createDownloadsStore(backend: Backend) {
     };
 
     // One by one, then one reload, and one notice for what failed.
-    const many = async (order: readonly Download[], verb: string, action: (id: number) => Promise<void>) => {
+    const many = async (order: readonly Download[], verb: string, action: (item: Download) => Promise<void>) => {
       const failed: string[] = [];
       for (const item of order) {
         try {
-          await action(item.id);
+          await action(item);
         } catch (error) {
           failed.push(BackendError.from(error).message);
         }
@@ -261,14 +266,14 @@ export function createDownloadsStore(backend: Backend) {
       const order = list
         .filter((item) => item.state === "downloading" || item.state === "queued")
         .sort((a, b) => waiting(a.state) - waiting(b.state));
-      return many(order, "pause", (id) => backend.pause(id));
+      return many(order, "pause", ({ id }) => backend.pause(id));
     };
 
     const resumeList = (list: readonly Download[], states: readonly Download["state"][]) =>
       many(
         list.filter((item) => states.includes(item.state)),
         "resume",
-        (id) => backend.resume(id),
+        ({ id }) => backend.resume(id),
       );
 
     // One call for the whole library, as the tray's Pause all and Resume all: the
@@ -635,7 +640,7 @@ export function createDownloadsStore(backend: Backend) {
         const waiting = chosenOf(get(), ids)
           .filter((item) => item.state === "queued")
           .sort((a, b) => a.position - b.position);
-        return many(to === "first" ? waiting.reverse() : waiting, "move", (id) => backend.place(id, to));
+        return many(to === "first" ? waiting.reverse() : waiting, "move", ({ id }) => backend.place(id, to));
       },
 
       // Before the target in order, after it in reverse, so the moved keep their order.
@@ -644,7 +649,7 @@ export function createDownloadsStore(backend: Backend) {
           .filter((item) => item.state === "queued" && item.id !== target)
           .sort((a, b) => a.position - b.position);
         const place: Place = after ? { after: target } : { before: target };
-        return many(after ? moving.reverse() : moving, "move", (id) => backend.place(id, place));
+        return many(after ? moving.reverse() : moving, "move", ({ id }) => backend.place(id, place));
       },
 
       moveOne: (id, to) =>
@@ -678,7 +683,7 @@ export function createDownloadsStore(backend: Backend) {
           anchor = null;
           set({ selected: null, marked: [] });
         }
-        await many(order, "remove", (id) => backend.remove(id, deleteFiles));
+        await many(order, "remove", ({ id }) => backend.remove(id, deleteFiles));
       },
 
       setOverlay: (overlay) => {
@@ -783,6 +788,8 @@ export function createDownloadsStore(backend: Backend) {
 
       openFile: (id) => act(() => backend.openFile(id)),
 
+      openWith: (id) => act(() => backend.openWith(id)),
+
       showInFolder: (id) => act(() => backend.showInFolder(id)),
 
       loadHistory: (id) => loadSlot("history", id, () => backend.events(id)),
@@ -875,6 +882,11 @@ export function createDownloadsStore(backend: Backend) {
           return false;
         }
       },
+
+      setOptionsMany: (ids, patch) =>
+        many(chosenOf(get(), ids).filter(takesOptions), "change", async (item) => {
+          await backend.setOptions(item.id, patch.connections === undefined ? item.connections : patch.connections, patch.speedLimit === undefined ? item.speedLimit : patch.speedLimit);
+        }),
 
       loadHeaders: (id) => loadSlot("headers", id, () => backend.headers(id)),
 
@@ -1012,6 +1024,11 @@ export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay" | "ca
 
 // Before it starts it takes a name; after it finishes its file does. A torrent's
 // name is its own.
+// A finished download and a magnet link have no connections or limit of their own.
+export function takesOptions(download: Pick<Download, "url" | "state">): boolean {
+  return download.state !== "done" && !download.url.startsWith("magnet:");
+}
+
 export function canRename(download: Pick<Download, "url" | "file" | "state">): boolean {
   if (download.url.startsWith("magnet:")) return false;
   return download.state === "done" ? download.file !== null : download.file === null && download.state !== "downloading";

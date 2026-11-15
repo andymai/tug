@@ -80,6 +80,8 @@ export interface Backend {
   remove(id: number, deleteFile: boolean): Promise<void>;
   place(id: number, place: Place): Promise<void>;
   openFile(id: number): Promise<void>;
+  // The desktop asks which app opens the file; a cancel is no error.
+  openWith(id: number): Promise<void>;
   showInFolder(id: number): Promise<void>;
   events(id: number): Promise<DownloadEvent[]>;
   // A running download's segments, connections, server and engine log, or the last ones in this session.
