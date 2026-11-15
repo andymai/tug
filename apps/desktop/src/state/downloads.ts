@@ -158,6 +158,8 @@ export interface DownloadsState {
   chooseFiles: (id: number, files: number[]) => Promise<void>;
   setInspectorTab: (tab: InspectorTab) => void;
   notify: (message: string) => void;
+  // One line for each; what names them in the notice when the copy fails.
+  copy: (lines: readonly string[], what: string) => void;
   dismissNotice: () => void;
   openAdd: (text?: string) => void;
   setAddText: (text: string) => void;
@@ -245,6 +247,9 @@ export function createDownloadsStore(backend: Backend) {
     };
 
     // One by one, then one reload, and one notice for what failed.
+    // One change of options at a time, so each reads the values that the last one saved.
+    let tuning: Promise<void> = Promise.resolve();
+
     const many = async (order: readonly Download[], verb: string, action: (item: Download) => Promise<void>) => {
       const failed: string[] = [];
       for (const item of order) {
@@ -815,6 +820,12 @@ export function createDownloadsStore(backend: Backend) {
         set({ notice: message });
       },
 
+      copy: (lines, what) => {
+        navigator.clipboard.writeText(lines.join("\n")).catch(() => {
+          set({ notice: `couldn't copy the ${what}` });
+        });
+      },
+
       dismissNotice: () => {
         set({ notice: null });
       },
@@ -883,10 +894,15 @@ export function createDownloadsStore(backend: Backend) {
         }
       },
 
-      setOptionsMany: (ids, patch) =>
-        many(chosenOf(get(), ids).filter(takesOptions), "change", async (item) => {
-          await backend.setOptions(item.id, patch.connections === undefined ? item.connections : patch.connections, patch.speedLimit === undefined ? item.speedLimit : patch.speedLimit);
-        }),
+      setOptionsMany: (ids, patch) => {
+        const next = tuning.then(() =>
+          many(chosenOf(get(), ids).filter(takesOptions), "change", async (item) => {
+            await backend.setOptions(item.id, patch.connections === undefined ? item.connections : patch.connections, patch.speedLimit === undefined ? item.speedLimit : patch.speedLimit);
+          }),
+        );
+        tuning = next.catch(() => undefined);
+        return next;
+      },
 
       loadHeaders: (id) => loadSlot("headers", id, () => backend.headers(id)),
 
@@ -1022,13 +1038,13 @@ export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay" | "ca
   return state.adding.open || state.overlay !== null || state.captures.length > 0 || state.removing !== null || state.menu !== null;
 }
 
-// Before it starts it takes a name; after it finishes its file does. A torrent's
-// name is its own.
 // A finished download and a magnet link have no connections or limit of their own.
 export function takesOptions(download: Pick<Download, "url" | "state">): boolean {
   return download.state !== "done" && !download.url.startsWith("magnet:");
 }
 
+// Before it starts it takes a name; after it finishes its file does. A torrent's
+// name is its own.
 export function canRename(download: Pick<Download, "url" | "file" | "state">): boolean {
   if (download.url.startsWith("magnet:")) return false;
   return download.state === "done" ? download.file !== null : download.file === null && download.state !== "downloading";

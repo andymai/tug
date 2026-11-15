@@ -1540,17 +1540,33 @@ pub async fn open_file_with(
 ) -> Result<(), CommandError> {
     let download = state.library.get(DownloadId::from(id))?;
     let path = finished_file(&download)?.to_path_buf();
-    let file = off_window(move || {
-        std::fs::File::open(&path).map_err(|e| CommandError {
-            kind: ErrorKind::NotFound,
-            message: format!("couldn't open {}: {e}", path.display()),
-        })
-    })
-    .await?;
-    open_with_chooser(&file).await
+    let (file, writable) = off_window(move || open_for_app(&path)).await?;
+    open_with_chooser(&file, writable).await
 }
 
-async fn open_with_chooser(file: &std::fs::File) -> Result<(), CommandError> {
+// The portal lets a sandboxed app write to the file only through a writable
+// descriptor. A file that Tug can only read goes to the app read-only.
+fn open_for_app(path: &Path) -> Result<(std::fs::File, bool), CommandError> {
+    if let Ok(file) = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+    {
+        return Ok((file, true));
+    }
+    std::fs::File::open(path)
+        .map(|file| (file, false))
+        .map_err(|e| CommandError {
+            kind: if e.kind() == std::io::ErrorKind::NotFound {
+                ErrorKind::NotFound
+            } else {
+                ErrorKind::Internal
+            },
+            message: format!("couldn't open {}: {e}", path.display()),
+        })
+}
+
+async fn open_with_chooser(file: &std::fs::File, writable: bool) -> Result<(), CommandError> {
     use ashpd::desktop::open_uri::OpenFileRequest;
     use std::os::fd::AsFd;
 
@@ -1560,6 +1576,7 @@ async fn open_with_chooser(file: &std::fs::File) -> Result<(), CommandError> {
     };
     let request = OpenFileRequest::default()
         .ask(true)
+        .writable(writable)
         .send_file(&file.as_fd())
         .await
         .map_err(|e| failed(&e))?;
@@ -1634,6 +1651,40 @@ mod tests {
             speed_limit: None,
             own_name: None,
         }
+    }
+
+    #[test]
+    fn an_app_gets_the_file_writable_when_tug_can_write_it() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let mine = dir.path().join("photo.jpg");
+        std::fs::write(&mine, b"jpeg").unwrap();
+        assert!(open_for_app(&mine).unwrap().1);
+
+        std::fs::set_permissions(&mine, std::fs::Permissions::from_mode(0o444)).unwrap();
+        let (mut file, writable) = open_for_app(&mine).unwrap();
+        assert!(!writable);
+        let mut read = String::new();
+        file.read_to_string(&mut read).unwrap();
+        assert_eq!(read, "jpeg");
+    }
+
+    #[test]
+    fn a_missing_file_is_not_found_and_other_errors_are_internal() {
+        let dir = tempfile::tempdir().unwrap();
+        let gone = open_for_app(&dir.path().join("gone.iso")).unwrap_err();
+        assert_eq!(gone.kind, ErrorKind::NotFound);
+        assert!(
+            gone.message.starts_with("couldn't open "),
+            "{}",
+            gone.message
+        );
+
+        let file = dir.path().join("a.iso");
+        std::fs::write(&file, b"iso").unwrap();
+        let under_a_file = open_for_app(&file.join("b.iso")).unwrap_err();
+        assert_eq!(under_a_file.kind, ErrorKind::Internal);
     }
 
     #[test]

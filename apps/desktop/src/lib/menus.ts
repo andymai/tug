@@ -57,7 +57,7 @@ interface EntryBase {
   disabled?: boolean;
 }
 
-interface Action extends EntryBase {
+export interface Action extends EntryBase {
   // A checkbox leaves the menu open, so several can change; a radio closes it.
   check?: { kind: "checkbox" | "radio"; on: boolean };
   // A dialog takes the focus; other entries give it back.
@@ -67,7 +67,8 @@ interface Action extends EntryBase {
 }
 
 interface Parent extends EntryBase {
-  sub: MenuEntry[][];
+  // One level: a submenu holds no submenus.
+  sub: Action[][];
   check?: undefined;
   keepsFocus?: undefined;
   run?: undefined;
@@ -188,21 +189,32 @@ export function rowGroups(list: readonly Download[], state: DownloadsState): Men
   return filled([open, act, optionGroup(list, state), remove]);
 }
 
-function copyGroup(list: readonly Download[], state: DownloadsState): MenuEntry[] {
-  const copy = (id: string, what: string, lines: readonly string[]): MenuEntry => ({
+function copyGroup(list: readonly Download[], state: DownloadsState): Action[] {
+  const several = list.length > 1;
+  const copy = (id: string, label: string, lines: readonly string[], what: string): Action => ({
     id,
-    label: what.charAt(0).toUpperCase() + what.slice(1),
+    label,
     run: () => {
-      navigator.clipboard.writeText(lines.join("\n")).catch(() => {
-        state.notify(`couldn't copy the ${what}`);
-      });
+      state.copy(lines, what);
     },
   });
-  const several = list.length > 1;
-  const group = [copy("copy-link", several ? "links" : "link", list.map((item) => item.url)), copy("copy-name", several ? "file names" : "file name", list.map((item) => item.name))];
+  const group = [
+    copy(
+      "copy-link",
+      several ? "Links" : "Link",
+      list.map((item) => item.url),
+      several ? "links" : "link",
+    ),
+    copy(
+      "copy-name",
+      several ? "File names" : "File name",
+      list.map((item) => item.name),
+      several ? "file names" : "file name",
+    ),
+  ];
   // A file exists once the download starts writing it.
   const paths = list.flatMap((item) => (item.file === null ? [] : [item.file]));
-  if (paths.length > 0) group.push(copy("copy-path", paths.length > 1 ? "file paths" : "file path", paths));
+  if (paths.length > 0) group.push(copy("copy-path", paths.length > 1 ? "File paths" : "File path", paths, paths.length > 1 ? "file paths" : "file path"));
   return group;
 }
 
@@ -216,7 +228,10 @@ function optionGroup(list: readonly Download[], state: DownloadsState): MenuEntr
   const radio = (on: boolean) => ({ kind: "radio" as const, on });
   const setLimit = (speedLimit: number | null) => () => void state.setOptionsMany(ids, { speedLimit });
   const setConnections = (count: number | null) => () => void state.setOptionsMany(ids, { connections: count });
-  const tug = state.settings?.connections;
+  const { settings } = state;
+  // Tug's limit is for all downloads together, and it holds on top of a download's own.
+  const tugLimit = settings === null ? "" : ` (${settings.speedLimit === null ? "no limit" : limitLabel(settings.speedLimit)})`;
+  const tugConnections = settings === null ? "" : ` (${String(settings.connections)})`;
   return [
     {
       id: "speed-limit",
@@ -224,8 +239,8 @@ function optionGroup(list: readonly Download[], state: DownloadsState): MenuEntr
       icon: Gauge,
       sub: [
         [
-          { id: "limit-none", label: "None", check: radio(limit === null), run: setLimit(null) },
-          ...withValue(LIMIT_PRESETS, limit).map((bytes): MenuEntry => ({ id: `limit-${String(bytes)}`, label: limitLabel(bytes), check: radio(limit === bytes), run: setLimit(bytes) })),
+          { id: "limit-tug", label: `Tug's setting${tugLimit}`, check: radio(limit === null), run: setLimit(null) },
+          ...withValue(LIMIT_PRESETS, limit).map((bytes): Action => ({ id: `limit-${String(bytes)}`, label: limitLabel(bytes), check: radio(limit === bytes), run: setLimit(bytes) })),
         ],
       ],
     },
@@ -235,9 +250,9 @@ function optionGroup(list: readonly Download[], state: DownloadsState): MenuEntr
       icon: Network,
       sub: [
         [
-          { id: "connections-tug", label: tug === undefined ? "Tug's setting" : `Tug's setting (${String(tug)})`, check: radio(connections === null), run: setConnections(null) },
+          { id: "connections-tug", label: `Tug's setting${tugConnections}`, check: radio(connections === null), run: setConnections(null) },
           ...withValue(CONNECTION_PRESETS, connections).map(
-            (count): MenuEntry => ({ id: `connections-${String(count)}`, label: String(count), check: radio(connections === count), run: setConnections(count) }),
+            (count): Action => ({ id: `connections-${String(count)}`, label: String(count), check: radio(connections === count), run: setConnections(count) }),
           ),
         ],
       ],

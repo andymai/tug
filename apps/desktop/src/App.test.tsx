@@ -1461,6 +1461,10 @@ describe("selection", () => {
     await user.keyboard("{Control>}k{/Control}");
     let group = within(within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("group", { name: "Selected download" }));
     expect(group.getByRole("option", { name: "Open with…" })).toBeInTheDocument();
+    await user.click(group.getByRole("option", { name: "Copy file name" }));
+    expect(await navigator.clipboard.readText()).toBe("noto-fonts-2026.11.zip");
+    await user.keyboard("{Control>}k{/Control}");
+    group = within(within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("group", { name: "Selected download" }));
     await user.click(group.getByRole("option", { name: "Copy file path" }));
     expect(await navigator.clipboard.readText()).toBe("/home/you/Downloads/Fonts/noto-fonts-2026.11.zip");
     await user.keyboard("{Control>}k{/Control}");
@@ -1981,7 +1985,7 @@ describe("menus", () => {
     const { user } = open();
     await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
     await user.keyboard("{Shift>}{F10}{/Shift}{End}{ArrowUp}{ArrowUp}{ArrowRight}");
-    expect(screen.getByRole("menuitemradio", { name: "None" })).toHaveFocus();
+    expect(screen.getByRole("menuitemradio", { name: "Tug's setting (no limit)" })).toHaveFocus();
     await user.hover(screen.getByRole("menuitem", { name: "Pause" }));
     await waitFor(() => {
       expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
@@ -2039,7 +2043,7 @@ describe("menus", () => {
     fireEvent.click(rowOf("blender-5.1-linux-x64.tar.xz"), { ctrlKey: true });
     fireEvent.click(rowOf("noto-fonts-2026.11.zip"), { ctrlKey: true });
 
-    expect(await menuOn("fedora-kde-44-x86_64.iso", "Speed limit")).toEqual(["✓ None", "1 MB/s", "2 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"]);
+    expect(await menuOn("fedora-kde-44-x86_64.iso", "Speed limit")).toEqual(["✓ Tug's setting (no limit)", "1 MB/s", "2 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"]);
     await user.click(screen.getByRole("menuitemradio", { name: "5 MB/s" }));
     await waitFor(() => {
       expect(own("blender-5.1-linux-x64.tar.xz")).toEqual({ connections: null, speedLimit: 5 * MB });
@@ -2059,11 +2063,59 @@ describe("menus", () => {
       await backend.setOptions(fedora, 4, 3.5 * MB);
       await store.getState().reload();
     });
-    expect(await menuOn("fedora-kde-44-x86_64.iso", "Speed limit"), "they differ, so none is ticked").toEqual(["None", "1 MB/s", "2 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"]);
+    expect(await menuOn("fedora-kde-44-x86_64.iso", "Speed limit"), "they differ, so none is ticked").toEqual(["Tug's setting (no limit)", "1 MB/s", "2 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"]);
     await user.keyboard("{Escape}");
     await user.keyboard("{Escape}");
     await user.click(rowOf("fedora-kde-44-x86_64.iso"));
-    expect(await menuOn("fedora-kde-44-x86_64.iso", "Speed limit")).toEqual(["None", "1 MB/s", "2 MB/s", "✓ 3.5 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"]);
+    expect(await menuOn("fedora-kde-44-x86_64.iso", "Speed limit")).toEqual(["Tug's setting (no limit)", "1 MB/s", "2 MB/s", "✓ 3.5 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"]);
+  });
+
+  it("keeps the first change of options when a second one comes before it is saved", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((done) => {
+      release = done;
+    });
+    const store = createDownloadsStore({
+      ...backend,
+      setOptions: async (id, connections, speedLimit) => {
+        await held;
+        return backend.setOptions(id, connections, speedLimit);
+      },
+    });
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    fireEvent.click(rowOf("blender-5.1-linux-x64.tar.xz"), { ctrlKey: true });
+    const choose = async (sub: string, value: string) => {
+      fireEvent.contextMenu(rowOf("fedora-kde-44-x86_64.iso"), { clientX: 300, clientY: 200 });
+      await user.hover(screen.getByRole("menuitem", { name: sub }));
+      await user.click(screen.getByRole("menuitemradio", { name: value }));
+    };
+    await choose("Speed limit", "5 MB/s");
+    await choose("Connections", "4");
+    release();
+    const own = (name: string) => {
+      const item = store.getState().items.find((d) => d.name === name);
+      return { connections: item?.connections, speedLimit: item?.speedLimit };
+    };
+    await waitFor(() => {
+      expect(own("blender-5.1-linux-x64.tar.xz")).toEqual({ connections: 4, speedLimit: 5 * MB });
+    });
+    expect(own("fedora-kde-44-x86_64.iso")).toEqual({ connections: 4, speedLimit: 5 * MB });
+  });
+
+  it("closes a submenu that the pointer opened when the keys move on", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    const limit = screen.getByRole("menuitem", { name: "Speed limit" });
+    await user.hover(limit);
+    expect(limit).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{ArrowDown}");
+    expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
+    expect(limit).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("menuitem", { name: "Copy" })).toHaveFocus();
   });
 
   it("asks the desktop which app opens a finished file, and says when it can't", async () => {

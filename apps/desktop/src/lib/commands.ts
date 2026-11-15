@@ -208,9 +208,10 @@ export function commands(store: DownloadsStore): Command[] {
         group,
         icon: Copy,
         run: () => {
-          navigator.clipboard.writeText(many.map((item) => item.url).join("\n")).catch(() => {
-            state.notify("couldn't copy the links");
-          });
+          state.copy(
+            many.map((item) => item.url),
+            "links",
+          );
         },
       },
       {
@@ -303,9 +304,16 @@ export function commands(store: DownloadsStore): Command[] {
         group: "Selected download",
         icon: Copy,
         run: () => {
-          navigator.clipboard.writeText(selected.url).catch(() => {
-            state.notify("couldn't copy the link");
-          });
+          state.copy([selected.url], "link");
+        },
+      },
+      {
+        id: "copy-name",
+        title: "Copy file name",
+        group: "Selected download",
+        icon: Copy,
+        run: () => {
+          state.copy([selected.name], "file name");
         },
       },
       ...(file === null
@@ -317,9 +325,7 @@ export function commands(store: DownloadsStore): Command[] {
               group: "Selected download" as const,
               icon: Copy,
               run: () => {
-                navigator.clipboard.writeText(file).catch(() => {
-                  state.notify("couldn't copy the file path");
-                });
+                state.copy([file], "file path");
               },
             },
           ]),

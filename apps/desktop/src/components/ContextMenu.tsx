@@ -119,7 +119,8 @@ function Open({ menu }: { menu: Menu }) {
   const subId = useId();
   const [subPlace, setSubPlace] = useState({ x: 0, y: 0 });
   const timer = useRef<number | undefined>(undefined);
-  const subGroups = sub === null ? undefined : groups.flat().find((entry) => entry.id === sub.id)?.sub;
+  const subEntry = sub === null ? undefined : groups.flat().find((entry) => entry.id === sub.id);
+  const subGroups = subEntry?.sub;
   const subShape = shapeOf(subGroups ?? []);
   // An entry that goes takes its submenu with it, so a later one with its id starts closed.
   if (sub !== null && subGroups === undefined) setSub(null);
@@ -245,6 +246,8 @@ function Open({ menu }: { menu: Menu }) {
     } else if (to !== undefined) {
       event.preventDefault();
       event.stopPropagation();
+      // A submenu that the pointer opened goes when the keys move on.
+      if (sub !== null) showSub(null);
       items[to]?.focus();
     } else if (parent !== undefined) {
       event.preventDefault();
@@ -297,7 +300,7 @@ function Open({ menu }: { menu: Menu }) {
           ref={subBox}
           id={subId}
           role="menu"
-          aria-label={groups.flat().find((entry) => entry.id === sub.id)?.label}
+          aria-label={subEntry?.label}
           tabIndex={-1}
           onKeyDown={onSubKeyDown}
           onMouseEnter={() => {
