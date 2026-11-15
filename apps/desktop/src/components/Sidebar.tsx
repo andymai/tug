@@ -2,7 +2,8 @@ import { ArrowDown, Bookmark, Check, CircleAlert, Layers, type LucideIcon, Searc
 import { useEffect } from "react";
 import { useShallow } from "zustand/shallow";
 
-import icon from "../../../../brand/svg/icon-22.svg";
+import icon22 from "../../../../brand/svg/icon-22.svg";
+import icon from "../../../../brand/svg/icon.svg";
 import type { SavedView } from "../backend/backend";
 import { CATEGORIES } from "../lib/categories";
 import { PALETTE_KEYS } from "../lib/commands";
@@ -103,7 +104,12 @@ export function Sidebar() {
   return (
     <aside className="flex w-(--sidebar-width) shrink-0 flex-col border-r border-line bg-bg">
       <div data-tauri-drag-region className="flex h-12 items-center gap-2 px-4">
-        <img data-tauri-drag-region draggable={false} src={icon} alt="" width={22} height={22} />
+        {/* icon-22.svg puts its edges on whole pixels only at 1x; at other scales the master is
+            sharper. A media query picks the file, because srcset may reuse whichever one is cached. */}
+        <picture data-tauri-drag-region>
+          <source media="(max-resolution: 1dppx)" srcSet={icon22} />
+          <img data-tauri-drag-region draggable={false} src={icon} alt="" width={22} height={22} />
+        </picture>
         <span data-tauri-drag-region className="text-title text-ink">
           Tug
         </span>

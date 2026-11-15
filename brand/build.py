@@ -2,15 +2,13 @@ import pathlib
 import sys
 
 C = {
-    "harbor950": "#0A1428", "harbor900": "#0E1B33", "harbor800": "#142645",
-    "harbor700": "#1B3259", "harbor600": "#24406F", "harbor500": "#31558F",
-    "harbor300": "#8FA9D6", "harbor200": "#B9CDEE", "harbor100": "#E3EAF6",
-    "signal800": "#A9420F", "signal600": "#E35F1C", "signal500": "#FF7A33", "signal400": "#FF9558",
-    "signal100": "#FFE8DA", "white": "#FFFFFF", "paper": "#F6F8FC",
+    "harbor800": "#142645", "signal800": "#A9420F", "signal600": "#E35F1C", "signal500": "#FF7A33",
+    "white": "#FFFFFF", "paper": "#F6F8FC",
 }
 
-# Units of the 128 px icon. The face and its darker lower edge fill 104 px, the square of
-# Flathub's icon grid, so a store shows Tug at the size of its other apps.
+# Units of the 128 px icon. The face and its darker lower edge fill 12 to 116, the square of
+# Flathub's icon grid to the outer edge of its line, so a store shows Tug at the size of its
+# other apps.
 FACE = (12, 12, 116, 108)
 EDGE = 8
 RADIUS = 24
@@ -43,6 +41,11 @@ SYMBOLIC = {
     22: f'<rect x="4.5" y="3.5" width="12" height="2" rx="1" {LINE}/><path d="M10.5 7V9M10.5 10V12" {CUT}/>'
     f'<path d="M10.5 13.5V17.5M6.5 13.5L10.5 17.5L14.5 13.5" {LINE}/>',
 }
+# The glyph inside the tray's progress ring: smaller than the 22 px symbolic icon, so it fits
+# in the ring, and drawn at this size, so its lines stay one pixel wide on column 10, the ring's.
+RING = f'<path d="M7.5 6.5H13.5M10.5 10.5V15.5M7.5 12.5L10.5 15.5L13.5 12.5" {LINE}/><path d="M10.5 8V9" {CUT}/>'
+RING_CENTER = (10.5, 11)
+RING_RADIUS = 9
 
 # "Tug" in Geist SemiBold (SIL Open Font License), kerned, in font units: cap height 710 above
 # the baseline. Outlines, so GitHub and other pages draw the name without the font.
@@ -110,12 +113,14 @@ def name(color, x, baseline, cap):
     return f'<path transform="translate({x - NAME_BOX[0] * k:g} {baseline:g}) scale({k:g})" fill="{color}" d="{NAME}"/>'
 
 
-def lockup(body, left, right, color):
+def lockup(body, box, color):
+    left, top, right, bottom = box
     cap = (FACE[3] + EDGE - FACE[1]) * 0.52
     baseline = (FACE[1] + FACE[3]) / 2 + cap / 2
+    k = cap / CAP
     x = right + 18
-    width = x + (NAME_BOX[2] - NAME_BOX[0]) * cap / CAP + 2
-    top, bottom = FACE[1], FACE[3] + EDGE
+    top, bottom = min(top, baseline + NAME_BOX[1] * k), max(bottom, baseline + NAME_BOX[3] * k)
+    width = x + (NAME_BOX[2] - NAME_BOX[0]) * k
     return svg(f"{left:g} {top:g} {width - left:g} {bottom - top:g}", body + name(color, x, baseline, cap), label="Tug")
 
 
@@ -129,6 +134,7 @@ def build(out):
         files[f"icon-{px}.svg"] = svg(f"0 0 {px} {px}", hinted(spec), px, px)
     for px, body in SYMBOLIC.items():
         files["symbolic.svg" if px == 16 else f"symbolic-{px}.svg"] = svg(f"0 0 {px} {px}", KDE + f'<g class="ColorScheme-Text">{body}</g>', px, px)
+    files["ring-glyph.svg"] = svg("0 0 22 22", KDE + f'<g class="ColorScheme-Text">{RING}</g>', 22, 22)
     x0, y0, x1, y1 = GLYPH_BOX
     for stem, arrow, handle in (
         ("mark", C["harbor800"], C["signal600"]),
@@ -139,9 +145,10 @@ def build(out):
     n0, n1, n2, n3 = NAME_BOX
     for stem, color in (("wordmark", "currentColor"), ("wordmark-light", C["harbor800"]), ("wordmark-dark", C["paper"])):
         files[f"{stem}.svg"] = svg(f"{n0} {n1} {n2 - n0} {n3 - n1}", f'<path fill="{color}" d="{NAME}"/>', label="Tug")
-    files["lockup.svg"] = lockup(icon(), FACE[0], FACE[2], C["harbor800"])
-    files["lockup-dark.svg"] = lockup(icon(), FACE[0], FACE[2], C["paper"])
-    files["lockup-mono.svg"] = lockup(glyph("currentColor", "currentColor"), GLYPH_BOX[0], GLYPH_BOX[2], "currentColor")
+    plate = (FACE[0], FACE[1], FACE[2], FACE[3] + EDGE)
+    files["lockup.svg"] = lockup(icon(), plate, C["harbor800"])
+    files["lockup-dark.svg"] = lockup(icon(), plate, C["paper"])
+    files["lockup-mono.svg"] = lockup(glyph("currentColor", "currentColor"), GLYPH_BOX, "currentColor")
     for file, text in files.items():
         (out / file).write_text(text)
     return files
