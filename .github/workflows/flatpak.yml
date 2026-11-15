@@ -40,6 +40,32 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.tag || github.ref }}
+      # Stores show the screenshots of the catalog that appstreamcli compose writes in the
+      # build. It downloads each one, and drops one that it can't get without an error.
+      # A release needs them all, and the files of a new tag can take minutes to answer.
+      # A pull request can name a tag or a file that does not exist yet.
+      - name: Count the screenshots that the build can download
+        id: screenshots
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          urls=$(grep -o 'https://raw.githubusercontent.com/[^<]*' packaging/io.github.andymai.Tug.metainfo.xml) ||
+            { echo "::error::the MetaInfo names no screenshot"; exit 1; }
+          retry=(--retry 3)
+          [ -z "$TAG" ] || retry=(--retry 20 --retry-delay 30 --retry-all-errors)
+          live=0
+          while read -r url; do
+            if curl -sfL "${retry[@]}" -o /dev/null "$url"; then
+              live=$((live + 1))
+            elif [ -n "$TAG" ]; then
+              echo "::error::$url does not download"
+              exit 1
+            else
+              echo "::notice::$url does not download, so the catalog of this build leaves out its screenshot"
+            fi
+          done <<< "$urls"
+          echo "live=$live" >> "$GITHUB_OUTPUT"
       - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
         with:
           bundle: io.github.andymai.Tug.flatpak
@@ -67,21 +93,17 @@ jobs:
           dbus-run-session -- timeout 20 flatpak run io.github.andymai.Tug || status=$?
           [ "$status" -eq 124 ] || { echo "::error::the Flatpak exited early with $status"; exit 1; }
           test -f "$HOME/.var/app/io.github.andymai.Tug/data/io.github.andymai.Tug/tug.db"
-      # Stores show the screenshots of the catalog that appstreamcli compose wrote. It
-      # downloads each one, and drops one that it can't get without an error. A pull
-      # request can add a screenshot that main doesn't have yet, so only a release fails.
-      - name: Check that the catalog keeps the screenshots
+      - name: Check that the catalog keeps each screenshot that downloaded
         env:
-          TAG: ${{ inputs.tag }}
+          WANT: ${{ steps.screenshots.outputs.live }}
         run: |
           set -euo pipefail
           catalog=$(flatpak info --user --show-location io.github.andymai.Tug)/files/share/app-info/xmls/io.github.andymai.Tug.xml.gz
-          want=$(grep -c '<screenshot[ >]' packaging/io.github.andymai.Tug.metainfo.xml)
-          have=$(zcat "$catalog" | grep -c '<screenshot[ >]') || true
-          [ "$have" -ne "$want" ] || exit 0
-          message="the catalog has $have of the MetaInfo's $want screenshots"
-          if [ -n "$TAG" ]; then echo "::error::$message"; exit 1; fi
-          echo "::warning::$message"
+          [ -f "$catalog" ] || { echo "::error::the Flatpak has no catalog at $catalog"; exit 1; }
+          xml=$(zcat "$catalog")
+          have=$(grep -c '<screenshot[ >]' <<< "$xml" || true)
+          [ "$have" -eq "$WANT" ] ||
+            { echo "::error::the catalog has $have screenshots, and $WANT downloaded before the build"; exit 1; }
 
   # Each release saves a Flatpak cache of about 800 MB under a key of its own, and GitHub
   # keeps 10 GB of caches for the repository: older ones would push out CI's Rust caches.
