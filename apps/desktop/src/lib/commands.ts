@@ -1,4 +1,5 @@
 import {
+  AppWindow,
   ArrowDown,
   ArrowUp,
   Bookmark,
@@ -207,9 +208,10 @@ export function commands(store: DownloadsStore): Command[] {
         group,
         icon: Copy,
         run: () => {
-          navigator.clipboard.writeText(many.map((item) => item.url).join("\n")).catch(() => {
-            state.notify("couldn't copy the links");
-          });
+          state.copy(
+            many.map((item) => item.url),
+            "links",
+          );
         },
       },
       {
@@ -237,7 +239,7 @@ export function commands(store: DownloadsStore): Command[] {
     );
   }
   if (selected) {
-    const { id } = selected;
+    const { id, file } = selected;
     if (selected.state === "queued") {
       list.push(
         { id: "start-next", title: "Start next", group: "Selected download", icon: ListStart, run: () => void state.startNext(id) },
@@ -278,6 +280,7 @@ export function commands(store: DownloadsStore): Command[] {
         keys: KEYS.open,
         run: () => void state.openFile(id),
       });
+      list.push({ id: "open-with", title: "Open with…", group: "Selected download", icon: AppWindow, run: () => void state.openWith(id) });
     }
     list.push(
       { id: "folder", title: "Open folder", group: "Selected download", icon: FolderOpen, run: () => void state.showInFolder(id) },
@@ -301,11 +304,31 @@ export function commands(store: DownloadsStore): Command[] {
         group: "Selected download",
         icon: Copy,
         run: () => {
-          navigator.clipboard.writeText(selected.url).catch(() => {
-            state.notify("couldn't copy the link");
-          });
+          state.copy([selected.url], "link");
         },
       },
+      {
+        id: "copy-name",
+        title: "Copy file name",
+        group: "Selected download",
+        icon: Copy,
+        run: () => {
+          state.copy([selected.name], "file name");
+        },
+      },
+      ...(file === null
+        ? []
+        : [
+            {
+              id: "copy-path",
+              title: "Copy file path",
+              group: "Selected download" as const,
+              icon: Copy,
+              run: () => {
+                state.copy([file], "file path");
+              },
+            },
+          ]),
       {
         id: "remove",
         title: "Remove…",

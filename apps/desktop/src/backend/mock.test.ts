@@ -154,6 +154,8 @@ describe("mock backend", () => {
     });
     await expect(backend.openFile(1)).resolves.toBeUndefined();
     await expect(backend.openFile(2)).rejects.toMatchObject({ kind: "invalid", message: "half.iso isn't finished yet" });
+    await expect(backend.openWith(1)).resolves.toBeUndefined();
+    await expect(backend.openWith(2)).rejects.toMatchObject({ kind: "invalid", message: "half.iso isn't finished yet" });
     await expect(backend.showInFolder(2)).resolves.toBeUndefined();
     await expect(backend.showInFolder(9)).rejects.toMatchObject({ kind: "notFound" });
   });

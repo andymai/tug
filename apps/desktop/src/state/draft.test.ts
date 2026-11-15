@@ -85,6 +85,24 @@ describe("useDraft", () => {
     expect(result.current.text).toBe("second answer");
   });
 
+  it("is dirty from an edit until its save starts, and again when that save fails", () => {
+    const { result } = renderHook(() => useDraft("8"));
+    expect(result.current.dirty).toBe(false);
+    act(() => {
+      result.current.edit("4");
+    });
+    expect(result.current.dirty).toBe(true);
+    let save = idle;
+    act(() => {
+      save = result.current.commit();
+    });
+    expect(result.current.dirty).toBe(false);
+    act(() => {
+      save.failed();
+    });
+    expect(result.current.dirty, "a failed save sends again").toBe(true);
+  });
+
   it("brings back the sent text when a failed save's value showed early and rolled back", () => {
     const { result, rerender } = renderHook(({ saved }) => useDraft(saved), { initialProps: { saved: "10" } });
     let save = idle;

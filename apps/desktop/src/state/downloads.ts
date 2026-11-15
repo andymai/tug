@@ -149,6 +149,7 @@ export interface DownloadsState {
   resume: (id: number) => Promise<void>;
   startNext: (id: number) => Promise<void>;
   openFile: (id: number) => Promise<void>;
+  openWith: (id: number) => Promise<void>;
   showInFolder: (id: number) => Promise<void>;
   loadHistory: (id: number) => Promise<void>;
   inspect: (id: number) => Promise<void>;
@@ -157,12 +158,17 @@ export interface DownloadsState {
   chooseFiles: (id: number, files: number[]) => Promise<void>;
   setInspectorTab: (tab: InspectorTab) => void;
   notify: (message: string) => void;
+  // One line for each; what names them in the notice when the copy fails.
+  copy: (lines: readonly string[], what: string) => void;
   dismissNotice: () => void;
   openAdd: (text?: string) => void;
   setAddText: (text: string) => void;
   closeAdd: () => void;
   addLinks: (hrefs: readonly string[], options?: { dir?: string; add?: AddOptions }) => Promise<void>;
-  setOptions: (id: number, connections: number | null, speedLimit: number | null) => Promise<boolean>;
+  // A download keeps each option that the patch leaves out; true when it saved.
+  setOptions: (id: number, patch: OptionsPatch) => Promise<boolean>;
+  // As setOptions, for each of these downloads that takes options.
+  setOptionsMany: (ids: readonly number[], patch: OptionsPatch) => Promise<void>;
   // The download whose name the panel edits.
   renaming: number | null;
   startRename: (id: number | null) => void;
@@ -183,6 +189,8 @@ export interface DownloadsState {
 }
 
 export type Overlay = "commands" | "shortcuts" | null;
+
+export type OptionsPatch = Partial<Pick<Download, "connections" | "speedLimit">>;
 
 export type InspectorTab = "overview" | "connections" | "log" | "files" | "peers";
 
@@ -240,11 +248,21 @@ export function createDownloadsStore(backend: Backend) {
     };
 
     // One by one, then one reload, and one notice for what failed.
-    const many = async (order: readonly Download[], verb: string, action: (id: number) => Promise<void>) => {
+    // One change of options at a time, so each reads the values that the last one saved.
+    let tuning: Promise<unknown> = Promise.resolve();
+    const tune = <T>(change: () => Promise<T>): Promise<T> => {
+      const next = tuning.then(change);
+      tuning = next.catch(() => undefined);
+      return next;
+    };
+    const withPatch = (item: Pick<Download, "connections" | "speedLimit">, patch: OptionsPatch) =>
+      [patch.connections === undefined ? item.connections : patch.connections, patch.speedLimit === undefined ? item.speedLimit : patch.speedLimit] as const;
+
+    const many = async (order: readonly Download[], verb: string, action: (item: Download) => Promise<void>) => {
       const failed: string[] = [];
       for (const item of order) {
         try {
-          await action(item.id);
+          await action(item);
         } catch (error) {
           failed.push(BackendError.from(error).message);
         }
@@ -261,14 +279,14 @@ export function createDownloadsStore(backend: Backend) {
       const order = list
         .filter((item) => item.state === "downloading" || item.state === "queued")
         .sort((a, b) => waiting(a.state) - waiting(b.state));
-      return many(order, "pause", (id) => backend.pause(id));
+      return many(order, "pause", ({ id }) => backend.pause(id));
     };
 
     const resumeList = (list: readonly Download[], states: readonly Download["state"][]) =>
       many(
         list.filter((item) => states.includes(item.state)),
         "resume",
-        (id) => backend.resume(id),
+        ({ id }) => backend.resume(id),
       );
 
     // One call for the whole library, as the tray's Pause all and Resume all: the
@@ -635,7 +653,7 @@ export function createDownloadsStore(backend: Backend) {
         const waiting = chosenOf(get(), ids)
           .filter((item) => item.state === "queued")
           .sort((a, b) => a.position - b.position);
-        return many(to === "first" ? waiting.reverse() : waiting, "move", (id) => backend.place(id, to));
+        return many(to === "first" ? waiting.reverse() : waiting, "move", ({ id }) => backend.place(id, to));
       },
 
       // Before the target in order, after it in reverse, so the moved keep their order.
@@ -644,7 +662,7 @@ export function createDownloadsStore(backend: Backend) {
           .filter((item) => item.state === "queued" && item.id !== target)
           .sort((a, b) => a.position - b.position);
         const place: Place = after ? { after: target } : { before: target };
-        return many(after ? moving.reverse() : moving, "move", (id) => backend.place(id, place));
+        return many(after ? moving.reverse() : moving, "move", ({ id }) => backend.place(id, place));
       },
 
       moveOne: (id, to) =>
@@ -678,7 +696,7 @@ export function createDownloadsStore(backend: Backend) {
           anchor = null;
           set({ selected: null, marked: [] });
         }
-        await many(order, "remove", (id) => backend.remove(id, deleteFiles));
+        await many(order, "remove", ({ id }) => backend.remove(id, deleteFiles));
       },
 
       setOverlay: (overlay) => {
@@ -783,6 +801,8 @@ export function createDownloadsStore(backend: Backend) {
 
       openFile: (id) => act(() => backend.openFile(id)),
 
+      openWith: (id) => act(() => backend.openWith(id)),
+
       showInFolder: (id) => act(() => backend.showInFolder(id)),
 
       loadHistory: (id) => loadSlot("history", id, () => backend.events(id)),
@@ -806,6 +826,12 @@ export function createDownloadsStore(backend: Backend) {
 
       notify: (message) => {
         set({ notice: message });
+      },
+
+      copy: (lines, what) => {
+        navigator.clipboard.writeText(lines.join("\n")).catch(() => {
+          set({ notice: `couldn't copy the ${what}` });
+        });
       },
 
       dismissNotice: () => {
@@ -865,16 +891,31 @@ export function createDownloadsStore(backend: Backend) {
         await get().reload();
       },
 
-      setOptions: async (id, connections, speedLimit) => {
-        try {
-          await backend.setOptions(id, connections, speedLimit);
-          await get().reload();
-          return true;
-        } catch (error) {
-          set({ notice: `couldn't change the download: ${BackendError.from(error).message}` });
-          return false;
-        }
-      },
+      setOptions: (id, patch) =>
+        tune(async () => {
+          const item = get().items.find((other) => other.id === id) ?? { connections: null, speedLimit: null };
+          try {
+            await backend.setOptions(id, ...withPatch(item, patch));
+            await get().reload();
+            return true;
+          } catch (error) {
+            set({ notice: `couldn't change the download: ${BackendError.from(error).message}` });
+            return false;
+          }
+        }),
+
+      // The downloads that the menu showed, even when the view changes before their turn.
+      setOptionsMany: (ids, patch) =>
+        tune(() => {
+          const wanted = new Set(ids);
+          return many(
+            get().items.filter((item) => wanted.has(item.id) && takesOptions(item)),
+            "change",
+            async (item) => {
+              await backend.setOptions(item.id, ...withPatch(item, patch));
+            },
+          );
+        }),
 
       loadHeaders: (id) => loadSlot("headers", id, () => backend.headers(id)),
 
@@ -1008,6 +1049,11 @@ export function countFor(items: readonly Download[], view: View): number {
 
 export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay" | "captures" | "removing" | "menu">): boolean {
   return state.adding.open || state.overlay !== null || state.captures.length > 0 || state.removing !== null || state.menu !== null;
+}
+
+// A finished download and a magnet link have no connections or limit of their own.
+export function takesOptions(download: Pick<Download, "url" | "state">): boolean {
+  return download.state !== "done" && !download.url.startsWith("magnet:");
 }
 
 // Before it starts it takes a name; after it finishes its file does. A torrent's

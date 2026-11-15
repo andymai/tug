@@ -243,6 +243,20 @@ describe("main window", () => {
     await capture(window, "row-menu");
   });
 
+  it("opens a submenu beside the entry that holds it", async () => {
+    const { store, window } = await showcase("fedora-kde-44-x86_64.iso");
+    const fedora = store.getState().items.find((d) => d.name === "fedora-kde-44-x86_64.iso")?.id ?? -1;
+    await act(() => store.getState().setOptions(fedora, { speedLimit: 5 * MB }));
+    act(() => {
+      store.getState().openMenu({ x: 320, y: 130 }, { kind: "rows" });
+    });
+    const entry = within(document.body).getByRole("menuitem", { name: "Speed limit" });
+    act(() => {
+      fireEvent.mouseEnter(entry);
+    });
+    await capture(window, "row-submenu");
+  });
+
   // A right-click a little inside the element, as a pointer would land.
   const rightClick = (selector: string, dx: number, dy: number) => {
     const element = document.querySelector(selector);
