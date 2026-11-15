@@ -293,6 +293,16 @@ jobs:
       - run: scripts/install-data.sh "$RUNNER_TEMP/prefix"
       - run: desktop-file-validate "$RUNNER_TEMP/prefix/share/applications/io.github.andymai.Tug.desktop"
       - run: appstreamcli validate --no-net --explain "$RUNNER_TEMP/prefix/share/metainfo/io.github.andymai.Tug.metainfo.xml"
+      # The Flatpak build downloads each screenshot from main, and validate --no-net asks for none.
+      - name: Check that each screenshot in the MetaInfo is a file in the repository
+        run: |
+          set -euo pipefail
+          grep -o 'https://[^<]*</image>' packaging/io.github.andymai.Tug.metainfo.xml |
+            while read -r url; do
+              url=${url%</image>}
+              file=${url#https://raw.githubusercontent.com/andymai/tug/main/}
+              { [ "$file" != "$url" ] && [ -f "$file" ]; } || { echo "::error::$url is not a file on main"; exit 1; }
+            done
 
   ci-pass:
     name: CI Pass

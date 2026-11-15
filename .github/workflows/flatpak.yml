@@ -67,6 +67,21 @@ jobs:
           dbus-run-session -- timeout 20 flatpak run io.github.andymai.Tug || status=$?
           [ "$status" -eq 124 ] || { echo "::error::the Flatpak exited early with $status"; exit 1; }
           test -f "$HOME/.var/app/io.github.andymai.Tug/data/io.github.andymai.Tug/tug.db"
+      # Stores show the screenshots of the catalog that appstreamcli compose wrote. It
+      # downloads each one, and drops one that it can't get without an error. A pull
+      # request can add a screenshot that main doesn't have yet, so only a release fails.
+      - name: Check that the catalog keeps the screenshots
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          catalog=$(flatpak info --user --show-location io.github.andymai.Tug)/files/share/app-info/xmls/io.github.andymai.Tug.xml.gz
+          want=$(grep -c '<screenshot[ >]' packaging/io.github.andymai.Tug.metainfo.xml)
+          have=$(zcat "$catalog" | grep -c '<screenshot[ >]') || true
+          [ "$have" -ne "$want" ] || exit 0
+          message="the catalog has $have of the MetaInfo's $want screenshots"
+          if [ -n "$TAG" ]; then echo "::error::$message"; exit 1; fi
+          echo "::warning::$message"
 
   # Each release saves a Flatpak cache of about 800 MB under a key of its own, and GitHub
   # keeps 10 GB of caches for the repository: older ones would push out CI's Rust caches.
@@ -146,15 +161,6 @@ jobs:
             { echo "::error::FLATPAK_SIGNING_KEY is not the key in packaging/flatpak/tug-repo.asc"; exit 1; }
       - run: scripts/flatpak-repo.sh bundle/io.github.andymai.Tug.flatpak site https://andymai.github.io/tug
       - run: scripts/flatpak-repo-check.sh site https://andymai.github.io/tug
-      # Stores load the MetaInfo's screenshots from the site, so each URL needs its file.
-      - name: Add the screenshots
-        run: |
-          set -euo pipefail
-          cp -r packaging/screenshots site/
-          grep -o 'https://andymai.github.io/tug/screenshots/[^<]*' packaging/io.github.andymai.Tug.metainfo.xml |
-            while read -r url; do
-              [ -f "site/screenshots/${url##*/}" ] || { echo "::error::$url has no file in packaging/screenshots"; exit 1; }
-            done
       # The last two releases through the scripts, as two releases in a row would go.
       - name: Test an update from one release to the next
         if: ${{ !inputs.tag }}
