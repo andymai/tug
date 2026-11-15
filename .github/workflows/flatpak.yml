@@ -93,6 +93,7 @@ jobs:
           dbus-run-session -- timeout 20 flatpak run io.github.andymai.Tug || status=$?
           [ "$status" -eq 124 ] || { echo "::error::the Flatpak exited early with $status"; exit 1; }
           test -f "$HOME/.var/app/io.github.andymai.Tug/data/io.github.andymai.Tug/tug.db"
+      # A pull request's tag can appear after the count, so its catalog can have more.
       - name: Check that the catalog keeps each screenshot that downloaded
         env:
           WANT: ${{ steps.screenshots.outputs.live }}
@@ -102,7 +103,7 @@ jobs:
           [ -f "$catalog" ] || { echo "::error::the Flatpak has no catalog at $catalog"; exit 1; }
           xml=$(zcat "$catalog")
           have=$(grep -c '<screenshot[ >]' <<< "$xml" || true)
-          [ "$have" -eq "$WANT" ] ||
+          [ "$have" -ge "$WANT" ] ||
             { echo "::error::the catalog has $have screenshots, and $WANT downloaded before the build"; exit 1; }
 
   # Each release saves a Flatpak cache of about 800 MB under a key of its own, and GitHub
