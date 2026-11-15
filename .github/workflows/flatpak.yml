@@ -35,6 +35,12 @@ jobs:
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
       options: --privileged
+      # flatpak-builder updates the SDK that the image has, and Flatpak then renames the old
+      # SDK's folder. On some runner images, Docker's overlay refuses to rename a folder of an
+      # image layer ("Invalid cross-device link"). Docker fills a new volume from the image's
+      # folder, so the renames happen on one plain file system.
+      volumes:
+        - flatpak:/var/lib/flatpak
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -44,6 +50,15 @@ jobs:
       # build. It downloads each one, and drops one that it can't get without an error.
       # A release needs them all, and the files of a new tag can take minutes to answer.
       # A pull request can name a tag or a file that does not exist yet.
+      - name: DIAGNOSTIC
+        run: |
+          grep -E ' (/|/var/lib/flatpak) ' /proc/self/mountinfo | cut -c1-400
+          df -h / /var/lib/flatpak
+          du -sh /var/lib/flatpak
+          flatpak list --columns=application,branch,active | head -12
+          mkdir /etc/exdev-probe-new && mv /etc/exdev-probe-new /etc/exdev-probe-moved && echo "rename of a new folder: ok"
+          mv /etc/xdg /etc/xdg-moved && echo "mv of an image folder: ok"
+          python3 -c 'import os; os.rename("/etc/pki", "/etc/pki-moved"); print("rename of an image folder: ok")' || true
       - name: Count the screenshots that the build can download
         id: screenshots
         env:
