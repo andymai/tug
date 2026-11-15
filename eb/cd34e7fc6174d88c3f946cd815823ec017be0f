@@ -1,0 +1,85 @@
+apps/desktop/src/components/DownloadList.tsx
+  s_8c00190c4734e7::t_6301b595e4aff4 5
+  s_8c00190c4734e7::t_17eb2137442296 100
+brand/export.sh
+  s_8c00190c4734e7::t_8e13457f6a136a 7
+brand/build.py
+  s_8c00190c4734e7::t_6805330a99dcde 117
+  s_8c00190c4734e7::t_ed17c24dfed705 7-9,12-27,29-32,37-39,41-44,47-62,64-74,77,79-82,86-87,90-93,95-105,108-116,118-151
+apps/extension/store/listing.md
+  s_8c00190c4734e7::t_97c4e540c0f9dc 33
+packaging/io.github.andymai.Tug.metainfo.xml
+  s_8c00190c4734e7::t_80ca658cab258f 67-68
+  s_8c00190c4734e7::t_c83a0fde45cb89 30,34,38,42,46,50
+apps/desktop/src-tauri/src/tray.rs
+  s_8c00190c4734e7::t_4d10286cf0c02b 450-454
+  s_8c00190c4734e7::t_4c72a245b72fd6 23-25
+  s_8c00190c4734e7::t_7e9440fe073b45 49
+  s_8c00190c4734e7::t_7a01c1efbb25f2 449
+scripts/test_brand.py
+  s_8c00190c4734e7::t_d80ec210903956 1-111
+  s_8c00190c4734e7::t_ad5e26f9db44da 112-114
+apps/desktop/src/components/Sidebar.tsx
+  s_8c00190c4734e7::t_995bc49e258462 5
+  s_8c00190c4734e7::t_442c724e79e73e 105-109
+CLAUDE.md
+  s_8c00190c4734e7::t_1f7c0fd85a9da0 18
+  s_8c00190c4734e7::t_fa53ea0068f7ff 82
+  s_8c00190c4734e7::t_3801f15177db17 56
+README.md
+  s_8c00190c4734e7::t_81b7fdfe774114 5
+apps/desktop/src/styles/tokens.css
+  s_8c00190c4734e7::t_5a269cabc5cd32 11,13,121,123
+brand/svg/icon-16.svg
+  s_8c00190c4734e7::t_ab6879bb05e630 1
+brand/svg/icon-22.svg
+  s_8c00190c4734e7::t_26a22b51c7a28e 1
+brand/svg/icon-24.svg
+  s_8c00190c4734e7::t_7417cc51d82c86 1
+brand/svg/icon-32.svg
+  s_8c00190c4734e7::t_ce9b7c059cbb88 1
+brand/svg/icon-store.svg
+  s_8c00190c4734e7::t_78439fa4b4e89e 1
+brand/svg/icon.svg
+  s_8c00190c4734e7::t_d4e887ac32cae9 1
+brand/svg/lockup-dark.svg
+  s_8c00190c4734e7::t_a346cb2ff6ef92 1
+brand/svg/lockup-mono.svg
+  s_8c00190c4734e7::t_2112439513f8df 1
+brand/svg/lockup.svg
+  s_8c00190c4734e7::t_31e510806240e6 1
+brand/svg/mark-dark.svg
+  s_8c00190c4734e7::t_13a5873d9551b3 1
+brand/svg/mark-mono.svg
+  s_8c00190c4734e7::t_d9fb793f605945 1
+brand/svg/mark.svg
+  s_8c00190c4734e7::t_02179002f35f18 1
+brand/svg/symbolic-22.svg
+  s_8c00190c4734e7::t_57484cd341f67b 1
+brand/svg/symbolic.svg
+  s_8c00190c4734e7::t_4699a5d59f8f1e 1
+brand/svg/wordmark-dark.svg
+  s_8c00190c4734e7::t_6ca192b1cf263a 1
+brand/svg/wordmark-light.svg
+  s_8c00190c4734e7::t_d15c5ead221b2e 1
+brand/svg/wordmark.svg
+  s_8c00190c4734e7::t_09fe14eb23a475 1
+design/tokens.json
+  s_8c00190c4734e7::t_e7667c6e286c3d 19,29,34,39,51-55,61-65,69,74,79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ebcd34e7fc6174d88c3f946cd815823ec017be0f",
+  "prompts": {},
+  "sessions": {
+    "s_8c00190c4734e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5909e59f-c49a-41c7-99ab-3f9b3934d01d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
