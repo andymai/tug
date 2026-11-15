@@ -15,6 +15,10 @@ function ColumnsButton() {
   const open = useDownloads((s) => s.menu?.on.kind === "columns" && s.menu.on.column === null);
   const openMenu = useDownloads((s) => s.openMenu);
   const closeMenu = useDownloads((s) => s.closeMenu);
+  const openAt = (button: HTMLElement) => {
+    const box = button.getBoundingClientRect();
+    openMenu({ x: box.right, y: box.bottom + 4, end: true }, { kind: "columns", column: null });
+  };
   return (
     <div className="flex justify-end">
       <button
@@ -24,12 +28,13 @@ function ColumnsButton() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(event) => {
-          if (open) {
-            closeMenu();
-            return;
-          }
-          const box = event.currentTarget.getBoundingClientRect();
-          openMenu({ x: box.right, y: box.bottom + 4, end: true }, { kind: "columns", column: null });
+          if (open) closeMenu();
+          else openAt(event.currentTarget);
+        }}
+        onKeyDown={(event) => {
+          if (!isMenuKey(event)) return;
+          event.preventDefault();
+          openAt(event.currentTarget);
         }}
         className="inline-flex size-6 items-center justify-center rounded-xs text-ink-muted hover:bg-hover hover:text-ink"
       >

@@ -1624,6 +1624,34 @@ describe("menus", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  it("opens the list's menu from the keyboard where nothing has a menu of its own", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const title = screen.getByRole("heading", { level: 1, name: "All downloads" });
+    title.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(screen.getByRole("menuitem", { name: "Add downloads…" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(title).toHaveFocus();
+
+    screen.getByRole("button", { name: "Columns" }).focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(screen.getByRole("menu", { name: "Columns" }), "a button with a menu opens its own").toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    screen.getByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }).focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(screen.getByRole("menu", { name: "blender-5.1-linux-x64.tar.xz" }), "a row opens its own").toBeInTheDocument();
+  });
+
+  it("opens the list's menu from the keyboard on the empty list", async () => {
+    const { user } = open([]);
+    await screen.findByRole("heading", { name: "Nothing downloading" });
+    (document.activeElement as HTMLElement | null)?.blur();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(entries("Downloads")).toEqual(["Add downloads… (Control+N)"]);
+  });
+
   it("acts on a view's downloads from the sidebar, whatever the list shows", async () => {
     const { store, user } = open();
     const nav = within(await screen.findByRole("navigation", { name: "Downloads" }));

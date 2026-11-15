@@ -194,6 +194,7 @@ export function DownloadList() {
       <Notice />
       <div className="relative flex min-h-0 flex-1">
         <div
+          data-list-area
           className="@container flex min-w-0 flex-1 flex-col"
           onContextMenu={(event) => {
             if (status !== "ready") return;
