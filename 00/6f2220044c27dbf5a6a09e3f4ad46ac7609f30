@@ -1,0 +1,21 @@
+.github/workflows/flatpak.yml
+  s_50254cc352a543::t_1466dcc25a773d 96,106
+CLAUDE.md
+  s_50254cc352a543::t_a72173217ef622 82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "006f2220044c27dbf5a6a09e3f4ad46ac7609f30",
+  "prompts": {},
+  "sessions": {
+    "s_50254cc352a543": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "702f0d1a-5375-403f-80e1-1c607d206e63",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
