@@ -17,7 +17,7 @@ ashpd = {version = "0.14", default-features = false, features = [
   "settings",
   "tokio",
 ]}
-dirs = "6"
+dirs = "7"
 futures-util = {version = "0.3", default-features = false}
 http = "1"
 jiff = "0.2"
