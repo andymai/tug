@@ -1,0 +1,25 @@
+Cargo.toml
+  s_17ad4784fdc8f1::t_4bee691146a54a 43
+Cargo.lock
+  s_17ad4784fdc8f1::t_3623f49fa23580 6236
+apps/desktop/src-tauri/src/launcher.rs
+  s_17ad4784fdc8f1::t_41a89fbfffe07c 6,30,34,36,39,41,97-100,113-114
+apps/desktop/src-tauri/src/notify.rs
+  s_17ad4784fdc8f1::t_80f41fb8cc1895 9,34,112-114,116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e1c72c0b59e6867980c92ed500f3da8790912396",
+  "prompts": {},
+  "sessions": {
+    "s_17ad4784fdc8f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987fca44-0a59-46c4-9cf3-d2e9fa621cef",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
