@@ -30,7 +30,7 @@ Source code (GPL-3.0-or-later): https://github.com/andymai/tug
 
 - **Category:** Productivity, Tools
 - **Language:** English
-- **Store icon:** `icon-128.png` (the mark at 96 px, as the store's image guide asks)
+- **Store icon:** `icon-128.png` (the icon's plate at 96 px in 128 px, as the store's image guide asks; `brand/export.sh` writes it)
 - **Screenshots:** `screenshot-1-capture.png`, `screenshot-2-browsers.png`, `screenshot-3-connections.png`, `screenshot-4-list.png`
 - **Small promo tile:** `promo-440x280.png`
 - **Homepage URL:** https://github.com/andymai/tug

@@ -79,6 +79,7 @@ fn main() -> Result<ExitCode, tauri::Error> {
             bridge::get_settings,
             bridge::update_settings,
             bridge::open_file,
+            bridge::open_file_with,
             bridge::show_in_folder,
             bridge::download_events,
             bridge::inspect_download,

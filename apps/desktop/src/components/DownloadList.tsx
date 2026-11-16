@@ -2,15 +2,13 @@ import { BookmarkPlus, CircleAlert, ListX, Plus, Search, X } from "lucide-react"
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/shallow";
 
-import markDark from "../../../../brand/svg/mark-dark.svg";
-import mark from "../../../../brand/svg/mark.svg";
+import icon from "../../../../brand/svg/icon.svg";
 import { menuPoint } from "../lib/dom";
 import { sentence } from "../lib/format";
 import { CATEGORIES, isCategory } from "../lib/categories";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { hasFinished, savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
-import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
 import { WindowControls } from "./WindowControls";
@@ -97,12 +95,9 @@ function titleOf(view: View): string {
 
 function Empty({ view, first }: { view: View; first: boolean }) {
   const copy = isCategory(view) ? OF_A_TYPE : EMPTY[view];
-  const theme = useTheme();
   return (
     <section aria-labelledby="empty-title" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-      {first && (
-        <img src={theme === "dark" ? markDark : mark} alt="" width={40} height={42} />
-      )}
+      {first && <img src={icon} alt="" width={48} height={48} />}
       <h2 id="empty-title" className="text-heading text-ink">
         {copy.title}
       </h2>

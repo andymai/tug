@@ -27,27 +27,27 @@
   <screenshots>
     <screenshot type="default">
       <caption>All downloads, with the details of one</caption>
-      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.45.0/packaging/screenshots/list.png</image>
+      <image type="source" width="2112" height="1512">https://raw.githubusercontent.com/andymai/tug/v0.47.0/packaging/screenshots/list.png</image>
     </screenshot>
     <screenshot>
       <caption>Each connection of a download, in the dark theme</caption>
-      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.45.0/packaging/screenshots/connections.png</image>
+      <image type="source" width="2112" height="1512">https://raw.githubusercontent.com/andymai/tug/v0.47.0/packaging/screenshots/connections.png</image>
     </screenshot>
     <screenshot>
       <caption>The peers of a torrent</caption>
-      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.45.0/packaging/screenshots/torrent.png</image>
+      <image type="source" width="2112" height="1512">https://raw.githubusercontent.com/andymai/tug/v0.47.0/packaging/screenshots/torrent.png</image>
     </screenshot>
     <screenshot>
       <caption>The command bar</caption>
-      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.45.0/packaging/screenshots/commands.png</image>
+      <image type="source" width="2112" height="1512">https://raw.githubusercontent.com/andymai/tug/v0.47.0/packaging/screenshots/commands.png</image>
     </screenshot>
     <screenshot>
       <caption>A lower speed for busy hours</caption>
-      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.45.0/packaging/screenshots/schedule.png</image>
+      <image type="source" width="2112" height="1512">https://raw.githubusercontent.com/andymai/tug/v0.47.0/packaging/screenshots/schedule.png</image>
     </screenshot>
     <screenshot>
       <caption>Options for one download</caption>
-      <image type="source" width="1280" height="800">https://raw.githubusercontent.com/andymai/tug/v0.45.0/packaging/screenshots/add.png</image>
+      <image type="source" width="2112" height="1512">https://raw.githubusercontent.com/andymai/tug/v0.47.0/packaging/screenshots/add.png</image>
     </screenshot>
   </screenshots>
   <!-- x-release-please-end -->
@@ -64,10 +64,10 @@
   </provides>
   <content_rating type="oars-1.1"/>
   <branding>
-    <color type="primary" scheme_preference="light">#E3EAF6</color>
-    <color type="primary" scheme_preference="dark">#142645</color>
+    <color type="primary" scheme_preference="light">#B9CDEE</color>
+    <color type="primary" scheme_preference="dark">#1B3259</color>
   </branding>
   <releases>
-    <release version="0.45.0" date="2026-11-15"/><!-- x-release-please-version-date -->
+    <release version="0.47.0" date="2026-11-15"/><!-- x-release-please-version-date -->
   </releases>
 </component>

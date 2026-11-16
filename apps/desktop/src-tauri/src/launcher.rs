@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use tokio::sync::watch;
 use tug_core::Batch;
-use zbus::zvariant::Value;
+use zbus::Variant;
 
 use crate::tray::Summary;
 
@@ -27,18 +27,18 @@ pub fn entry(summary: &Summary) -> Entry {
     }
 }
 
-pub fn properties(entry: Entry) -> HashMap<&'static str, Value<'static>> {
+pub fn properties(entry: Entry) -> HashMap<&'static str, Variant<'static>> {
     HashMap::from([
         (
             "progress",
-            Value::from(f64::from(entry.percent.unwrap_or(0)) / 100.0),
+            Variant::from(f64::from(entry.percent.unwrap_or(0)) / 100.0),
         ),
-        ("progress-visible", Value::from(entry.percent.is_some())),
+        ("progress-visible", Variant::from(entry.percent.is_some())),
         (
             "count",
-            Value::from(i64::try_from(entry.count).unwrap_or(i64::MAX)),
+            Variant::from(i64::try_from(entry.count).unwrap_or(i64::MAX)),
         ),
-        ("count-visible", Value::from(entry.count > 0)),
+        ("count-visible", Variant::from(entry.count > 0)),
     ])
 }
 
@@ -94,10 +94,10 @@ mod tests {
             }
         );
         let props = properties(entry(&summary(2, 1 << 20, Some(4 << 20))));
-        assert_eq!(props["progress"], Value::from(0.25));
-        assert_eq!(props["progress-visible"], Value::from(true));
-        assert_eq!(props["count"], Value::from(2_i64));
-        assert_eq!(props["count-visible"], Value::from(true));
+        assert_eq!(props["progress"], Variant::from(0.25));
+        assert_eq!(props["progress-visible"], Variant::from(true));
+        assert_eq!(props["count"], Variant::from(2_i64));
+        assert_eq!(props["count-visible"], Variant::from(true));
     }
 
     #[test]
@@ -110,7 +110,7 @@ mod tests {
             }
         );
         let idle = properties(entry(&summary(0, 9, Some(10))));
-        assert_eq!(idle["progress-visible"], Value::from(false));
-        assert_eq!(idle["count-visible"], Value::from(false));
+        assert_eq!(idle["progress-visible"], Variant::from(false));
+        assert_eq!(idle["count-visible"], Variant::from(false));
     }
 }

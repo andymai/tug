@@ -8,15 +8,16 @@ license = "GPL-3.0-or-later"
 publish = false
 repository = "https://github.com/andymai/tug"
 rust-version = "1.95"
-version = "0.45.0"
+version = "0.47.0"
 
 [workspace.dependencies]
 ashpd = {version = "0.14", default-features = false, features = [
   "file_chooser",
+  "open_uri",
   "settings",
   "tokio",
 ]}
-dirs = "6"
+dirs = "7"
 futures-util = {version = "0.3", default-features = false}
 http = "1"
 jiff = "0.2"

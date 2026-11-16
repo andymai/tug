@@ -35,6 +35,7 @@ describe("tauri backend", () => {
     await tauriBackend.resumeAll();
     await tauriBackend.remove(3, true);
     await tauriBackend.openFile(3);
+    await tauriBackend.openWith(3);
     await tauriBackend.showInFolder(3);
     await tauriBackend.events(3);
     await tauriBackend.inspect(3);
@@ -64,6 +65,7 @@ describe("tauri backend", () => {
       ["resume_all_downloads", undefined],
       ["remove_download", { id: 3, deleteFile: true }],
       ["open_file", { id: 3 }],
+      ["open_file_with", { id: 3 }],
       ["show_in_folder", { id: 3 }],
       ["download_events", { id: 3 }],
       ["inspect_download", { id: 3 }],

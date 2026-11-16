@@ -17,10 +17,8 @@ pub const ID: &str = "io.github.andymai.Tug";
 pub const ICON: &str = "io.github.andymai.Tug-symbolic";
 pub const STEPS: u8 = 20;
 const SYMBOLIC: &str = include_str!("../../../../brand/svg/symbolic-22.svg");
+const RING_GLYPH: &str = include_str!("../../../../brand/svg/ring-glyph.svg");
 const RING_RADIUS: f64 = 9.0;
-// The tray's glyph, smaller and drawn at this size: a scaled copy of the 1px glyph would
-// thin its lines below a pixel. Ring and glyph share pixel column 10, so lines stay crisp.
-const RING_GLYPH: &str = "M7.5 6.5H13.5M10.5 6.5V15.5M7.5 12.5L10.5 15.5L13.5 12.5";
 const PUBLISH_EVERY: Duration = Duration::from_secs(1);
 pub const NOTICE_EVENT: &str = "notice";
 
@@ -43,9 +41,10 @@ pub fn ring_svg(step: u8) -> String {
             r##"<circle cx="10.5" cy="11" r="{RING_RADIUS}" fill="none" stroke="#E35F1C" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="{length:.2} 100" transform="rotate(-90 10.5 11)"/>"##
         )
     };
-    format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" width="22" height="22"><style id="current-color-scheme">.ColorScheme-Text{{color:#232629;}}</style><circle class="ColorScheme-Text" cx="10.5" cy="11" r="{RING_RADIUS}" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-width="1"/>{arc}<path class="ColorScheme-Text" d="{RING_GLYPH}" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>"#
-    )
+    let ring = format!(
+        r#"<circle class="ColorScheme-Text" cx="10.5" cy="11" r="{RING_RADIUS}" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-width="1"/>{arc}</svg>"#
+    );
+    RING_GLYPH.trim_end().replacen("</svg>", &ring, 1)
 }
 
 pub fn write_icons(dir: &Path) -> io::Result<()> {
@@ -438,12 +437,19 @@ mod tests {
     #[test]
     fn the_ring_grows_with_the_step_around_the_mark() {
         assert!(!ring_svg(0).contains("stroke-dasharray"));
+        assert!(
+            ring_svg(0)
+                .contains(r#"r="9" fill="none" stroke="currentColor" stroke-opacity="0.35""#),
+            "the ring's track is missing"
+        );
         assert!(ring_svg(10).contains(r#"stroke-dasharray="28.27 100""#));
         assert!(ring_svg(STEPS).contains(r#"stroke-dasharray="56.55 100""#));
         assert!(
-            ring_svg(10).contains(&format!(r#"d="{RING_GLYPH}""#)),
+            ring_svg(10).starts_with(RING_GLYPH.trim_end().trim_end_matches("</svg>")),
             "the mark is missing"
         );
+        assert!(ring_svg(10).ends_with("</svg>"));
+        assert_eq!(ring_svg(10).matches("<svg").count(), 1);
         assert!(
             !ring_svg(10).contains(r#"stroke-width="2""#),
             "no line is heavier than the panel's"
