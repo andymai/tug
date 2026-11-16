@@ -1,0 +1,125 @@
+.cargo/mutants.toml
+  s_17ad4784fdc8f1::t_d1db9c7861332a 7-8,11
+.release-please-manifest.json
+  s_17ad4784fdc8f1::t_ad6f66c37c6b25 2
+CHANGELOG.md
+  s_17ad4784fdc8f1::t_066c039eea3403 3-16
+CLAUDE.md
+  s_17ad4784fdc8f1::t_f9500b8a5ffe3b 18,56,82
+Cargo.lock
+  s_17ad4784fdc8f1::t_9d22f01fbbba93 1486,3657,4335,4696,4754,5536,5586,5786,5789,6154,6199,6201,6219,6241,6252,6665,7018
+Cargo.toml
+  s_17ad4784fdc8f1::t_37ad2436503237 11,16,20
+README.md
+  s_17ad4784fdc8f1::t_ab544f8641a814 5
+apps/desktop/src-tauri/src/bridge.rs
+  s_17ad4784fdc8f1::t_7a4cb19f2b46e2 1535-1588,1656-1689
+apps/desktop/src-tauri/src/launcher.rs
+  s_17ad4784fdc8f1::t_9d2e5892748f60 6,30,34,36,39,41,97-100,113-114
+apps/desktop/src-tauri/src/main.rs
+  s_17ad4784fdc8f1::t_198077740d6447 82
+apps/desktop/src-tauri/src/notify.rs
+  s_17ad4784fdc8f1::t_47fdcaf5ea7348 9,34,112-114,116
+apps/desktop/src-tauri/src/tray.rs
+  s_17ad4784fdc8f1::t_658b4161928ce9 20,44-47,440-444,448,451-452
+apps/desktop/src/App.test.tsx
+  s_17ad4784fdc8f1::t_d7362d953b1bf3 24-27,35,44-45,1242,1264,1457-1481,1915-2214
+apps/desktop/src/backend/backend.ts
+  s_17ad4784fdc8f1::t_c7bd2ce7a4fe5d 83-84
+apps/desktop/src/backend/mock.test.ts
+  s_17ad4784fdc8f1::t_f3f961b775985b 157-158
+apps/desktop/src/backend/mock.ts
+  s_17ad4784fdc8f1::t_c8fd8084426363 249-253,628-632
+apps/desktop/src/backend/tauri.test.ts
+  s_17ad4784fdc8f1::t_495077bdc7e917 38,68
+apps/desktop/src/backend/tauri.ts
+  s_17ad4784fdc8f1::t_d9364fa60946eb 53
+apps/desktop/src/components/ContextMenu.tsx
+  s_17ad4784fdc8f1::t_ccc327b74b78e5 1-2,12-13,41-103,115-126,141,146-170,179,206-236,240-247,254-273,275-277,282-323
+apps/desktop/src/components/DetailPanel.tsx
+  s_17ad4784fdc8f1::t_cfb92f41231950 21,309-317,571
+apps/desktop/src/components/DownloadList.tsx
+  s_17ad4784fdc8f1::t_ed16e5f6f90875 5,100
+apps/desktop/src/components/Sidebar.tsx
+  s_17ad4784fdc8f1::t_f8c194bdf569bf 5-6,106-115
+apps/desktop/src/lib/commands.ts
+  s_17ad4784fdc8f1::t_637b06d0b1adbf 2,211-214,242,283,307,310-331
+apps/desktop/src/lib/menus.ts
+  s_17ad4784fdc8f1::t_c951a7b72066a1 2,12,19,31-44,51,56-60,66-74,77-78,85-96,140-145,159,189-260,434
+apps/desktop/src/state/downloads.ts
+  s_17ad4784fdc8f1::t_26c2079ae185c0 152,161-162,168-171,193-194,251-261,265,282,289,656,665,699,804-805,831-836,894-918,1054-1058
+apps/desktop/src/state/draft.test.ts
+  s_17ad4784fdc8f1::t_708f7fb25b3cfc 88-105
+apps/desktop/src/state/draft.ts
+  s_17ad4784fdc8f1::t_5ec9634a5a1b0c 26-27,46
+apps/desktop/src/styles/tokens.css
+  s_17ad4784fdc8f1::t_e609b01f9d21df 11,13,121,123
+apps/desktop/src/window.visual.tsx
+  s_17ad4784fdc8f1::t_6bc8639131095a 246-259
+apps/extension/package.json
+  s_17ad4784fdc8f1::t_2890af4b06b0f7 3
+apps/extension/store/listing.md
+  s_17ad4784fdc8f1::t_e5c12bb365286a 33
+brand/build.py
+  s_17ad4784fdc8f1::t_c86f7aea3d932b 5-6,9-25,27-30,35-37,39-42,44-61,63-65,67-77,80,82-85,89-90,93-96,98-108,111-158
+brand/export.sh
+  s_17ad4784fdc8f1::t_185acbdef4ec4b 7
+brand/svg/icon-16.svg
+  s_17ad4784fdc8f1::t_f55c6615765700 1
+brand/svg/icon-22.svg
+  s_17ad4784fdc8f1::t_a839bf013db45b 1
+brand/svg/icon-24.svg
+  s_17ad4784fdc8f1::t_32f62c471f5641 1
+brand/svg/icon-32.svg
+  s_17ad4784fdc8f1::t_8642c5774bdb12 1
+brand/svg/icon-store.svg
+  s_17ad4784fdc8f1::t_73ca5b502bfe72 1
+brand/svg/icon.svg
+  s_17ad4784fdc8f1::t_3710030c891db3 1
+brand/svg/lockup-dark.svg
+  s_17ad4784fdc8f1::t_055be3fb60ddeb 1
+brand/svg/lockup-mono.svg
+  s_17ad4784fdc8f1::t_6b5ef1f73ea1ef 1
+brand/svg/lockup.svg
+  s_17ad4784fdc8f1::t_1f1726fbdbf9c5 1
+brand/svg/mark-dark.svg
+  s_17ad4784fdc8f1::t_3bd3acd6c298e8 1
+brand/svg/mark-mono.svg
+  s_17ad4784fdc8f1::t_0a7537395a7158 1
+brand/svg/mark.svg
+  s_17ad4784fdc8f1::t_5aa9dfea6c473a 1
+brand/svg/ring-glyph.svg
+  s_17ad4784fdc8f1::t_0bc11767d98dfe 1
+brand/svg/symbolic-22.svg
+  s_17ad4784fdc8f1::t_aa560c8329b015 1
+brand/svg/symbolic.svg
+  s_17ad4784fdc8f1::t_e9c200280a214e 1
+brand/svg/wordmark-dark.svg
+  s_17ad4784fdc8f1::t_a8edcb761c6a6a 1
+brand/svg/wordmark-light.svg
+  s_17ad4784fdc8f1::t_e6825af41e0780 1
+brand/svg/wordmark.svg
+  s_17ad4784fdc8f1::t_f051426b0026c4 1
+design/tokens.json
+  s_17ad4784fdc8f1::t_a7391de0f7f271 19,29,34,39,51-55,61-65,69,74,79
+packaging/io.github.andymai.Tug.metainfo.xml
+  s_17ad4784fdc8f1::t_42a6c1e2248136 30,34,38,42,46,50,67-68,71
+scripts/test_brand.py
+  s_17ad4784fdc8f1::t_c7a2603801c9e7 1-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "22429a10f673be9fd711453763a0b60d2dd53942",
+  "prompts": {},
+  "sessions": {
+    "s_17ad4784fdc8f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "987fca44-0a59-46c4-9cf3-d2e9fa621cef",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Andy Aragon <hi@andymai.com>"
+    }
+  }
+}
