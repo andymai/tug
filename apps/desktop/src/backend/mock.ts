@@ -246,6 +246,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     return download;
   };
 
+  // As finished_file in Rust.
+  const finished = (download: Download) => {
+    if (download.state !== "done") throw new BackendError("invalid", `${download.name} isn't finished yet`);
+  };
+
   const addNow = (link: string, dir?: string): Download => {
     let url: URL;
     try {
@@ -591,6 +596,26 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           fill();
         }
       }),
+    // As Library::pause_all: the queue holds too, so no freed place starts a waiting one.
+    pauseAll: () =>
+      attempt(() => {
+        for (const download of downloads.values()) {
+          if (download.state !== "downloading" && download.state !== "queued") continue;
+          download.state = "paused";
+          log(download.id, "paused", now(), download.received);
+        }
+      }),
+    // As Library::resume_all: only the paused ones; a failed one waits for its own Retry.
+    resumeAll: () =>
+      attempt(() => {
+        const resumed = new Set([...downloads.values()].filter((d) => d.state === "paused").map((d) => d.id));
+        for (const id of resumed) find(id).state = "queued";
+        if (waiting.some((id) => resumed.has(id))) {
+          waiting = waiting.filter((id) => !resumed.has(id));
+          announce();
+        }
+        fill();
+      }),
     remove: (id) =>
       attempt(() => {
         find(id);
@@ -600,8 +625,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       }),
     openFile: (id) =>
       attempt(() => {
-        const download = find(id);
-        if (download.state !== "done") throw new BackendError("invalid", `${download.name} isn't finished yet`);
+        finished(find(id));
+      }),
+    openWith: (id) =>
+      attempt(() => {
+        finished(find(id));
       }),
     events: (id) =>
       attempt(() => {

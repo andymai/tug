@@ -23,6 +23,8 @@ export interface Save {
 
 export interface Draft {
   text: string;
+  // The person typed in it since the last save started, or that save failed.
+  dirty: boolean;
   edit: (text: string) => void;
   // Call as a save of `text` starts; every count changes in one update, so an edit
   // in the same batch can't split them.
@@ -41,6 +43,7 @@ export function useDraft(saved: string): Draft {
   }
   return {
     text: state.text,
+    dirty: state.edits !== state.committed,
     edit: (text) => {
       setState((s) => ({ ...s, text, edits: s.edits + 1 }));
     },

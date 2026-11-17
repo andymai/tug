@@ -5,10 +5,11 @@ import type { Download } from "../backend/backend";
 import { type Column, type ColumnId, hostOf, typeOf } from "../lib/columns";
 import { formatBytes, formatDate, formatDuration, formatPercent, formatSpeed, percentOf, sentence, shortDir } from "../lib/format";
 import { ICON, STATES } from "../lib/states";
-import { ROW_DRAG } from "../lib/dom";
+import { menuPoint, ROW_DRAG } from "../lib/dom";
 import { useDownloads, useDownloadsStore } from "../state/context";
 import { chosen } from "../state/downloads";
 import { Button } from "./Button";
+import { isMenuKey, under } from "./ContextMenu";
 
 export interface DownloadRowProps {
   download: Download;
@@ -60,7 +61,7 @@ export const DownloadRow = memo(function DownloadRow({ download, columns, rank, 
   };
   const menuAt = (at: { x: number; y: number }) => {
     if (!store.getState().marked.includes(download.id)) select(download.id);
-    openMenu(at);
+    openMenu(at, { kind: "rows" });
   };
 
   const cell = (id: ColumnId): ReactNode => {
@@ -144,8 +145,8 @@ export const DownloadRow = memo(function DownloadRow({ download, columns, rank, 
         else toggle();
       }}
       onContextMenu={(event) => {
-        event.preventDefault();
-        menuAt({ x: event.clientX, y: event.clientY });
+        const at = menuPoint(event);
+        if (at !== null) menuAt(at);
       }}
       draggable={canDrag || undefined}
       onDragStart={(event) => {
@@ -183,10 +184,9 @@ export const DownloadRow = memo(function DownloadRow({ download, columns, rank, 
       onDragEnd={endDrag}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
-        if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+        if (isMenuKey(event)) {
           event.preventDefault();
-          const box = event.currentTarget.getBoundingClientRect();
-          menuAt({ x: box.left + 24, y: box.bottom });
+          menuAt(under(event.currentTarget, 24));
         } else if (event.key === " " && (event.ctrlKey || event.metaKey)) {
           event.preventDefault();
           toggleMark(download.id);

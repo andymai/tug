@@ -6,7 +6,7 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tokio::sync::broadcast;
 use tug_core::{Download, DownloadId, DownloadState, Library};
 use url::Url;
-use zbus::zvariant::Value;
+use zbus::Variant;
 
 use crate::{bridge, tray};
 
@@ -31,7 +31,7 @@ trait Notifications {
         summary: &str,
         body: &str,
         actions: &[&str],
-        hints: HashMap<&str, Value<'_>>,
+        hints: HashMap<&str, Variant<'_>>,
         expire_timeout: i32,
     ) -> zbus::Result<u32>;
 
@@ -109,11 +109,11 @@ async fn send(proxy: &NotificationsProxy<'_>, notice: &Notice) -> zbus::Result<u
         .iter()
         .flat_map(|&pair| <[&str; 2]>::from(pair))
         .collect();
-    let mut hints: HashMap<&str, Value<'_>> = HashMap::new();
-    hints.insert("desktop-entry", Value::from(tug_ipc::APP_ID));
-    hints.insert("category", Value::from(notice.category));
+    let mut hints: HashMap<&str, Variant<'_>> = HashMap::new();
+    hints.insert("desktop-entry", Variant::from(tug_ipc::APP_ID));
+    hints.insert("category", Variant::from(notice.category));
     if let Some(file) = &notice.file {
-        hints.insert("x-kde-urls", Value::from(vec![file.as_str()]));
+        hints.insert("x-kde-urls", Variant::from(vec![file.as_str()]));
     }
     proxy
         .notify(

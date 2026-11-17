@@ -2,11 +2,13 @@ import { ArrowDown, Clock, Gauge, HardDrive } from "lucide-react";
 import { useEffect } from "react";
 import { useShallow } from "zustand/shallow";
 
+import { menuPoint } from "../lib/dom";
 import { formatBytes, formatSpeed } from "../lib/format";
-import { openAt } from "../lib/schedule";
+import { limitInForce, openAt } from "../lib/schedule";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { SAMPLES } from "../state/downloads";
+import { isMenuKey } from "./ContextMenu";
 
 const DISK_EVERY_MS = 30_000;
 
@@ -41,6 +43,7 @@ export function StatusBar() {
   const diskFree = useDownloads((s) => s.diskFree);
   const checkDisk = useDownloads((s) => s.checkDisk);
   const lastLimit = useDownloads((s) => s.lastLimit);
+  const openMenu = useDownloads((s) => s.openMenu);
   const folder = settings?.downloadDir;
 
   useEffect(() => {
@@ -52,14 +55,18 @@ export function StatusBar() {
   }, [checkDisk, folder]);
 
   const now = new Date();
-  const slow = settings?.slowHours != null && openAt(settings.slowHours.hours, now) ? settings.slowHours : null;
   const limit = settings?.speedLimit ?? null;
-  const slower = slow !== null && (limit === null || slow.limit < limit);
-  const inForce = slower ? slow.limit : limit;
+  const { limit: inForce, slower } = settings === null ? { limit, slower: false } : limitInForce(settings, now);
   const outside = settings?.schedule != null && !openAt(settings.schedule, now);
 
   return (
-    <section aria-label="Status" className="flex h-7 shrink-0 items-center gap-4 border-t border-line bg-surface px-3 text-small whitespace-nowrap text-ink-muted">
+    <section
+      aria-label="Status"
+      onContextMenu={(event) => {
+        const at = menuPoint(event);
+        if (at !== null) openMenu(at, { kind: "status" });
+      }}
+      className="flex h-7 shrink-0 items-center gap-4 border-t border-line bg-surface px-3 text-small whitespace-nowrap text-ink-muted">
       <span className="flex items-center gap-1.5">
         <ArrowDown {...ICON} size={14} />
         <span className="text-mono text-ink">{formatSpeed(speed)}</span>
@@ -79,6 +86,13 @@ export function StatusBar() {
         title={limit === null ? "Turn the speed limit on" : "Turn the speed limit off"}
         onClick={() => {
           void savePreference({ speedLimit: limit === null ? lastLimit : null }, "the speed limit");
+        }}
+        onKeyDown={(event) => {
+          if (!isMenuKey(event)) return;
+          event.preventDefault();
+          // Above the button: the bar sits at the window's bottom edge.
+          const box = event.currentTarget.getBoundingClientRect();
+          openMenu({ x: box.left, y: box.top }, { kind: "status" });
         }}
         className="flex h-6 items-center gap-1.5 rounded-xs px-1.5 hover:bg-hover hover:text-ink"
       >

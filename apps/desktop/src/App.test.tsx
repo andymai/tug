@@ -21,10 +21,29 @@ function downloadRows(title: string) {
   return within(screen.getByRole("grid", { name: title })).getAllByRole("row").slice(1);
 }
 
+function rowOf(name: string) {
+  return screen.getByRole("row", { name: new RegExp(`^${name.replaceAll(".", "\\.")}`) });
+}
+
 function row(name: string) {
   const item = screen.getByText(name).closest("tr");
   if (!item) throw new Error(`no row for ${name}`);
   return within(item);
+}
+
+// The open menu's entries as a screen reader reads them: a tick when checked, the
+// name, an arrow when it opens a submenu, and the keys from aria-keyshortcuts.
+function entries(name?: string) {
+  const menu = screen.getByRole("menu", name === undefined ? {} : { name });
+  return [...menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')].map((item) => {
+    const text = [...item.childNodes]
+      .filter((node) => !(node instanceof Element && node.getAttribute("aria-hidden") === "true"))
+      .map((node) => node.textContent)
+      .join("");
+    const keys = item.getAttribute("aria-keyshortcuts");
+    const sub = item.getAttribute("aria-haspopup") === "menu" ? " ▸" : "";
+    return `${item.getAttribute("aria-checked") === "true" ? "✓ " : ""}${text}${sub}${keys === null ? "" : ` (${keys})`}`;
+  });
 }
 
 describe("main window", () => {
@@ -1179,7 +1198,6 @@ describe("status bar", () => {
 });
 
 describe("selection", () => {
-  const rowOf = (name: string) => screen.getByRole("row", { name: new RegExp(`^${name.replaceAll(".", "\\.")}`) });
 
   it("selects more with Ctrl, a range with Shift, and shows what they hold", async () => {
     const { user } = open();
@@ -1221,7 +1239,7 @@ describe("selection", () => {
     const fedora = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
     fireEvent.contextMenu(fedora, { clientX: 300, clientY: 200 });
     let menu = within(screen.getByRole("menu", { name: "fedora-kde-44-x86_64.iso" }));
-    expect(menu.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Open folder", "Copy link", "Pause", "Remove…"]);
+    expect(entries()).toEqual(["Open folder", "Copy ▸", "Pause (P)", "Speed limit ▸", "Connections ▸", "Remove… (Delete)"]);
     expect(menu.getByRole("menuitem", { name: "Open folder" })).toHaveFocus();
     await user.keyboard("{End}");
     expect(menu.getByRole("menuitem", { name: "Remove…" })).toHaveFocus();
@@ -1243,8 +1261,7 @@ describe("selection", () => {
     fireEvent.click(rowOf("blender-5.1-linux-x64.tar.xz"), { ctrlKey: true });
     rowOf("blender-5.1-linux-x64.tar.xz").focus();
     await user.keyboard("{Shift>}{F10}{/Shift}");
-    const menu = within(screen.getByRole("menu", { name: "2 downloads" }));
-    expect(menu.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Copy links", "Start next", "Move to the end", "Pause", "Remove…"]);
+    expect(entries("2 downloads")).toEqual(["Copy ▸", "Start next", "Move to the end", "Pause (P)", "Speed limit ▸", "Connections ▸", "Remove… (Delete)"]);
   });
 
   it("removes after asking, with the file when chosen, and keeps everything on Cancel", async () => {
@@ -1437,6 +1454,31 @@ describe("selection", () => {
     ]);
   });
 
+  it("opens a finished file with another app and copies its path from the command bar", async () => {
+    const { backend, user } = open();
+    const openWith = vi.spyOn(backend, "openWith");
+    await user.click(await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ }));
+    await user.keyboard("{Control>}k{/Control}");
+    let group = within(within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("group", { name: "Selected download" }));
+    expect(group.getByRole("option", { name: "Open with…" })).toBeInTheDocument();
+    await user.click(group.getByRole("option", { name: "Copy file name" }));
+    expect(await navigator.clipboard.readText()).toBe("noto-fonts-2026.11.zip");
+    await user.keyboard("{Control>}k{/Control}");
+    group = within(within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("group", { name: "Selected download" }));
+    await user.click(group.getByRole("option", { name: "Copy file path" }));
+    expect(await navigator.clipboard.readText()).toBe("/home/you/Downloads/Fonts/noto-fonts-2026.11.zip");
+    await user.keyboard("{Control>}k{/Control}");
+    group = within(within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("group", { name: "Selected download" }));
+    await user.click(group.getByRole("option", { name: "Open with…" }));
+    expect(openWith).toHaveBeenCalledOnce();
+
+    await user.click(rowOf("blender-5.1-linux-x64.tar.xz"));
+    await user.keyboard("{Control>}k{/Control}");
+    group = within(within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("group", { name: "Selected download" }));
+    expect(group.queryByRole("option", { name: "Open with…" }), "only a finished file opens").not.toBeInTheDocument();
+    expect(group.queryByRole("option", { name: "Copy file path" }), "a queued download has no file yet").not.toBeInTheDocument();
+  });
+
   it("acts on the one selected row that a search leaves in view", async () => {
     const { user, store } = open();
     await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
@@ -1528,6 +1570,647 @@ describe("selection", () => {
     const dialog = within(screen.getByRole("dialog", { name: "Remove 5 downloads?" }));
     expect(dialog.getByText("Tug stops the running ones and takes them all off the list.")).toBeInTheDocument();
     expect(dialog.getByRole("checkbox", { name: "Delete their files too" })).not.toBeChecked();
+  });
+});
+
+describe("menus", () => {
+  it("sorts by a column and picks the columns from a right-click on the header", async () => {
+    const { store, user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    fireEvent.contextMenu(screen.getByRole("columnheader", { name: "Size" }), { clientX: 400, clientY: 40 });
+    expect(entries("Columns")).toEqual(["Sort ascending", "Sort descending", "✓ Progress", "✓ Size", "✓ Speed", "✓ Left", "✓ Conn.", "✓ Source", "Type", "Added", "Queue"]);
+    const menu = within(screen.getByRole("menu", { name: "Columns" }));
+    expect(menu.getByRole("menuitemradio", { name: "Sort ascending" })).toHaveFocus();
+    await user.click(menu.getByRole("menuitemcheckbox", { name: "Type" }));
+    expect(menu.getByRole("menuitemcheckbox", { name: "Type" }), "a checkbox leaves the menu open").toHaveAttribute("aria-checked", "true");
+    await user.click(menu.getByRole("menuitemcheckbox", { name: "Added" }));
+    await user.click(menu.getByRole("menuitemradio", { name: "Sort descending" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(store.getState().settings?.sort).toBe("-size");
+    });
+    expect(screen.getByRole("columnheader", { name: "Size" })).toHaveAttribute("aria-sort", "descending");
+    expect(screen.getByRole("columnheader", { name: "Type" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Added" }), "each quick click counts").toBeInTheDocument();
+  });
+
+  it("opens the header's menu from the keyboard, resets the widths and gives focus back", async () => {
+    const { store, user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await act(() => store.getState().saveSettings({ widths: { size: 200 } }));
+    const size = within(screen.getByRole("columnheader", { name: "Size" })).getByRole("button", { name: "Size" });
+    size.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(entries("Columns").at(-1)).toBe("Reset column widths");
+    await user.click(screen.getByRole("menuitem", { name: "Reset column widths" }));
+    await waitFor(() => {
+      expect(store.getState().settings?.widths).toEqual({});
+    });
+    expect(size).toHaveFocus();
+  });
+
+  it("closes the Columns menu on a second click of its button", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const trigger = screen.getByRole("button", { name: "Columns" });
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await user.click(trigger);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("pauses and resumes every download from the list's menu", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    fireEvent.contextMenu(screen.getByRole("grid", { name: "All downloads" }), { clientX: 400, clientY: 500 });
+    expect(entries("Downloads")).toEqual(["Add downloads… (Control+N)", "Select all (Control+A)", "Pause all", "Resume all", "Clear finished…"]);
+    await user.click(screen.getByRole("menuitem", { name: "Pause all" }));
+    await waitFor(() => {
+      expect(row("blender-5.1-linux-x64.tar.xz").getByText("Paused")).toBeInTheDocument();
+    });
+    expect(row("fedora-kde-44-x86_64.iso").getByText("Paused")).toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByRole("grid", { name: "All downloads" }), { clientX: 400, clientY: 500 });
+    expect(entries("Downloads")).toEqual(["Add downloads… (Control+N)", "Select all (Control+A)", "Resume all", "Clear finished…"]);
+    await user.click(screen.getByRole("menuitem", { name: "Resume all" }));
+    await waitFor(() => {
+      expect(row("fedora-kde-44-x86_64.iso").getByText("Downloading")).toBeInTheDocument();
+    });
+    expect(row("dataset-shard-07.parquet").getByText("Failed"), "a failed one waits for its own Retry").toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByRole("grid", { name: "All downloads" }), { clientX: 400, clientY: 500 });
+    await user.click(screen.getByRole("menuitem", { name: "Select all" }));
+    expect(screen.getByRole("complementary", { name: "5 downloads" })).toBeInTheDocument();
+  });
+
+  it("offers to add downloads from a right-click on the empty list", async () => {
+    const { user } = open([]);
+    fireEvent.contextMenu(await screen.findByRole("heading", { name: "Nothing downloading" }));
+    expect(entries("Downloads")).toEqual(["Add downloads… (Control+N)"]);
+    await user.click(screen.getByRole("menuitem", { name: "Add downloads…" }));
+    expect(screen.getByRole("dialog", { name: "Add downloads" })).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("opens the list's menu from the keyboard where nothing has a menu of its own", async () => {
+    const { user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const title = screen.getByRole("heading", { level: 1, name: "All downloads" });
+    title.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(screen.getByRole("menuitem", { name: "Add downloads…" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(title).toHaveFocus();
+
+    screen.getByRole("button", { name: "Columns" }).focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(screen.getByRole("menu", { name: "Columns" }), "a button with a menu opens its own").toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    screen.getByRole("row", { name: /^blender-5\.1-linux-x64\.tar\.xz/ }).focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(screen.getByRole("menu", { name: "blender-5.1-linux-x64.tar.xz" }), "a row opens its own").toBeInTheDocument();
+  });
+
+  it("opens the list's menu from the keyboard on the empty list", async () => {
+    const { user } = open([]);
+    await screen.findByRole("heading", { name: "Nothing downloading" });
+    (document.activeElement as HTMLElement | null)?.blur();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(entries("Downloads")).toEqual(["Add downloads… (Control+N)"]);
+  });
+
+  it("acts on a view's downloads from the sidebar, whatever the list shows", async () => {
+    const { store, user } = open();
+    const nav = within(await screen.findByRole("navigation", { name: "Downloads" }));
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.click(nav.getByRole("button", { name: /^Done/ }));
+    fireEvent.contextMenu(nav.getByRole("button", { name: /^Active/ }));
+    expect(entries("Active")).toEqual(["Open", "Pause 2 downloads", "Resume 1 download"]);
+    await user.click(screen.getByRole("menuitem", { name: "Pause 2 downloads" }));
+    await waitFor(() => {
+      expect(store.getState().items.filter((item) => item.state === "paused")).toHaveLength(3);
+    });
+    expect(screen.getByRole("heading", { level: 1, name: "Done" }), "the list stays on its view").toBeInTheDocument();
+
+    fireEvent.contextMenu(nav.getByRole("button", { name: /^Active/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Resume 3 downloads" }));
+    await waitFor(() => {
+      expect(store.getState().items.filter((item) => item.state === "downloading")).toHaveLength(3);
+    });
+
+    const failed = nav.getByRole("button", { name: /^Failed/ });
+    failed.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(entries("Failed")).toEqual(["Open", "Retry 1 download"]);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(failed).toHaveFocus();
+    fireEvent.contextMenu(failed);
+    await user.click(screen.getByRole("menuitem", { name: "Open" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Failed" })).toBeInTheDocument();
+  });
+
+  it("clears a view's finished downloads from the sidebar, past the search", async () => {
+    const { user } = open();
+    const nav = within(await screen.findByRole("navigation", { name: "Downloads" }));
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.type(screen.getByRole("searchbox", { name: "Search downloads" }), "fedora");
+    fireEvent.contextMenu(nav.getByRole("button", { name: /^All/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Clear 1 finished…" }));
+    expect(screen.getByRole("dialog", { name: "Remove noto-fonts-2026.11.zip?" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Search downloads" })).toHaveValue("");
+  });
+
+  it("keeps a sidebar menu open when the table gives way to the empty view", async () => {
+    const { backend, store, user } = open();
+    const nav = within(await screen.findByRole("navigation", { name: "Downloads" }));
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.click(nav.getByRole("button", { name: /^Failed/ }));
+    fireEvent.contextMenu(nav.getByRole("button", { name: /^Failed/ }));
+    const id = store.getState().items.find((d) => d.name === "dataset-shard-07.parquet")?.id ?? -1;
+    await act(async () => {
+      await backend.remove(id, false);
+      await store.getState().reload();
+    });
+    expect(screen.getByRole("heading", { name: "Nothing failed" })).toBeInTheDocument();
+    expect(entries("Failed")).toEqual(["Open"]);
+  });
+
+  it("closes a row's menu, and gives the keys back, when its downloads go", async () => {
+    const { backend, store } = open();
+    const fedora = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
+    fireEvent.contextMenu(fedora, { clientX: 300, clientY: 200 });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    const id = store.getState().items.find((d) => d.name === "fedora-kde-44-x86_64.iso")?.id ?? -1;
+    await act(async () => {
+      await backend.remove(id, false);
+      await store.getState().reload();
+    });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(store.getState().menu).toBeNull();
+  });
+
+  it("opens and removes a saved view from its menu", async () => {
+    const { store, user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    act(() => {
+      store.getState().setSearch("fedora");
+      store.getState().saveView();
+    });
+    const saved = within(await screen.findByRole("navigation", { name: "Saved" }));
+    act(() => {
+      store.getState().setSearch("");
+    });
+    fireEvent.contextMenu(saved.getByRole("button", { name: "fedora" }));
+    expect(entries("fedora")).toEqual(["Open", "Remove"]);
+    await user.click(screen.getByRole("menuitem", { name: "Open" }));
+    expect(screen.getByRole("searchbox", { name: "Search downloads" })).toHaveValue("fedora");
+    fireEvent.contextMenu(saved.getByRole("button", { name: "fedora" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("navigation", { name: "Saved" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("picks a speed limit from the status bar's menu", async () => {
+    const { backend, user } = open();
+    const status = within(await screen.findByRole("region", { name: "Status" }));
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    fireEvent.contextMenu(status.getByRole("button", { name: /No limit/ }));
+    expect(entries("Status")).toEqual(["✓ No limit", "1 MB/s", "2 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s", "Pause all", "Resume all", "Speed settings… (Control+,)"]);
+    await user.click(screen.getByRole("menuitemradio", { name: "5 MB/s" }));
+    await waitFor(async () => {
+      expect((await backend.settings()).speedLimit).toBe(5 * MB);
+    });
+    expect(status.getByRole("button", { name: /Limit 5\.00 MB\/s/ })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.contextMenu(status.getByRole("button", { name: /Limit/ }));
+    await user.click(screen.getByRole("menuitemradio", { name: "No limit" }));
+    await waitFor(async () => {
+      expect((await backend.settings()).speedLimit).toBeNull();
+    });
+  });
+
+  it("leaves WebKit's Copy menu on text selected in the status bar, a row, the header and the sidebar", async () => {
+    const { store } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const nav = within(screen.getByRole("navigation", { name: "Downloads" }));
+    // jsdom lays nothing out, so the selected text gets a box of its own.
+    const original = Object.getOwnPropertyDescriptor(Range.prototype, "getClientRects");
+    Object.defineProperty(Range.prototype, "getClientRects", { value: () => [new DOMRect(0, 0, 200, 30)], configurable: true });
+    try {
+      const texts = [screen.getByText("1 running · 1 queued · 1 paused"), screen.getByText("fedora-kde-44-x86_64.iso"), screen.getByRole("button", { name: "Size" }), nav.getByText("Active")];
+      for (const text of texts) {
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+        expect(fireEvent.contextMenu(text, { clientX: 20, clientY: 10 }), text.textContent).toBe(true);
+        expect(store.getState().menu).toBeNull();
+      }
+      expect(fireEvent.contextMenu(screen.getByRole("region", { name: "Status" }), { clientX: 500, clientY: 10 }), "past the text, Tug's menu").toBe(false);
+      expect(store.getState().menu?.on).toEqual({ kind: "status" });
+    } finally {
+      window.getSelection()?.removeAllRanges();
+      if (original === undefined) Reflect.deleteProperty(Range.prototype, "getClientRects");
+      else Object.defineProperty(Range.prototype, "getClientRects", original);
+    }
+  });
+
+  it("keeps the focus in a menu when the entry it was on goes", async () => {
+    const { backend, store, user } = open();
+    const status = within(await screen.findByRole("region", { name: "Status" }));
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const limit = status.getByRole("button", { name: /No limit/ });
+    limit.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}{End}{ArrowUp}{ArrowUp}");
+    expect(screen.getByRole("menuitem", { name: "Pause all" })).toHaveFocus();
+    await act(async () => {
+      await backend.pauseAll();
+      await store.getState().reload();
+    });
+    expect(screen.queryByRole("menuitem", { name: "Pause all" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Resume all" }), "the entry now in its place").toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(limit).toHaveFocus();
+  });
+
+  it("keeps a menu in the window when it grows", async () => {
+    const { backend, store } = open([
+      { url: "https://example.org/a.iso", state: "downloading", progress: 0.5, size: 64 * MB },
+      { url: "https://example.org/b.zip", state: "done" },
+    ]);
+    await screen.findByText("a.iso");
+    // jsdom lays nothing out: each entry is 30 pixels high.
+    const measure = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute("role") === "menu" ? new DOMRect(0, 0, 200, 30 * this.querySelectorAll('[role^="menuitem"]').length) : new DOMRect();
+    });
+    try {
+      const bottom = window.innerHeight - 4;
+      act(() => {
+        store.getState().openMenu({ x: 100, y: bottom - 4 * 30 }, { kind: "list" });
+      });
+      expect(entries("Downloads")).toHaveLength(4);
+      expect(screen.getByRole("menu").style.top).toBe(`${String(bottom - 4 * 30)}px`);
+      await act(async () => {
+        await backend.add("https://example.org/c.iso", undefined, { paused: true, first: false, connections: null, speedLimit: null, name: null, referrer: null, cookies: null, userAgent: null });
+        await store.getState().reload();
+      });
+      expect(entries("Downloads")).toContain("Resume all");
+      expect(screen.getByRole("menu").style.top, "it opens up from the point now").toBe(`${String(bottom - 4 * 30 - 5 * 30)}px`);
+    } finally {
+      measure.mockRestore();
+    }
+  });
+
+  it("closes a type's menu when its last download goes", async () => {
+    const { backend, store } = open([
+      { url: "https://example.org/talk.mp4", state: "done" },
+      { url: "https://example.org/a.iso", state: "queued" },
+    ]);
+    const types = within(await screen.findByRole("navigation", { name: "Types" }));
+    fireEvent.contextMenu(types.getByRole("button", { name: /^Videos/ }));
+    expect(entries("Videos")).toEqual(["Open", "Clear 1 finished…"]);
+    const id = store.getState().items.find((d) => d.name === "talk.mp4")?.id ?? -1;
+    await act(async () => {
+      await backend.remove(id, false);
+      await store.getState().reload();
+    });
+    expect(screen.queryByRole("button", { name: /^Videos/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(store.getState().menu).toBeNull();
+  });
+
+  it("says when the slower hours hold a lower limit than the one the menu ticks", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    await backend.updateSettings({ ...(await backend.settings()), speedLimit: null, slowHours: { limit: 2 * MB, hours: { days: 0b111_1111, start: 0, stop: 1439 } } });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    const status = within(await screen.findByRole("region", { name: "Status" }));
+    fireEvent.contextMenu(await status.findByRole("button", { name: /Slower hours 2\.00 MB\/s/ }));
+    expect(entries("Status").slice(0, 3)).toEqual(["Slower hours: 2 MB/s", "✓ No limit", "1 MB/s"]);
+    const note = screen.getByRole("menuitem", { name: "Slower hours: 2 MB/s" });
+    expect(note).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("menuitemradio", { name: "No limit" }), "the arrows pass it").toHaveFocus();
+    await user.click(note);
+    expect(screen.getByRole("menu", { name: "Status" }), "it does nothing").toBeInTheDocument();
+  });
+
+  it("keeps a limit from Settings among the presets, and opens Settings from the keyboard", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    await backend.updateSettings({ ...(await backend.settings()), speedLimit: 3.5 * MB });
+    render(<App store={createDownloadsStore(backend)} />);
+    const user = userEvent.setup();
+    const status = within(await screen.findByRole("region", { name: "Status" }));
+    const limit = await status.findByRole("button", { name: /Limit 3\.50 MB\/s/ });
+    limit.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(entries("Status").slice(0, 5)).toEqual(["No limit", "1 MB/s", "2 MB/s", "✓ 3.5 MB/s", "5 MB/s"]);
+    await user.click(screen.getByRole("menuitem", { name: "Speed settings…" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("copies the link, the name or the path from the Copy submenu", async () => {
+    const { user } = open();
+    const fonts = await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ });
+    fireEvent.contextMenu(fonts, { clientX: 300, clientY: 200 });
+    expect(entries("noto-fonts-2026.11.zip")).toEqual(["Open (Control+O)", "Open with…", "Open folder", "Rename… (F2)", "Copy ▸", "Remove… (Delete)"]);
+    const copy = screen.getByRole("menuitem", { name: "Copy" });
+    await user.hover(copy);
+    expect(copy).toHaveAttribute("aria-expanded", "true");
+    expect(copy).toHaveAttribute("aria-controls", screen.getByRole("menu", { name: "Copy" }).id);
+    expect(entries("Copy")).toEqual(["Link", "File name", "File path"]);
+    expect(screen.getByRole("menuitem", { name: "Open" }), "a hover leaves the focus where it is").toHaveFocus();
+    await user.click(screen.getByRole("menuitem", { name: "File path" }));
+    expect(await navigator.clipboard.readText()).toBe("/home/you/Downloads/Fonts/noto-fonts-2026.11.zip");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(fonts).toHaveFocus();
+
+    fireEvent.click(rowOf("fedora-kde-44-x86_64.iso"), { ctrlKey: true });
+    fireEvent.contextMenu(fonts, { clientX: 300, clientY: 200 });
+    await user.hover(screen.getByRole("menuitem", { name: "Copy" }));
+    expect(entries("Copy")).toEqual(["Links", "File names", "File paths"]);
+    await user.click(screen.getByRole("menuitem", { name: "File names" }));
+    expect(await navigator.clipboard.readText()).toBe("fedora-kde-44-x86_64.iso\nnoto-fonts-2026.11.zip");
+  });
+
+  it("opens a submenu with the right arrow or Enter, and closes only it with the left arrow or Escape", async () => {
+    const { user } = open();
+    const fedora = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
+    await user.click(fedora);
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    const copy = screen.getByRole("menuitem", { name: "Copy" });
+    await user.keyboard("{ArrowDown}{ArrowRight}");
+    expect(screen.getByRole("menuitem", { name: "Link" })).toHaveFocus();
+    await user.keyboard("{ArrowUp}");
+    expect(screen.getByRole("menuitem", { name: "File path" }), "the arrows wrap inside the submenu").toHaveFocus();
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.queryByRole("menu", { name: "Copy" })).not.toBeInTheDocument();
+    expect(copy).toHaveFocus();
+    expect(copy).toHaveAttribute("aria-expanded", "false");
+
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("menuitem", { name: "Link" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu", { name: "Copy" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menu", { name: "fedora-kde-44-x86_64.iso" })).toBeInTheDocument();
+    expect(copy).toHaveFocus();
+    await user.keyboard("{ArrowRight}{Tab}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(fedora).toHaveFocus();
+  });
+
+  it("keeps a submenu open while the pointer crosses other entries to it", async () => {
+    const { user } = open();
+    fireEvent.contextMenu(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }), { clientX: 300, clientY: 200 });
+    await user.hover(screen.getByRole("menuitem", { name: "Speed limit" }));
+    await user.hover(screen.getByRole("menuitem", { name: "Connections" }));
+    await user.hover(screen.getByRole("menu", { name: "Speed limit" }));
+    await new Promise((done) => setTimeout(done, 400));
+    expect(screen.getByRole("menu", { name: "Speed limit" }), "the pointer reached it in time").toBeInTheDocument();
+
+    await user.hover(screen.getByRole("menuitem", { name: "Pause" }));
+    expect(screen.getByRole("menu", { name: "Speed limit" }), "not at once").toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
+    });
+    await user.hover(screen.getByRole("menuitem", { name: "Connections" }));
+    expect(screen.getByRole("menu", { name: "Connections" }), "with none open, at once").toBeInTheDocument();
+  });
+
+  it("gives the focus to the submenu's entry when the pointer closes it", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    await user.keyboard("{Shift>}{F10}{/Shift}{End}{ArrowUp}{ArrowUp}{ArrowRight}");
+    expect(screen.getByRole("menuitemradio", { name: "Tug's setting (no limit)" })).toHaveFocus();
+    await user.hover(screen.getByRole("menuitem", { name: "Pause" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("menuitem", { name: "Speed limit" })).toHaveFocus();
+  });
+
+  it("keeps the focus in a submenu while the menu's entries change", async () => {
+    const { backend, store, user } = open();
+    const fedora = await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ });
+    await user.click(fedora);
+    await user.keyboard("{Shift>}{F10}{/Shift}{End}{ArrowUp}{ArrowRight}{ArrowDown}");
+    expect(screen.getByRole("menuitemradio", { name: "1" })).toHaveFocus();
+    const id = store.getState().selected ?? -1;
+    await act(async () => {
+      await backend.pause(id);
+      await store.getState().reload();
+    });
+    expect(entries("fedora-kde-44-x86_64.iso")).toContain("Resume (P)");
+    expect(screen.getByRole("menuitemradio", { name: "1" })).toHaveFocus();
+  });
+
+  it("closes a submenu whose entry goes, so it stays closed when the entry comes back", async () => {
+    const { store, user } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    fireEvent.click(rowOf("noto-fonts-2026.11.zip"), { ctrlKey: true });
+    fireEvent.contextMenu(rowOf("noto-fonts-2026.11.zip"), { clientX: 300, clientY: 200 });
+    await user.hover(screen.getByRole("menuitem", { name: "Speed limit" }));
+    const fedora = store.getState().items.find((d) => d.name === "fedora-kde-44-x86_64.iso")?.id ?? -1;
+    act(() => {
+      store.getState().toggleMark(fedora);
+    });
+    expect(screen.queryByRole("menuitem", { name: "Speed limit" }), "a finished download takes no limit").not.toBeInTheDocument();
+    expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
+    act(() => {
+      store.getState().toggleMark(fedora);
+    });
+    expect(screen.getByRole("menuitem", { name: "Speed limit" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
+  });
+
+  it("sets the own speed limit and connections of each selected download that takes them", async () => {
+    const { backend, store, user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    const own = (name: string) => {
+      const item = store.getState().items.find((d) => d.name === name);
+      return { connections: item?.connections, speedLimit: item?.speedLimit };
+    };
+    const menuOn = async (name: string, sub: string) => {
+      fireEvent.contextMenu(rowOf(name), { clientX: 300, clientY: 200 });
+      await user.hover(screen.getByRole("menuitem", { name: sub }));
+      return entries(sub);
+    };
+    await user.click(rowOf("fedora-kde-44-x86_64.iso"));
+    fireEvent.click(rowOf("blender-5.1-linux-x64.tar.xz"), { ctrlKey: true });
+    fireEvent.click(rowOf("noto-fonts-2026.11.zip"), { ctrlKey: true });
+
+    expect(await menuOn("fedora-kde-44-x86_64.iso", "Speed limit")).toEqual(["✓ Tug's setting (no limit)", "1 MB/s", "2 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"]);
+    await user.click(screen.getByRole("menuitemradio", { name: "5 MB/s" }));
+    await waitFor(() => {
+      expect(own("blender-5.1-linux-x64.tar.xz")).toEqual({ connections: null, speedLimit: 5 * MB });
+    });
+    expect(own("fedora-kde-44-x86_64.iso")).toEqual({ connections: null, speedLimit: 5 * MB });
+    expect(own("noto-fonts-2026.11.zip"), "a finished download takes none").toEqual({ connections: null, speedLimit: null });
+
+    expect(await menuOn("fedora-kde-44-x86_64.iso", "Connections")).toEqual(["✓ Tug's setting (8)", "1", "2", "4", "8", "16", "32"]);
+    await user.click(screen.getByRole("menuitemradio", { name: "4" }));
+    await waitFor(() => {
+      expect(own("blender-5.1-linux-x64.tar.xz")).toEqual({ connections: 4, speedLimit: 5 * MB });
+    });
+    expect(own("fedora-kde-44-x86_64.iso"), "each keeps its limit").toEqual({ connections: 4, speedLimit: 5 * MB });
+
+    const fedora = store.getState().items.find((d) => d.name === "fedora-kde-44-x86_64.iso")?.id ?? -1;
+    await act(async () => {
+      await backend.setOptions(fedora, 4, 3.5 * MB);
+      await store.getState().reload();
+    });
+    expect(await menuOn("fedora-kde-44-x86_64.iso", "Speed limit"), "they differ, so none is ticked").toEqual(["Tug's setting (no limit)", "1 MB/s", "2 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"]);
+    await user.keyboard("{Escape}");
+    await user.keyboard("{Escape}");
+    await user.click(rowOf("fedora-kde-44-x86_64.iso"));
+    expect(await menuOn("fedora-kde-44-x86_64.iso", "Speed limit")).toEqual(["Tug's setting (no limit)", "1 MB/s", "2 MB/s", "✓ 3.5 MB/s", "5 MB/s", "10 MB/s", "20 MB/s", "50 MB/s"]);
+  });
+
+  it("keeps the first change of options when a second one comes before it is saved, in any view", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((done) => {
+      release = done;
+    });
+    const store = createDownloadsStore({
+      ...backend,
+      setOptions: async (id, connections, speedLimit) => {
+        await held;
+        return backend.setOptions(id, connections, speedLimit);
+      },
+    });
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    fireEvent.click(rowOf("blender-5.1-linux-x64.tar.xz"), { ctrlKey: true });
+    const choose = async (sub: string, value: string) => {
+      fireEvent.contextMenu(rowOf("fedora-kde-44-x86_64.iso"), { clientX: 300, clientY: 200 });
+      await user.hover(screen.getByRole("menuitem", { name: sub }));
+      await user.click(screen.getByRole("menuitemradio", { name: value }));
+    };
+    await choose("Speed limit", "5 MB/s");
+    await choose("Connections", "4");
+    act(() => {
+      store.getState().setView("done");
+    });
+    release();
+    const own = (name: string) => {
+      const item = store.getState().items.find((d) => d.name === name);
+      return { connections: item?.connections, speedLimit: item?.speedLimit };
+    };
+    await waitFor(() => {
+      expect(own("blender-5.1-linux-x64.tar.xz")).toEqual({ connections: 4, speedLimit: 5 * MB });
+    });
+    expect(own("fedora-kde-44-x86_64.iso")).toEqual({ connections: 4, speedLimit: 5 * MB });
+  });
+
+  it("keeps a change from the details panel and one from the menu, in either order", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    let release: () => void = () => undefined;
+    let held = Promise.resolve();
+    const hold = () => {
+      held = new Promise<void>((done) => {
+        release = done;
+      });
+    };
+    const store = createDownloadsStore({
+      ...backend,
+      setOptions: async (id, connections, speedLimit) => {
+        await held;
+        return backend.setOptions(id, connections, speedLimit);
+      },
+    });
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    const fedora = () => store.getState().items.find((d) => d.name === "fedora-kde-44-x86_64.iso");
+    const field = (name: string) => within(screen.getByRole("region", { name: "Options" })).getByRole("textbox", { name });
+    const menu = async (sub: string, value: string) => {
+      fireEvent.contextMenu(rowOf("fedora-kde-44-x86_64.iso"), { clientX: 300, clientY: 200 });
+      await user.hover(screen.getByRole("menuitem", { name: sub }));
+      await user.click(screen.getByRole("menuitemradio", { name: value }));
+    };
+
+    hold();
+    await user.type(field("Connections"), "4{Enter}");
+    await menu("Speed limit", "5 MB/s");
+    release();
+    await waitFor(() => {
+      expect(fedora()?.speedLimit).toBe(5 * MB);
+    });
+    expect(fedora()?.connections, "the menu keeps the panel's change").toBe(4);
+
+    hold();
+    await menu("Speed limit", "10 MB/s");
+    await user.clear(field("Connections"));
+    await user.type(field("Connections"), "2{Enter}");
+    release();
+    await waitFor(() => {
+      expect(fedora()?.connections).toBe(2);
+    });
+    expect(fedora()?.speedLimit, "the panel keeps the menu's change").toBe(10 * MB);
+
+    hold();
+    await user.clear(field("Connections"));
+    await user.type(field("Connections"), "6{Enter}");
+    await menu("Speed limit", "20 MB/s");
+    await user.clear(field("Connections"));
+    await user.type(field("Connections"), "3{Enter}");
+    release();
+    await waitFor(() => {
+      expect(fedora()?.connections).toBe(3);
+    });
+    expect(fedora()?.speedLimit, "a second panel save sends only its own field").toBe(20 * MB);
+  });
+
+  it("closes a submenu that the pointer opened with Escape or the left arrow, and then the menu", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    const limit = screen.getByRole("menuitem", { name: "Speed limit" });
+    await user.hover(limit);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menu", { name: "fedora-kde-44-x86_64.iso" })).toBeInTheDocument();
+    await user.unhover(limit);
+    await user.hover(limit);
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("closes a submenu that the pointer opened when the keys move on", async () => {
+    const { user } = open();
+    await user.click(await screen.findByRole("row", { name: /^fedora-kde-44-x86_64\.iso/ }));
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    const limit = screen.getByRole("menuitem", { name: "Speed limit" });
+    await user.hover(limit);
+    expect(limit).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{ArrowDown}");
+    expect(screen.queryByRole("menu", { name: "Speed limit" })).not.toBeInTheDocument();
+    expect(limit).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("menuitem", { name: "Copy" })).toHaveFocus();
+  });
+
+  it("asks the desktop which app opens a finished file, and says when it can't", async () => {
+    const backend = createMockBackend({ seed: SHOWCASE });
+    const openWith = vi.fn<(id: number) => Promise<void>>().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new BackendError("internal", "the app chooser failed: no portal"));
+    const store = createDownloadsStore({ ...backend, openWith });
+    render(<App store={store} />);
+    const user = userEvent.setup();
+    const fonts = await screen.findByRole("row", { name: /^noto-fonts-2026\.11\.zip/ });
+    const id = store.getState().items.find((d) => d.name === "noto-fonts-2026.11.zip")?.id;
+    fireEvent.contextMenu(fonts, { clientX: 300, clientY: 200 });
+    await user.click(screen.getByRole("menuitem", { name: "Open with…" }));
+    expect(openWith).toHaveBeenCalledWith(id);
+    fireEvent.contextMenu(fonts, { clientX: 300, clientY: 200 });
+    await user.click(screen.getByRole("menuitem", { name: "Open with…" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The app chooser failed: no portal");
   });
 });
 
@@ -1766,6 +2449,22 @@ describe("command bar and keyboard", () => {
     expect(map.getByText("Show failed downloads")).toBeInTheDocument();
     await user.click(map.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).not.toBeInTheDocument();
+  });
+  it("pauses and resumes every download from the command bar", async () => {
+    const { store, user } = open();
+    await screen.findByText("fedora-kde-44-x86_64.iso");
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("combobox"), "pause all");
+    await user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(store.getState().items.filter((item) => item.state === "paused")).toHaveLength(3);
+    });
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(within(screen.getByRole("dialog", { name: "Command bar" })).getByRole("combobox"), "resume all");
+    await user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(store.getState().items.filter((item) => item.state === "downloading")).toHaveLength(3);
+    });
   });
 });
 

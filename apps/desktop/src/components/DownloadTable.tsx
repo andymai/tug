@@ -1,98 +1,45 @@
-import { ArrowDown, ArrowUp, Check, Columns3 } from "lucide-react";
-import { type KeyboardEvent, type PointerEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, Columns3 } from "lucide-react";
+import { type KeyboardEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/shallow";
 
-import { clampWidth, type Column, type ColumnId, COLUMNS, columnsOf, FIXED, fit, MAX_WIDTH, MIN_WIDTH, nextSort, queueRanks, sortOf, sortText, widest } from "../lib/columns";
+import { clampWidth, type Column, type ColumnId, columnsOf, fit, MAX_WIDTH, MIN_WIDTH, nextSort, queueRanks, sortOf, sortText, widest } from "../lib/columns";
+import { menuPoint } from "../lib/dom";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { visibleItems } from "../state/downloads";
+import { isMenuKey, under } from "./ContextMenu";
 import { DownloadRow } from "./DownloadRow";
-import { RowMenu } from "./RowMenu";
 
-function ColumnMenu({ shown, onChange }: { shown: readonly Column[]; onChange: (ids: string[]) => void }) {
-  const [open, setOpen] = useState(false);
-  const menuId = useId();
-  const box = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const items = () => [...(box.current?.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]') ?? [])];
-  const close = () => {
-    setOpen(false);
-    trigger.current?.focus();
+// The Columns button opens the same menu as a right-click on the header, without the sort.
+function ColumnsButton() {
+  const open = useDownloads((s) => s.menu?.on.kind === "columns" && s.menu.on.column === null);
+  const openMenu = useDownloads((s) => s.openMenu);
+  const closeMenu = useDownloads((s) => s.closeMenu);
+  const openAt = (button: HTMLElement) => {
+    const box = button.getBoundingClientRect();
+    openMenu({ x: box.right, y: box.bottom + 4, end: true }, { kind: "columns", column: null });
   };
-  useEffect(() => {
-    if (open) items()[0]?.focus();
-  }, [open]);
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!box.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-    };
-  }, [open]);
-  const ids = new Set(shown.map((column) => column.id));
   return (
-    <div ref={box} className="relative flex justify-end">
+    <div className="flex justify-end">
       <button
-        ref={trigger}
         type="button"
         aria-label="Columns"
         title="Columns"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-controls={menuId}
-        onClick={() => {
-          setOpen(!open);
+        onClick={(event) => {
+          if (open) closeMenu();
+          else openAt(event.currentTarget);
+        }}
+        onKeyDown={(event) => {
+          if (!isMenuKey(event)) return;
+          event.preventDefault();
+          openAt(event.currentTarget);
         }}
         className="inline-flex size-6 items-center justify-center rounded-xs text-ink-muted hover:bg-hover hover:text-ink"
       >
         <Columns3 {...ICON} size={14} />
       </button>
-      {open && (
-        <div
-          id={menuId}
-          role="menu"
-          aria-label="Columns"
-          tabIndex={-1}
-          onKeyDown={(event) => {
-            const all = items();
-            const at = all.findIndex((item) => item === document.activeElement);
-            const to = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: all.length - 1 }[event.key];
-            if (event.key === "Escape" || event.key === "Tab") {
-              event.stopPropagation();
-              if (event.key === "Escape") event.preventDefault();
-              close();
-            } else if (to !== undefined) {
-              event.preventDefault();
-              event.stopPropagation();
-              all[(to + all.length) % all.length]?.focus();
-            }
-          }}
-          className="absolute top-7 right-0 z-20 flex w-48 flex-col gap-0.5 rounded-md border border-line bg-surface-raised p-1 shadow-dialog"
-        >
-          {COLUMNS.filter((column) => !FIXED.includes(column.id)).map((column) => {
-            const on = ids.has(column.id);
-            return (
-              <button
-                key={column.id}
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={on}
-                onClick={() => {
-                  const next = COLUMNS.filter((c) => (c.id === column.id ? !on : ids.has(c.id))).map((c) => c.id);
-                  onChange(next);
-                }}
-                className="flex h-7 items-center gap-2 rounded-xs px-2 text-left text-body text-ink hover:bg-hover"
-              >
-                <span className="flex size-4 items-center justify-center">{on && <Check {...ICON} size={14} />}</span>
-                {column.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
@@ -160,13 +107,14 @@ export function DownloadTable({ title }: { title: string }) {
   const allItems = useDownloads((s) => s.items);
   const savePreference = useDownloads((s) => s.savePreference);
   const closeMenu = useDownloads((s) => s.closeMenu);
+  const openMenu = useDownloads((s) => s.openMenu);
   const endDrag = useDownloads((s) => s.endDrag);
   const chosen = columnsOf(settings);
   // The empty view can take the table's place while its menu is open or a row
   // is in a drag, and a row that goes sends no dragend.
   useEffect(
     () => () => {
-      closeMenu();
+      closeMenu(["rows", "columns"]);
       endDrag();
     },
     [closeMenu, endDrag],
@@ -218,6 +166,10 @@ export function DownloadTable({ title }: { title: string }) {
                   scope="col"
                   aria-label={column.label}
                   aria-sort={active ? (sort.down ? "descending" : "ascending") : "none"}
+                  onContextMenu={(event) => {
+                    const at = menuPoint(event);
+                    if (at !== null) openMenu(at, { kind: "columns", column: column.id });
+                  }}
                   className="relative h-8 px-2 first:pl-3"
                 >
                   <button
@@ -225,6 +177,11 @@ export function DownloadTable({ title }: { title: string }) {
                     title={column.id === "queue" ? "Sort by the queue to drag waiting downloads into order" : undefined}
                     onClick={() => {
                       void savePreference({ sort: sortText(nextSort(sort, column)) }, "the sort");
+                    }}
+                    onKeyDown={(event) => {
+                      if (!isMenuKey(event)) return;
+                      event.preventDefault();
+                      openMenu(under(event.currentTarget, 0), { kind: "columns", column: column.id });
                     }}
                     className={`flex w-full items-center gap-1 text-label ${active ? "text-ink" : "text-ink-muted"} hover:text-ink ${column.numeric ? "justify-end" : "justify-start"}`}
                   >
@@ -246,13 +203,15 @@ export function DownloadTable({ title }: { title: string }) {
                 </th>
               );
             })}
-            <th scope="col" className="h-8 pr-2">
-              <ColumnMenu
-                shown={chosen}
-                onChange={(ids) => {
-                  void savePreference({ columns: ids }, "the columns");
-                }}
-              />
+            <th
+              scope="col"
+              onContextMenu={(event) => {
+                const at = menuPoint(event);
+                if (at !== null) openMenu(at, { kind: "columns", column: null });
+              }}
+              className="h-8 pr-2"
+            >
+              <ColumnsButton />
             </th>
           </tr>
         </thead>
@@ -269,7 +228,6 @@ export function DownloadTable({ title }: { title: string }) {
           ))}
         </tbody>
       </table>
-      <RowMenu />
     </div>
   );
 }

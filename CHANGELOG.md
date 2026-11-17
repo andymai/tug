@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.47.0](https://github.com/andymai/tug/compare/v0.46.0...v0.47.0) (2026-11-15)
+
+
+### Features
+
+* **brand:** draw the Tug mark as a handle, the file in parts and an arrow ([#193](https://github.com/andymai/tug/issues/193)) ([07dfa7f](https://github.com/andymai/tug/commit/07dfa7f78d3fb11d28b350e2af83c0a148f81467))
+
+## [0.46.0](https://github.com/andymai/tug/compare/v0.45.0...v0.46.0) (2026-11-15)
+
+
+### Features
+
+* **desktop:** submenus in the row menu for copy, speed limit, connections and Open with ([#191](https://github.com/andymai/tug/issues/191)) ([7fd8237](https://github.com/andymai/tug/commit/7fd8237cccc0c43abe5e895618a918df7362a8d9))
+
+## [0.45.0](https://github.com/andymai/tug/compare/v0.44.1...v0.45.0) (2026-11-15)
+
+
+### Features
+
+* **desktop:** right-click menus on the header, the list, the sidebar and the status bar ([#184](https://github.com/andymai/tug/issues/184)) ([0cef72b](https://github.com/andymai/tug/commit/0cef72b96d345628953c9cbb006c9bc2dfe04ad8))
+
 ## [0.44.1](https://github.com/andymai/tug/compare/v0.44.0...v0.44.1) (2026-11-15)
 
 

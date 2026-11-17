@@ -8,7 +8,9 @@
   --harbor-600: #24406F;
   --harbor-500: #31558F;
   --harbor-300: #8FA9D6;
+  --harbor-200: #B9CDEE;
   --harbor-100: #E3EAF6;
+  --signal-800: #A9420F;
   --signal-600: #E35F1C;
   --signal-500: #FF7A33;
   --signal-400: #FF9558;
@@ -116,7 +118,9 @@
   --color-harbor-600: var(--harbor-600);
   --color-harbor-500: var(--harbor-500);
   --color-harbor-300: var(--harbor-300);
+  --color-harbor-200: var(--harbor-200);
   --color-harbor-100: var(--harbor-100);
+  --color-signal-800: var(--signal-800);
   --color-signal-600: var(--signal-600);
   --color-signal-500: var(--signal-500);
   --color-signal-400: var(--signal-400);

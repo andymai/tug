@@ -23,7 +23,7 @@ import {
 } from "../backend/backend";
 import { isCategory } from "../lib/categories";
 import { covering } from "../lib/covering";
-import { queueRanks, sortItems, sortOf } from "../lib/columns";
+import { type ColumnId, queueRanks, sortItems, sortOf } from "../lib/columns";
 import { shownLink } from "../lib/links";
 
 export type StateView = "all" | "active" | "done" | "failed";
@@ -40,6 +40,23 @@ function patched(settings: Settings, patch: SettingsPatch): Settings {
 }
 export type View = StateView | Category;
 
+// What a right-click or the menu key opened a menu on.
+export type MenuOn =
+  | { kind: "rows" }
+  | { kind: "columns"; column: ColumnId | null }
+  | { kind: "list" }
+  | { kind: "view"; view: View }
+  | { kind: "saved"; saved: SavedView }
+  | { kind: "status" };
+
+export interface Menu {
+  x: number;
+  y: number;
+  // The menu's right edge sits at x, as under a button at the end of a row.
+  end?: boolean;
+  on: MenuOn;
+}
+
 export const VIEWS: readonly { id: StateView; label: string; states: readonly DownloadState[] }[] = covering<StateView>().by<"id">()([
   { id: "all", label: "All", states: ["queued", "downloading", "paused", "done", "failed"] },
   { id: "active", label: "Active", states: ["queued", "downloading", "paused"] },
@@ -55,7 +72,7 @@ export interface DownloadsState {
   selected: number | null;
   // Every selected row; bulk actions take the ones the view shows (`chosen`).
   marked: number[];
-  menu: { x: number; y: number } | null;
+  menu: Menu | null;
   removing: number[] | null;
   // The queued rows a drag carries, and where they would land.
   dragging: number[] | null;
@@ -99,13 +116,19 @@ export interface DownloadsState {
   markTo: (id: number) => void;
   markAll: () => void;
   step: (delta: number, extend?: boolean) => number | null;
-  openMenu: (at: { x: number; y: number }) => void;
-  closeMenu: () => void;
+  openMenu: (at: Omit<Menu, "on">, on: MenuOn) => void;
+  // Without kinds it closes any menu; with them, only a menu on one of them.
+  closeMenu: (only?: readonly MenuOn["kind"][]) => void;
   askRemove: (ids: readonly number[]) => void;
   askClearFinished: () => void;
   cancelRemove: () => void;
   pauseMany: (ids: readonly number[]) => Promise<void>;
   resumeMany: (ids: readonly number[]) => Promise<void>;
+  // Every download in the view, whatever the list shows now.
+  pauseIn: (view: View) => Promise<void>;
+  resumeIn: (view: View, state: "paused" | "failed") => Promise<void>;
+  pauseAll: () => Promise<void>;
+  resumeAll: () => Promise<void>;
   moveMany: (ids: readonly number[], to: "first" | "last") => Promise<void>;
   moveNextTo: (ids: readonly number[], target: number, after: boolean) => Promise<void>;
   moveOne: (id: number, to: "up" | "down") => Promise<void>;
@@ -126,6 +149,7 @@ export interface DownloadsState {
   resume: (id: number) => Promise<void>;
   startNext: (id: number) => Promise<void>;
   openFile: (id: number) => Promise<void>;
+  openWith: (id: number) => Promise<void>;
   showInFolder: (id: number) => Promise<void>;
   loadHistory: (id: number) => Promise<void>;
   inspect: (id: number) => Promise<void>;
@@ -134,12 +158,17 @@ export interface DownloadsState {
   chooseFiles: (id: number, files: number[]) => Promise<void>;
   setInspectorTab: (tab: InspectorTab) => void;
   notify: (message: string) => void;
+  // One line for each; what names them in the notice when the copy fails.
+  copy: (lines: readonly string[], what: string) => void;
   dismissNotice: () => void;
   openAdd: (text?: string) => void;
   setAddText: (text: string) => void;
   closeAdd: () => void;
   addLinks: (hrefs: readonly string[], options?: { dir?: string; add?: AddOptions }) => Promise<void>;
-  setOptions: (id: number, connections: number | null, speedLimit: number | null) => Promise<boolean>;
+  // A download keeps each option that the patch leaves out; true when it saved.
+  setOptions: (id: number, patch: OptionsPatch) => Promise<boolean>;
+  // As setOptions, for each of these downloads that takes options.
+  setOptionsMany: (ids: readonly number[], patch: OptionsPatch) => Promise<void>;
   // The download whose name the panel edits.
   renaming: number | null;
   startRename: (id: number | null) => void;
@@ -160,6 +189,8 @@ export interface DownloadsState {
 }
 
 export type Overlay = "commands" | "shortcuts" | null;
+
+export type OptionsPatch = Partial<Pick<Download, "connections" | "speedLimit">>;
 
 export type InspectorTab = "overview" | "connections" | "log" | "files" | "peers";
 
@@ -217,20 +248,58 @@ export function createDownloadsStore(backend: Backend) {
     };
 
     // One by one, then one reload, and one notice for what failed.
-    const many = async (order: readonly Download[], verb: string, action: (id: number) => Promise<void>) => {
+    // One change of options at a time, so each reads the values that the last one saved.
+    let tuning: Promise<unknown> = Promise.resolve();
+    const tune = <T>(change: () => Promise<T>): Promise<T> => {
+      const next = tuning.then(change);
+      tuning = next.catch(() => undefined);
+      return next;
+    };
+    const withPatch = (item: Pick<Download, "connections" | "speedLimit">, patch: OptionsPatch) =>
+      [patch.connections === undefined ? item.connections : patch.connections, patch.speedLimit === undefined ? item.speedLimit : patch.speedLimit] as const;
+
+    const many = async (order: readonly Download[], verb: string, action: (item: Download) => Promise<void>) => {
       const failed: string[] = [];
       for (const item of order) {
         try {
-          await action(item.id);
+          await action(item);
         } catch (error) {
           failed.push(BackendError.from(error).message);
         }
       }
-      set({ menu: null });
       await get().reload();
       const [first] = failed;
       if (first === undefined) return;
       set({ notice: failed.length === 1 ? first : `couldn't ${verb} ${String(failed.length)} downloads: ${first}` });
+    };
+
+    const pauseList = (list: readonly Download[]) => {
+      // The waiting ones first, so a slot that a pause frees doesn't start one of them.
+      const waiting = (state: Download["state"]) => (state === "queued" ? 0 : 1);
+      const order = list
+        .filter((item) => item.state === "downloading" || item.state === "queued")
+        .sort((a, b) => waiting(a.state) - waiting(b.state));
+      return many(order, "pause", ({ id }) => backend.pause(id));
+    };
+
+    const resumeList = (list: readonly Download[], states: readonly Download["state"][]) =>
+      many(
+        list.filter((item) => states.includes(item.state)),
+        "resume",
+        ({ id }) => backend.resume(id),
+      );
+
+    // One call for the whole library, as the tray's Pause all and Resume all: the
+    // library holds its run lock throughout, so no freed place starts another.
+    const all = async (verb: string, call: () => Promise<void>) => {
+      let failure: string | null = null;
+      try {
+        await call();
+      } catch (error) {
+        failure = BackendError.from(error).message;
+      }
+      await get().reload();
+      if (failure !== null) set({ notice: `couldn't ${verb} every download: ${failure}` });
     };
 
     const act = async (action: () => Promise<void>) => {
@@ -545,12 +614,13 @@ export function createDownloadsStore(backend: Backend) {
         return id;
       },
 
-      openMenu: (at) => {
-        set({ menu: at });
+      openMenu: (at, on) => {
+        set({ menu: { ...at, on } });
       },
 
-      closeMenu: () => {
-        set({ menu: null });
+      closeMenu: (only) => {
+        const { menu } = get();
+        if (menu !== null && (only === undefined || only.includes(menu.on.kind))) set({ menu: null });
       },
 
       askRemove: (ids) => {
@@ -565,26 +635,25 @@ export function createDownloadsStore(backend: Backend) {
         set({ removing: null });
       },
 
-      pauseMany: (ids) => {
-        // The waiting ones first, so a slot that a pause frees doesn't start one of them.
-        const waiting = (state: Download["state"]) => (state === "queued" ? 0 : 1);
-        const order = chosenOf(get(), ids)
-          .filter((item) => item.state === "downloading" || item.state === "queued")
-          .sort((a, b) => waiting(a.state) - waiting(b.state));
-        return many(order, "pause", (id) => backend.pause(id));
-      },
+      pauseMany: (ids) => pauseList(chosenOf(get(), ids)),
 
-      resumeMany: (ids) => {
-        const order = chosenOf(get(), ids).filter((item) => item.state === "paused" || item.state === "failed");
-        return many(order, "resume", (id) => backend.resume(id));
-      },
+      resumeMany: (ids) => resumeList(chosenOf(get(), ids), ["paused", "failed"]),
+
+      pauseIn: (view) => (holdsEveryRunning(view) ? get().pauseAll() : pauseList(get().items.filter((item) => inView(view, item)))),
+
+      resumeIn: (view, state) =>
+        state === "paused" && holdsEveryRunning(view) ? get().resumeAll() : resumeList(get().items.filter((item) => inView(view, item)), [state]),
+
+      pauseAll: () => all("pause", () => backend.pauseAll()),
+
+      resumeAll: () => all("resume", () => backend.resumeAll()),
 
       // To the top in reverse and to the end in order, so the moved keep their order.
       moveMany: (ids, to) => {
         const waiting = chosenOf(get(), ids)
           .filter((item) => item.state === "queued")
           .sort((a, b) => a.position - b.position);
-        return many(to === "first" ? waiting.reverse() : waiting, "move", (id) => backend.place(id, to));
+        return many(to === "first" ? waiting.reverse() : waiting, "move", ({ id }) => backend.place(id, to));
       },
 
       // Before the target in order, after it in reverse, so the moved keep their order.
@@ -593,7 +662,7 @@ export function createDownloadsStore(backend: Backend) {
           .filter((item) => item.state === "queued" && item.id !== target)
           .sort((a, b) => a.position - b.position);
         const place: Place = after ? { after: target } : { before: target };
-        return many(after ? moving.reverse() : moving, "move", (id) => backend.place(id, place));
+        return many(after ? moving.reverse() : moving, "move", ({ id }) => backend.place(id, place));
       },
 
       moveOne: (id, to) =>
@@ -627,7 +696,7 @@ export function createDownloadsStore(backend: Backend) {
           anchor = null;
           set({ selected: null, marked: [] });
         }
-        await many(order, "remove", (id) => backend.remove(id, deleteFiles));
+        await many(order, "remove", ({ id }) => backend.remove(id, deleteFiles));
       },
 
       setOverlay: (overlay) => {
@@ -732,6 +801,8 @@ export function createDownloadsStore(backend: Backend) {
 
       openFile: (id) => act(() => backend.openFile(id)),
 
+      openWith: (id) => act(() => backend.openWith(id)),
+
       showInFolder: (id) => act(() => backend.showInFolder(id)),
 
       loadHistory: (id) => loadSlot("history", id, () => backend.events(id)),
@@ -755,6 +826,12 @@ export function createDownloadsStore(backend: Backend) {
 
       notify: (message) => {
         set({ notice: message });
+      },
+
+      copy: (lines, what) => {
+        navigator.clipboard.writeText(lines.join("\n")).catch(() => {
+          set({ notice: `couldn't copy the ${what}` });
+        });
       },
 
       dismissNotice: () => {
@@ -814,16 +891,31 @@ export function createDownloadsStore(backend: Backend) {
         await get().reload();
       },
 
-      setOptions: async (id, connections, speedLimit) => {
-        try {
-          await backend.setOptions(id, connections, speedLimit);
-          await get().reload();
-          return true;
-        } catch (error) {
-          set({ notice: `couldn't change the download: ${BackendError.from(error).message}` });
-          return false;
-        }
-      },
+      setOptions: (id, patch) =>
+        tune(async () => {
+          const item = get().items.find((other) => other.id === id) ?? { connections: null, speedLimit: null };
+          try {
+            await backend.setOptions(id, ...withPatch(item, patch));
+            await get().reload();
+            return true;
+          } catch (error) {
+            set({ notice: `couldn't change the download: ${BackendError.from(error).message}` });
+            return false;
+          }
+        }),
+
+      // The downloads that the menu showed, even when the view changes before their turn.
+      setOptionsMany: (ids, patch) =>
+        tune(() => {
+          const wanted = new Set(ids);
+          return many(
+            get().items.filter((item) => wanted.has(item.id) && takesOptions(item)),
+            "change",
+            async (item) => {
+              await backend.setOptions(item.id, ...withPatch(item, patch));
+            },
+          );
+        }),
 
       loadHeaders: (id) => loadSlot("headers", id, () => backend.headers(id)),
 
@@ -937,12 +1029,31 @@ export function visibleItems(state: Pick<DownloadsState, "items" | "view" | "mat
   return sortItems(shownItems(state), sortOf(state.settings), state.live, queueRanks(state.items));
 }
 
+// Such a view holds whatever Pause all or Resume all touches, so its menu uses them.
+function holdsEveryRunning(view: View): boolean {
+  const states = VIEWS.find((v) => v.id === view)?.states ?? [];
+  return (["downloading", "queued", "paused"] as const).every((state) => states.includes(state));
+}
+
+export function canPauseAll(items: readonly Download[]): boolean {
+  return items.some((item) => item.state === "downloading" || item.state === "queued");
+}
+
+export function canResumeAll(items: readonly Download[]): boolean {
+  return items.some((item) => item.state === "paused");
+}
+
 export function countFor(items: readonly Download[], view: View): number {
   return items.filter((item) => inView(view, item)).length;
 }
 
 export function modalOpen(state: Pick<DownloadsState, "adding" | "overlay" | "captures" | "removing" | "menu">): boolean {
   return state.adding.open || state.overlay !== null || state.captures.length > 0 || state.removing !== null || state.menu !== null;
+}
+
+// A finished download and a magnet link have no connections or limit of their own.
+export function takesOptions(download: Pick<Download, "url" | "state">): boolean {
+  return download.state !== "done" && !download.url.startsWith("magnet:");
 }
 
 // Before it starts it takes a name; after it finishes its file does. A torrent's

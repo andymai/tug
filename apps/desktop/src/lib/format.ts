@@ -12,6 +12,13 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(digits)} ${UNITS[unit] ?? ""}`;
 }
 
+export const MB = 1 << 20;
+
+// A limit as the person types it: whole megabytes, or two decimals at most.
+export function megabytes(bytes: number): string {
+  return String(Number((bytes / MB).toFixed(2)));
+}
+
 export function formatSpeed(bytesPerSecond: number): string {
   return `${formatBytes(bytesPerSecond)}/s`;
 }

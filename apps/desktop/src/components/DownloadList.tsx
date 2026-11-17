@@ -2,14 +2,13 @@ import { BookmarkPlus, CircleAlert, ListX, Plus, Search, X } from "lucide-react"
 import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/shallow";
 
-import markDark from "../../../../brand/svg/mark-dark.svg";
-import mark from "../../../../brand/svg/mark.svg";
+import icon from "../../../../brand/svg/icon.svg";
+import { menuPoint } from "../lib/dom";
 import { sentence } from "../lib/format";
 import { CATEGORIES, isCategory } from "../lib/categories";
 import { ICON } from "../lib/states";
 import { useDownloads } from "../state/context";
 import { hasFinished, savedViewOf, type StateView, type View, visibleItems } from "../state/downloads";
-import { useTheme } from "../state/theme";
 import { Button } from "./Button";
 import { DetailPanel } from "./DetailPanel";
 import { WindowControls } from "./WindowControls";
@@ -96,12 +95,9 @@ function titleOf(view: View): string {
 
 function Empty({ view, first }: { view: View; first: boolean }) {
   const copy = isCategory(view) ? OF_A_TYPE : EMPTY[view];
-  const theme = useTheme();
   return (
     <section aria-labelledby="empty-title" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-      {first && (
-        <img src={theme === "dark" ? markDark : mark} alt="" width={40} height={42} />
-      )}
+      {first && <img src={icon} alt="" width={48} height={48} />}
       <h2 id="empty-title" className="text-heading text-ink">
         {copy.title}
       </h2>
@@ -153,6 +149,14 @@ function ClearFinished() {
 
 export function DownloadList() {
   const view = useDownloads((s) => s.view);
+  const openMenu = useDownloads((s) => s.openMenu);
+  const closeMenu = useDownloads((s) => s.closeMenu);
+  useEffect(
+    () => () => {
+      closeMenu(["rows", "columns", "list", "status"]);
+    },
+    [closeMenu],
+  );
   const status = useDownloads((s) => s.status);
   const loadError = useDownloads((s) => s.loadError);
   const total = useDownloads((s) => s.items.length);
@@ -184,7 +188,15 @@ export function DownloadList() {
       </header>
       <Notice />
       <div className="relative flex min-h-0 flex-1">
-        <div className="@container flex min-w-0 flex-1 flex-col">
+        <div
+          data-list-area
+          className="@container flex min-w-0 flex-1 flex-col"
+          onContextMenu={(event) => {
+            if (status !== "ready") return;
+            const at = menuPoint(event);
+            if (at !== null) openMenu(at, { kind: "list" });
+          }}
+        >
           {status === "error" ? (
             <LoadError message={sentence(loadError ?? "")} />
           ) : status === "ready" && items.length === 0 ? (

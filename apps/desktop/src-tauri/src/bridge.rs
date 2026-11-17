@@ -1224,6 +1224,22 @@ pub async fn resume_download(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn pause_all_downloads(state: tauri::State<'_, AppState>) -> Result<(), CommandError> {
+    Ok(state.library.pause_all().await?)
+}
+
+#[tauri::command]
+pub async fn resume_all_downloads(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), CommandError> {
+    for id in state.library.resume_all().await? {
+        started(&app, id);
+    }
+    Ok(())
+}
+
 // A resume between two progress ticks can start and stop a capture unseen by
 // the batch pruning, so every resume also takes it off the sheet.
 pub fn started<R: tauri::Runtime>(app: &AppHandle<R>, id: DownloadId) {
@@ -1516,6 +1532,60 @@ pub async fn open_download<R: tauri::Runtime>(
     .await
 }
 
+// The desktop's own chooser asks which app opens the file; Escape there is no error.
+#[tauri::command]
+pub async fn open_file_with(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<(), CommandError> {
+    let download = state.library.get(DownloadId::from(id))?;
+    let path = finished_file(&download)?.to_path_buf();
+    let (file, writable) = off_window(move || open_for_app(&path)).await?;
+    open_with_chooser(&file, writable).await
+}
+
+// The portal lets a sandboxed app write to the file only through a writable
+// descriptor. A file that Tug can only read goes to the app read-only.
+fn open_for_app(path: &Path) -> Result<(std::fs::File, bool), CommandError> {
+    if let Ok(file) = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+    {
+        return Ok((file, true));
+    }
+    std::fs::File::open(path)
+        .map(|file| (file, false))
+        .map_err(|e| CommandError {
+            kind: if e.kind() == std::io::ErrorKind::NotFound {
+                ErrorKind::NotFound
+            } else {
+                ErrorKind::Internal
+            },
+            message: format!("couldn't open {}: {e}", path.display()),
+        })
+}
+
+async fn open_with_chooser(file: &std::fs::File, writable: bool) -> Result<(), CommandError> {
+    use ashpd::desktop::open_uri::OpenFileRequest;
+    use std::os::fd::AsFd;
+
+    let failed = |e: &ashpd::Error| CommandError {
+        kind: ErrorKind::Internal,
+        message: format!("the app chooser failed: {e}"),
+    };
+    let request = OpenFileRequest::default()
+        .ask(true)
+        .writable(writable)
+        .send_file(&file.as_fd())
+        .await
+        .map_err(|e| failed(&e))?;
+    match request.response() {
+        Ok(()) | Err(ashpd::Error::Response(ashpd::desktop::ResponseError::Cancelled)) => Ok(()),
+        Err(e) => Err(failed(&e)),
+    }
+}
+
 #[tauri::command]
 pub async fn show_in_folder(
     app: AppHandle,
@@ -1581,6 +1651,40 @@ mod tests {
             speed_limit: None,
             own_name: None,
         }
+    }
+
+    #[test]
+    fn an_app_gets_the_file_writable_when_tug_can_write_it() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let mine = dir.path().join("photo.jpg");
+        std::fs::write(&mine, b"jpeg").unwrap();
+        assert!(open_for_app(&mine).unwrap().1);
+
+        std::fs::set_permissions(&mine, std::fs::Permissions::from_mode(0o444)).unwrap();
+        let (mut file, writable) = open_for_app(&mine).unwrap();
+        assert!(!writable);
+        let mut read = String::new();
+        file.read_to_string(&mut read).unwrap();
+        assert_eq!(read, "jpeg");
+    }
+
+    #[test]
+    fn a_missing_file_is_not_found_and_other_errors_are_internal() {
+        let dir = tempfile::tempdir().unwrap();
+        let gone = open_for_app(&dir.path().join("gone.iso")).unwrap_err();
+        assert_eq!(gone.kind, ErrorKind::NotFound);
+        assert!(
+            gone.message.starts_with("couldn't open "),
+            "{}",
+            gone.message
+        );
+
+        let file = dir.path().join("a.iso");
+        std::fs::write(&file, b"iso").unwrap();
+        let under_a_file = open_for_app(&file.join("b.iso")).unwrap_err();
+        assert_eq!(under_a_file.kind, ErrorKind::Internal);
     }
 
     #[test]

@@ -18,7 +18,7 @@ import { focusRow } from "../lib/dom";
 import { limitText, type Parsed, parseConnections, parseLimit } from "../lib/options";
 import { ICON, STATES } from "../lib/states";
 import { useDownloads, useDownloadsStore } from "../state/context";
-import { canRename, chosen, modalOpen, single } from "../state/downloads";
+import { canRename, chosen, modalOpen, type OptionsPatch, single, takesOptions } from "../state/downloads";
 import { useDraft } from "../state/draft";
 import { Button } from "./Button";
 import { ConnectionsPanel, FilesPanel, HTTP_TABS, InspectorTabs, LogPanel, PeersPanel, tabIds, TORRENT_TABS, useInspection, useTorrentView } from "./Inspector";
@@ -293,7 +293,6 @@ function OwnOptions({ download }: { download: Download }) {
   const limitDraft = useDraft(limitText(download.speedLimit));
   const connections = connectionsDraft.text;
   const limit = limitDraft.text;
-  const [pending, setPending] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
   const headingId = useId();
   const connectionsId = useId();
@@ -307,11 +306,15 @@ function OwnOptions({ download }: { download: Download }) {
       return;
     }
     setProblem(null);
-    if (own.value === download.connections && cap.value === download.speedLimit && pending === 0) return;
-    const saves = [connectionsDraft.commit(), limitDraft.commit()];
-    setPending((n) => n + 1);
-    void setOptions(download.id, own.value, cap.value).then((saved) => {
-      setPending((n) => n - 1);
+    // Only the fields typed in since their last save: the store keeps the other
+    // field's saved value, so a change from the row menu on its way stays.
+    const patch: OptionsPatch = {
+      ...(connectionsDraft.dirty ? { connections: own.value } : {}),
+      ...(limitDraft.dirty ? { speedLimit: cap.value } : {}),
+    };
+    const saves = [connectionsDraft, limitDraft].filter((draft) => draft.dirty).map((draft) => draft.commit());
+    if (saves.length === 0) return;
+    void setOptions(download.id, patch).then((saved) => {
       if (!saved) for (const save of saves) save.failed();
     });
   };
@@ -565,7 +568,7 @@ function Panel({ download }: { download: Download }) {
                 </div>
               ))}
             </dl>
-            {download.state !== "done" && !download.url.startsWith("magnet:") && (
+            {takesOptions(download) && (
               <>
                 <OwnOptions download={download} />
                 <OwnHeaders download={download} />
