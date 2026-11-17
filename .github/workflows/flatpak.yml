@@ -35,6 +35,12 @@ jobs:
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
       options: --privileged
+      # flatpak-builder updates the SDK that the image has, and Flatpak then renames the old
+      # SDK's folder. On some runner images, Docker's overlay refuses to rename a folder of an
+      # image layer ("Invalid cross-device link"). Docker fills a new volume from the image's
+      # folder, so the renames happen on one plain file system.
+      volumes:
+        - /var/lib/flatpak
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
