@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.1](https://github.com/andymai/tug/compare/v0.47.0...v0.47.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **packaging:** keep the Flatpak installation on a volume during the build ([#183](https://github.com/andymai/tug/issues/183)) ([b80acd4](https://github.com/andymai/tug/commit/b80acd4e4acbd6c47011b971e19c97ac46304c71))
+
 ## [0.47.0](https://github.com/andymai/tug/compare/v0.46.0...v0.47.0) (2026-11-15)
 
 
