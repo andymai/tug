@@ -1,0 +1,21 @@
+osv-scanner.toml
+  s_c65ddb398cd380::t_838a95d237f1ab 30-33
+  s_c65ddb398cd380::t_4ac3a2a8197db4 57-62
+  s_c65ddb398cd380::t_dcbee458ed8cd5 25-29,34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ba5933b9293e4b949b9053bdc1c4523d395d0e1",
+  "prompts": {},
+  "sessions": {
+    "s_c65ddb398cd380": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e59ecb93-f4c2-4956-b499-2301742b464b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
