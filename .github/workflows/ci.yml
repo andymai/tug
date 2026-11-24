@@ -56,7 +56,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.62.30
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.62.30
         with:
           tool: nextest
       - run: cargo nextest run --workspace
@@ -122,7 +122,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+      - uses: EmbarkStudios/cargo-deny-action@70f81531115945ba6eb6b941ec9d39d063438eb9 # v2.1.2
 
   frontend:
     name: Frontend
@@ -169,7 +169,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.62.30
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.62.30
         with:
           tool: cargo-audit
       - run: cargo audit
@@ -206,7 +206,7 @@ jobs:
         with:
           cache-key: mutants
       - if: steps.diff.outputs.rust == 'true'
-        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.62.30
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.62.30
         with:
           tool: cargo-mutants@27.1.0,nextest
       # cargo-mutants exits 3 when a mutant timed out, even when others were missed, so
@@ -241,7 +241,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           cache-key: mutants
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.62.30
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.62.30
         with:
           tool: nextest
       - run: for package in tug-core tug-ipc tug-host tug-desktop; do cargo nextest run --package "$package" --no-run; done
@@ -255,7 +255,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.62.30
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.62.30
         with:
           tool: cargo-machete@0.9.2
       - run: cargo machete
